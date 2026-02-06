@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>SettingsDialog</class>
+ <widget class="QDialog" name="SettingsDialog">
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QTabWidget" name="tabWidget">
+     <widget class="QWidget" name="appearanceTab"><attribute name="title"><string>外观</string></attribute><layout class="QFormLayout" name="formLayout"><item row="0" column="0"><widget class="QLabel" name="label"><property name="text"><string>深色模式</string></property></widget></item><item row="0" column="1"><widget class="QCheckBox" name="darkModeCheckBox"/></item><item row="1" column="0"><widget class="QLabel" name="label2"><property name="text"><string>侧边栏宽度</string></property></widget></item><item row="1" column="1"><widget class="QSpinBox" name="sidebarWidthSpinBox"/></item><item row="2" column="0"><widget class="QLabel" name="label3"><property name="text"><string>图标大小</string></property></widget></item><item row="2" column="1"><widget class="QSpinBox" name="iconSizeSpinBox"/></item></layout></widget>
+     <widget class="QWidget" name="programTab"><attribute name="title"><string>程序路径</string></attribute><layout class="QHBoxLayout" name="horizontalLayout"><item><widget class="QLineEdit" name="seewoPathLineEdit"/></item><item><widget class="QPushButton" name="browseSeewoButton"><property name="text"><string>浏览...</string></property></widget></item></layout></widget>
+     <widget class="QWidget" name="studentsTab"><attribute name="title"><string>学生名单</string></attribute><layout class="QVBoxLayout" name="verticalLayout2"><item><widget class="QLabel" name="studentCountLabel"><property name="text"><string>当前名单: 0 人</string></property></widget></item><item><widget class="QPushButton" name="importStudentsButton"><property name="text"><string>导入名单</string></property></widget></item></layout></widget>
+     <widget class="QWidget" name="buttonsTab"><attribute name="title"><string>按钮管理</string></attribute><layout class="QHBoxLayout" name="horizontalLayout2"><item><widget class="QListWidget" name="buttonListWidget"/></item><item><layout class="QVBoxLayout" name="verticalLayout4"><item><widget class="QPushButton" name="addButtonButton"><property name="text"><string>添加</string></property></widget></item><item><widget class="QPushButton" name="removeButtonButton"><property name="text"><string>删除</string></property></widget></item><item><widget class="QPushButton" name="moveUpButton"><property name="text"><string>上移</string></property></widget></item><item><widget class="QPushButton" name="moveDownButton"><property name="text"><string>下移</string></property></widget></item></layout></item></layout></widget>
+    </widget>
+   </item>
+   <item><layout class="QHBoxLayout" name="buttonsLayout"><item><spacer name="sp"><property name="orientation"><enum>Qt::Horizontal</enum></property></spacer></item><item><widget class="QPushButton" name="applyButton"><property name="text"><string>应用</string></property></widget></item><item><widget class="QPushButton" name="cancelButton"><property name="text"><string>取消</string></property></widget></item></layout></item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

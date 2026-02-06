@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <rect x="4" y="4" width="56" height="56" rx="12" fill="#4682FF"/>
+  <text x="32" y="40" font-size="18" fill="white" text-anchor="middle">CA</text>
+</svg>

@@ -1,0 +1,13 @@
+<RCC>
+    <qresource prefix="/">
+        <file>icons/app.ico</file>
+        <file>icons/app.svg</file>
+        <file>icons/seewo.svg</file>
+        <file>icons/attendance.svg</file>
+        <file>icons/classisland.svg</file>
+        <file>icons/random.svg</file>
+        <file>icons/ai.svg</file>
+        <file>icons/settings.svg</file>
+        <file>icons/custom.svg</file>
+    </qresource>
+</RCC>

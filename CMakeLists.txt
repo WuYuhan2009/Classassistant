@@ -7,40 +7,45 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt5 5.12 REQUIRED COMPONENTS Widgets Gui Core)
+find_package(Qt5 5.12 REQUIRED COMPONENTS Core Gui Widgets Svg Network)
 
 set(SOURCES
     src/main.cpp
-    src/appcontroller.cpp
-    src/configmanager.cpp
-    src/resourcedownloader.cpp
-    src/sidebarwindow.cpp
-    src/floatingballwindow.cpp
-    src/attendanceoverlay.cpp
+    src/mainwindow.cpp
+    src/floatingball.cpp
     src/settingsdialog.cpp
-    src/welcomedialog.cpp
-    src/custombuttondialog.cpp
+    src/attendancewidget.cpp
     src/randomnamedialog.cpp
+    src/welcomedialog.cpp
+    src/configmanager.cpp
+    src/utils.cpp
 )
 
 set(HEADERS
-    src/include/appcontroller.h
-    src/include/configmanager.h
-    src/include/models.h
-    src/include/resourcedownloader.h
-    src/include/sidebarwindow.h
-    src/include/floatingballwindow.h
-    src/include/attendanceoverlay.h
-    src/include/settingsdialog.h
-    src/include/welcomedialog.h
-    src/include/custombuttondialog.h
-    src/include/randomnamedialog.h
+    src/mainwindow.h
+    src/floatingball.h
+    src/settingsdialog.h
+    src/attendancewidget.h
+    src/randomnamedialog.h
+    src/welcomedialog.h
+    src/buttonconfig.h
+    src/configmanager.h
+    src/utils.h
 )
 
-add_executable(Classassistant ${SOURCES} ${HEADERS})
-target_include_directories(Classassistant PRIVATE src/include)
-target_link_libraries(Classassistant PRIVATE Qt5::Widgets Qt5::Gui Qt5::Core)
+set(UIS
+    ui/mainwindow.ui
+    ui/settingsdialog.ui
+    ui/welcomedialog.ui
+    ui/randomnamedialog.ui
+)
 
-if(WIN32)
-  target_link_libraries(Classassistant PRIVATE shell32)
-endif()
+set(RESOURCES
+    resources/resources.qrc
+)
+
+add_executable(Classassistant ${SOURCES} ${HEADERS} ${UIS} ${RESOURCES})
+
+target_link_libraries(Classassistant PRIVATE Qt5::Core Qt5::Gui Qt5::Widgets Qt5::Svg Qt5::Network)
+
+target_include_directories(Classassistant PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>WelcomeDialog</class>
+ <widget class="QDialog" name="WelcomeDialog">
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item><widget class="QLabel" name="titleLabel"><property name="text"><string>&lt;h1&gt;欢迎使用 Classassistant&lt;/h1&gt;</string></property><property name="alignment"><set>Qt::AlignCenter</set></property></widget></item>
+   <item><widget class="QGroupBox" name="groupBox"><property name="title"><string>初始配置</string></property><layout class="QFormLayout" name="formLayout"><item row="0" column="0"><widget class="QLabel" name="label"><property name="text"><string>主题:</string></property></widget></item><item row="0" column="1"><layout class="QHBoxLayout" name="horizontalLayout"><item><widget class="QRadioButton" name="lightModeRadio"><property name="text"><string>浅色</string></property></widget></item><item><widget class="QRadioButton" name="darkModeRadio"><property name="text"><string>深色</string></property></widget></item></layout></item><item row="1" column="0"><widget class="QLabel" name="label_2"><property name="text"><string>侧边栏宽度:</string></property></widget></item><item row="1" column="1"><widget class="QSpinBox" name="sidebarWidthSpinBox"/></item><item row="2" column="0"><widget class="QLabel" name="label_3"><property name="text"><string>图标大小:</string></property></widget></item><item row="2" column="1"><widget class="QSpinBox" name="iconSizeSpinBox"/></item></layout></widget></item>
+   <item><widget class="QPushButton" name="finishButton"><property name="text"><string>完成配置，开始使用</string></property></widget></item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

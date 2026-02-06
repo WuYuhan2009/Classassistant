@@ -1,140 +1,127 @@
 #include "configmanager.h"
 
-#include <QDate>
-#include <QDir>
-#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
-#include <QJsonObject>
+#include <QFile>
+#include <QDir>
 #include <QStandardPaths>
 
-ConfigManager::ConfigManager(QObject *parent) : QObject(parent) {
-    const QString base = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
-    QDir().mkpath(base);
-    m_configFile = base + "/config.json";
-    loadDefaults();
+ConfigManager& ConfigManager::instance() {
+    static ConfigManager instance;
+    return instance;
+}
+
+ConfigManager::ConfigManager() {
+    ensureConfigDir();
+    const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    m_configFilePath = configDir + "/config.json";
+    if (!load()) {
+        loadDefaults();
+        save();
+    }
+}
+
+ConfigManager::~ConfigManager() { save(); }
+
+void ConfigManager::ensureConfigDir() {
+    QDir dir;
+    const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if (!dir.exists(configDir)) dir.mkpath(configDir);
 }
 
 void ConfigManager::loadDefaults() {
-    m_config = AppConfig{};
-    ensureDefaultButtons();
+    m_config = QJsonObject();
+    m_config["theme"] = "light";
+    m_config["sidebarWidth"] = 220;
+    m_config["iconSize"] = 48;
+    m_config["seewoPath"] = "";
+
+    QJsonArray defaultButtons;
+    QStringList buttonNames = {"希沃白板", "班级考勤", "ClassIsland", "随机点名", "AI助手", "设置"};
+    QStringList buttonIcons = {"seewo", "attendance", "classisland", "random", "ai", "settings"};
+    QStringList buttonTypes = {"program", "attendance", "classisland", "random", "url", "settings"};
+    QStringList buttonData = {"", "", "", "", "https://www.doubao.com/chat/", ""};
+
+    for (int i = 0; i < buttonNames.size(); ++i) {
+        QJsonObject btn;
+        btn["name"] = buttonNames[i];
+        btn["icon"] = buttonIcons[i];
+        btn["type"] = buttonTypes[i];
+        btn["data"] = buttonData[i];
+        btn["enabled"] = true;
+        btn["isDefault"] = true;
+        defaultButtons.append(btn);
+    }
+    m_config["buttons"] = defaultButtons;
+    m_config["students"] = QJsonArray();
 }
 
-void ConfigManager::ensureDefaultButtons() {
-    if (!m_config.buttons.isEmpty()) {
-        return;
-    }
-    m_config.buttons = {
-        {"default_whiteboard", "希沃白板", "assets/icons/whiteboard.png", "", "internal", false},
-        {"default_attendance", "班级考勤", "assets/icons/attendance.png", "", "internal", false},
-        {"default_classisland", "快捷换课", "assets/icons/classisland.png", "", "internal", false},
-        {"default_random", "随机点名", "assets/icons/random.png", "", "internal", false},
-        {"default_ai", "AI", "assets/icons/ai.png", "https://www.doubao.com/chat/", "url", false},
-        {"default_settings", "设置", "assets/icons/settings.png", "", "internal", false}
-    };
+bool ConfigManager::save() {
+    QFile file(m_configFilePath);
+    if (!file.open(QIODevice::WriteOnly)) return false;
+    file.write(QJsonDocument(m_config).toJson(QJsonDocument::Indented));
+    emit configChanged();
+    return true;
 }
 
 bool ConfigManager::load() {
-    QFile file(m_configFile);
-    if (!file.exists()) {
-        loadDefaults();
-        save();
-        return true;
-    }
-    if (!file.open(QIODevice::ReadOnly)) {
-        return false;
-    }
-
-    const QJsonObject root = QJsonDocument::fromJson(file.readAll()).object();
-    m_config.firstRunCompleted = root.value("firstRunCompleted").toBool(false);
-
-    const QJsonObject theme = root.value("theme").toObject();
-    m_config.theme.darkMode = theme.value("darkMode").toBool(true);
-    m_config.theme.sidebarWidth = theme.value("sidebarWidth").toInt(84);
-    m_config.theme.iconSize = theme.value("iconSize").toInt(30);
-
-    m_config.whiteboardPath = root.value("whiteboardPath").toString();
-
-    m_config.buttons.clear();
-    const QJsonArray buttons = root.value("buttons").toArray();
-    for (const QJsonValue &v : buttons) {
-        const QJsonObject o = v.toObject();
-        m_config.buttons.push_back(ButtonAction{
-            o.value("id").toString(),
-            o.value("title").toString(),
-            o.value("iconPath").toString(),
-            o.value("target").toString(),
-            o.value("actionType").toString(),
-            o.value("removable").toBool(true)
-        });
-    }
-    if (m_config.buttons.isEmpty()) {
-        ensureDefaultButtons();
-    }
-
-    const QJsonObject att = root.value("attendance").toObject();
-    m_config.attendance.lastDate = att.value("lastDate").toString();
-    for (const QJsonValue &v : att.value("allStudents").toArray()) {
-        m_config.attendance.allStudents.push_back(v.toString());
-    }
-    for (const QJsonValue &v : att.value("absentStudents").toArray()) {
-        m_config.attendance.absentStudents.push_back(v.toString());
-    }
-
+    QFile file(m_configFilePath);
+    if (!file.exists() || !file.open(QIODevice::ReadOnly)) return false;
+    const auto doc = QJsonDocument::fromJson(file.readAll());
+    if (!doc.isObject()) return false;
+    m_config = doc.object();
     return true;
 }
 
-bool ConfigManager::save() const {
-    QJsonObject root;
-    root.insert("firstRunCompleted", m_config.firstRunCompleted);
+QString ConfigManager::configPath() const { return m_configFilePath; }
+bool ConfigManager::isDarkMode() const { return m_config["theme"].toString() == "dark"; }
+void ConfigManager::setDarkMode(bool dark) { m_config["theme"] = dark ? "dark" : "light"; }
+int ConfigManager::sidebarWidth() const { return m_config["sidebarWidth"].toInt(220); }
+void ConfigManager::setSidebarWidth(int width) { m_config["sidebarWidth"] = width; }
+int ConfigManager::iconSize() const { return m_config["iconSize"].toInt(48); }
+void ConfigManager::setIconSize(int size) { m_config["iconSize"] = size; }
 
-    QJsonObject theme;
-    theme.insert("darkMode", m_config.theme.darkMode);
-    theme.insert("sidebarWidth", m_config.theme.sidebarWidth);
-    theme.insert("iconSize", m_config.theme.iconSize);
-    root.insert("theme", theme);
-    root.insert("whiteboardPath", m_config.whiteboardPath);
+QList<ButtonConfig> ConfigManager::getButtons() const {
+    QList<ButtonConfig> buttons;
+    const QJsonArray arr = m_config["buttons"].toArray();
+    for (const auto &v : arr) {
+        const auto o = v.toObject();
+        ButtonConfig b;
+        b.name = o["name"].toString();
+        b.icon = o["icon"].toString();
+        b.type = o["type"].toString();
+        b.data = o["data"].toString();
+        b.enabled = o["enabled"].toBool(true);
+        b.isDefault = o["isDefault"].toBool(false);
+        buttons.append(b);
+    }
+    return buttons;
+}
 
-    QJsonArray buttons;
-    for (const auto &b : m_config.buttons) {
+void ConfigManager::setButtons(const QList<ButtonConfig> &buttons) {
+    QJsonArray arr;
+    for (const auto &b : buttons) {
         QJsonObject o;
-        o.insert("id", b.id);
-        o.insert("title", b.title);
-        o.insert("iconPath", b.iconPath);
-        o.insert("target", b.target);
-        o.insert("actionType", b.actionType);
-        o.insert("removable", b.removable);
-        buttons.append(o);
+        o["name"] = b.name;
+        o["icon"] = b.icon;
+        o["type"] = b.type;
+        o["data"] = b.data;
+        o["enabled"] = b.enabled;
+        o["isDefault"] = b.isDefault;
+        arr.append(o);
     }
-    root.insert("buttons", buttons);
-
-    QJsonObject att;
-    att.insert("lastDate", m_config.attendance.lastDate);
-    QJsonArray all;
-    for (const auto &s : m_config.attendance.allStudents) all.append(s);
-    QJsonArray absent;
-    for (const auto &s : m_config.attendance.absentStudents) absent.append(s);
-    att.insert("allStudents", all);
-    att.insert("absentStudents", absent);
-    root.insert("attendance", att);
-
-    QFile file(m_configFile);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        return false;
-    }
-    file.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
-    return true;
+    m_config["buttons"] = arr;
 }
 
-void ConfigManager::resetDailyAttendanceIfNeeded() {
-    const QString today = QDate::currentDate().toString(Qt::ISODate);
-    if (m_config.attendance.lastDate != today) {
-        m_config.attendance.lastDate = today;
-        m_config.attendance.absentStudents.clear();
-        save();
-    }
+QString ConfigManager::getSeewoPath() const { return m_config["seewoPath"].toString(); }
+void ConfigManager::setSeewoPath(const QString &path) { m_config["seewoPath"] = path; }
+QStringList ConfigManager::getStudents() const {
+    QStringList out;
+    for (const auto &v : m_config["students"].toArray()) out << v.toString();
+    return out;
 }
-
-AppConfig &ConfigManager::config() { return m_config; }
-const AppConfig &ConfigManager::config() const { return m_config; }
-QString ConfigManager::configFilePath() const { return m_configFile; }
+void ConfigManager::setStudents(const QStringList &students) {
+    QJsonArray arr;
+    for (const auto &s : students) arr.append(s);
+    m_config["students"] = arr;
+}

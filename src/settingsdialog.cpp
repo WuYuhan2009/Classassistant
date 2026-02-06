@@ -1,191 +1,130 @@
 #include "settingsdialog.h"
-
+#include "ui_settingsdialog.h"
 #include "configmanager.h"
-#include "custombuttondialog.h"
 
-#include <QFile>
 #include <QFileDialog>
-#include <QHBoxLayout>
-#include <QInputDialog>
-#include <QLabel>
-#include <QListWidget>
 #include <QMessageBox>
-#include <QPushButton>
-#include <QSpinBox>
 #include <QTextStream>
-#include <QVBoxLayout>
-#include <QComboBox>
-#include <QLineEdit>
+#include <QInputDialog>
 
-SettingsDialog::SettingsDialog(ConfigManager *config, QWidget *parent)
-    : QDialog(parent), m_config(config) {
-    setWindowTitle("Classassistant 设置");
-    resize(700, 560);
-
-    auto *root = new QVBoxLayout(this);
-
-    m_themeCombo = new QComboBox;
-    m_themeCombo->addItems({"深色", "浅色"});
-    m_sidebarWidth = new QSpinBox;
-    m_sidebarWidth->setRange(72, 180);
-    m_iconSize = new QSpinBox;
-    m_iconSize->setRange(20, 64);
-    m_whiteboardPath = new QLineEdit;
-
-    auto *pathBtn = new QPushButton("选择希沃白板路径");
-    connect(pathBtn, &QPushButton::clicked, this, &SettingsDialog::chooseWhiteboardPath);
-
-    root->addWidget(new QLabel("主题"));
-    root->addWidget(m_themeCombo);
-    root->addWidget(new QLabel("侧栏宽度"));
-    root->addWidget(m_sidebarWidth);
-    root->addWidget(new QLabel("图标大小"));
-    root->addWidget(m_iconSize);
-    root->addWidget(new QLabel("希沃白板路径（exe 或快捷方式）"));
-    root->addWidget(m_whiteboardPath);
-    root->addWidget(pathBtn);
-
-    auto *importBtn = new QPushButton("导入班级名单 (Excel/CSV/TXT)");
-    connect(importBtn, &QPushButton::clicked, this, &SettingsDialog::importClassList);
-    root->addWidget(importBtn);
-
-    root->addWidget(new QLabel("按钮管理"));
-    m_buttonsList = new QListWidget;
-    root->addWidget(m_buttonsList, 1);
-
-    auto *btnRow = new QHBoxLayout;
-    auto *addBtn = new QPushButton("添加");
-    auto *removeBtn = new QPushButton("删除");
-    auto *upBtn = new QPushButton("上移");
-    auto *downBtn = new QPushButton("下移");
-    connect(addBtn, &QPushButton::clicked, this, &SettingsDialog::addCustomButton);
-    connect(removeBtn, &QPushButton::clicked, this, &SettingsDialog::removeSelectedButton);
-    connect(upBtn, &QPushButton::clicked, this, &SettingsDialog::moveUp);
-    connect(downBtn, &QPushButton::clicked, this, &SettingsDialog::moveDown);
-    btnRow->addWidget(addBtn);
-    btnRow->addWidget(removeBtn);
-    btnRow->addWidget(upBtn);
-    btnRow->addWidget(downBtn);
-    root->addLayout(btnRow);
-
-    auto *saveBtn = new QPushButton("保存");
-    connect(saveBtn, &QPushButton::clicked, this, &SettingsDialog::saveAndClose);
-    root->addWidget(saveBtn);
-
-    loadFromConfig();
+SettingsDialog::SettingsDialog(QWidget *parent) : QDialog(parent), ui(new Ui::SettingsDialog) {
+    ui->setupUi(this);
+    setupUI();
+    loadSettings();
+    connect(ui->applyButton, &QPushButton::clicked, this, &SettingsDialog::onApply);
+    connect(ui->cancelButton, &QPushButton::clicked, this, &SettingsDialog::onCancel);
+    connect(ui->browseSeewoButton, &QPushButton::clicked, this, &SettingsDialog::browseSeewoPath);
+    connect(ui->importStudentsButton, &QPushButton::clicked, this, &SettingsDialog::importStudents);
+    connect(ui->addButtonButton, &QPushButton::clicked, this, &SettingsDialog::addCustomButton);
+    connect(ui->removeButtonButton, &QPushButton::clicked, this, &SettingsDialog::removeCustomButton);
+    connect(ui->moveUpButton, &QPushButton::clicked, this, &SettingsDialog::moveButtonUp);
+    connect(ui->moveDownButton, &QPushButton::clicked, this, &SettingsDialog::moveButtonDown);
+    connect(ui->buttonListWidget, &QListWidget::itemSelectionChanged, this, &SettingsDialog::onButtonSelectionChanged);
 }
 
-void SettingsDialog::loadFromConfig() {
-    const auto &cfg = m_config->config();
-    m_themeCombo->setCurrentIndex(cfg.theme.darkMode ? 0 : 1);
-    m_sidebarWidth->setValue(cfg.theme.sidebarWidth);
-    m_iconSize->setValue(cfg.theme.iconSize);
-    m_whiteboardPath->setText(cfg.whiteboardPath);
+SettingsDialog::~SettingsDialog() { delete ui; }
 
-    m_buttonsList->clear();
-    for (const auto &b : cfg.buttons) {
-        auto *item = new QListWidgetItem(QString("%1 (%2)").arg(b.title, b.id));
-        item->setData(Qt::UserRole, b.id);
-        item->setData(Qt::UserRole + 1, b.title);
-        item->setData(Qt::UserRole + 2, b.iconPath);
-        item->setData(Qt::UserRole + 3, b.target);
-        item->setData(Qt::UserRole + 4, b.actionType);
-        item->setData(Qt::UserRole + 5, b.removable);
-        m_buttonsList->addItem(item);
+void SettingsDialog::setupUI() {
+    ui->removeButtonButton->setEnabled(false);
+    ui->moveUpButton->setEnabled(false);
+    ui->moveDownButton->setEnabled(false);
+}
+
+void SettingsDialog::loadSettings() {
+    auto &cfg = ConfigManager::instance();
+    ui->darkModeCheckBox->setChecked(cfg.isDarkMode());
+    ui->sidebarWidthSpinBox->setValue(cfg.sidebarWidth());
+    ui->iconSizeSpinBox->setValue(cfg.iconSize());
+    ui->seewoPathLineEdit->setText(cfg.getSeewoPath());
+    ui->studentCountLabel->setText(QString("当前名单: %1 人").arg(cfg.getStudents().size()));
+    m_buttons = cfg.getButtons();
+    refreshButtonList();
+}
+
+void SettingsDialog::saveSettings() {
+    auto &cfg = ConfigManager::instance();
+    cfg.setDarkMode(ui->darkModeCheckBox->isChecked());
+    cfg.setSidebarWidth(ui->sidebarWidthSpinBox->value());
+    cfg.setIconSize(ui->iconSizeSpinBox->value());
+    cfg.setSeewoPath(ui->seewoPathLineEdit->text());
+    cfg.setButtons(m_buttons);
+    cfg.save();
+}
+
+void SettingsDialog::refreshButtonList() {
+    ui->buttonListWidget->clear();
+    for (int i=0;i<m_buttons.size();++i) {
+        QString text = QString("%1. %2").arg(i+1).arg(m_buttons[i].name);
+        if (m_buttons[i].isDefault) text += " [默认]";
+        auto *item = new QListWidgetItem(text);
+        item->setData(Qt::UserRole, i);
+        ui->buttonListWidget->addItem(item);
     }
 }
 
-void SettingsDialog::syncButtonsToConfig() {
-    QVector<ButtonAction> buttons;
-    for (int i = 0; i < m_buttonsList->count(); ++i) {
-        auto *item = m_buttonsList->item(i);
-        buttons.push_back(ButtonAction{
-            item->data(Qt::UserRole).toString(),
-            item->data(Qt::UserRole + 1).toString(),
-            item->data(Qt::UserRole + 2).toString(),
-            item->data(Qt::UserRole + 3).toString(),
-            item->data(Qt::UserRole + 4).toString(),
-            item->data(Qt::UserRole + 5).toBool()
-        });
-    }
-    m_config->config().buttons = buttons;
+void SettingsDialog::onApply() { saveSettings(); accept(); }
+void SettingsDialog::onCancel() { reject(); }
+
+void SettingsDialog::browseSeewoPath() {
+    QString path = QFileDialog::getOpenFileName(this, "选择希沃白板程序", "", "可执行文件 (*.exe);;快捷方式 (*.lnk);;所有文件 (*)");
+    if (!path.isEmpty()) ui->seewoPathLineEdit->setText(path);
 }
 
-void SettingsDialog::importClassList() {
-    const QString file = QFileDialog::getOpenFileName(this, "导入班级名单", QString(), "名单 (*.csv *.txt *.xls *.xlsx)");
-    if (file.isEmpty()) return;
-
-    QFile f(file);
-    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QMessageBox::warning(this, "失败", "文件读取失败。");
-        return;
-    }
-
-    QVector<QString> names;
-    QTextStream in(&f);
+void SettingsDialog::importStudents() {
+    QString fileName = QFileDialog::getOpenFileName(this, "导入学生名单", "", "文本文件 (*.txt);;CSV文件 (*.csv);;Excel文件 (*.xlsx *.xls);;所有文件 (*)");
+    if (fileName.isEmpty()) return;
+    QFile file(fileName);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) return;
+    QTextStream in(&file);
+    in.setCodec("UTF-8");
+    QStringList students;
     while (!in.atEnd()) {
-        const QString line = in.readLine().trimmed();
+        QString line = in.readLine().trimmed();
         if (line.isEmpty()) continue;
-        const auto cols = line.split(QRegExp("[,，;；\\t ]"), Qt::SkipEmptyParts);
-        for (const QString &s : cols) names.push_back(s.trimmed());
+        if (fileName.endsWith(".csv", Qt::CaseInsensitive)) {
+            students << line.split(',').value(0).trimmed();
+        } else {
+            students << line;
+        }
     }
-
-    m_config->config().attendance.allStudents = names;
-    QMessageBox::information(this, "成功", QString("已导入 %1 名学生。\n(Excel 建议先另存为 CSV 以确保兼容性)").arg(names.size()));
+    ConfigManager::instance().setStudents(students);
+    ui->studentCountLabel->setText(QString("当前名单: %1 人").arg(students.size()));
 }
 
 void SettingsDialog::addCustomButton() {
-    CustomButtonDialog dialog(this);
-    if (dialog.exec() != QDialog::Accepted) return;
-    const ButtonAction action = dialog.action();
-
-    auto *item = new QListWidgetItem(QString("%1 (%2)").arg(action.title, action.id));
-    item->setData(Qt::UserRole, action.id);
-    item->setData(Qt::UserRole + 1, action.title);
-    item->setData(Qt::UserRole + 2, action.iconPath);
-    item->setData(Qt::UserRole + 3, action.target);
-    item->setData(Qt::UserRole + 4, action.actionType);
-    item->setData(Qt::UserRole + 5, action.removable);
-    m_buttonsList->addItem(item);
-}
-
-void SettingsDialog::removeSelectedButton() {
-    auto *item = m_buttonsList->currentItem();
-    if (!item) return;
-    if (!item->data(Qt::UserRole + 5).toBool()) {
-        QMessageBox::information(this, "限制", "默认按钮不可删除。");
-        return;
+    bool ok;
+    QString name = QInputDialog::getText(this, "添加自定义按钮", "按钮名称:", QLineEdit::Normal, "", &ok);
+    if (!ok || name.isEmpty()) return;
+    QString type = QInputDialog::getItem(this, "添加自定义按钮", "按钮类型:", {"打开程序","打开网址"}, 0, false, &ok);
+    if (!ok) return;
+    QString data;
+    if (type == "打开程序") {
+        data = QFileDialog::getOpenFileName(this, "选择程序", "", "可执行文件 (*.exe);;所有文件 (*)");
+    } else {
+        data = QInputDialog::getText(this, "添加自定义按钮", "网址:", QLineEdit::Normal, "https://", &ok);
     }
-    delete item;
+    if (data.isEmpty()) return;
+    ButtonConfig b; b.name=name; b.icon="custom"; b.type=(type=="打开程序")?"program":"url"; b.data=data; b.enabled=true; b.isDefault=false;
+    m_buttons.append(b);
+    refreshButtonList();
 }
 
-void SettingsDialog::moveUp() {
-    const int row = m_buttonsList->currentRow();
-    if (row <= 0) return;
-    auto *item = m_buttonsList->takeItem(row);
-    m_buttonsList->insertItem(row - 1, item);
-    m_buttonsList->setCurrentRow(row - 1);
+void SettingsDialog::removeCustomButton() {
+    auto *item = ui->buttonListWidget->currentItem(); if (!item) return;
+    int index = item->data(Qt::UserRole).toInt();
+    if (m_buttons[index].isDefault) { QMessageBox::warning(this, "提示", "默认按钮不可删除！"); return; }
+    m_buttons.removeAt(index);
+    refreshButtonList();
 }
 
-void SettingsDialog::moveDown() {
-    const int row = m_buttonsList->currentRow();
-    if (row < 0 || row >= m_buttonsList->count() - 1) return;
-    auto *item = m_buttonsList->takeItem(row);
-    m_buttonsList->insertItem(row + 1, item);
-    m_buttonsList->setCurrentRow(row + 1);
-}
+void SettingsDialog::moveButtonUp() { auto *item = ui->buttonListWidget->currentItem(); if (!item) return; int i=item->data(Qt::UserRole).toInt(); if (i>0){m_buttons.move(i,i-1); refreshButtonList(); ui->buttonListWidget->setCurrentRow(i-1);} }
+void SettingsDialog::moveButtonDown() { auto *item = ui->buttonListWidget->currentItem(); if (!item) return; int i=item->data(Qt::UserRole).toInt(); if (i<m_buttons.size()-1){m_buttons.move(i,i+1); refreshButtonList(); ui->buttonListWidget->setCurrentRow(i+1);} }
 
-void SettingsDialog::chooseWhiteboardPath() {
-    const QString file = QFileDialog::getOpenFileName(this, "选择希沃白板路径", QString(), "可执行文件或快捷方式 (*.exe *.lnk *.desktop);;所有文件 (*.*)");
-    if (!file.isEmpty()) m_whiteboardPath->setText(file);
-}
-
-void SettingsDialog::saveAndClose() {
-    auto &cfg = m_config->config();
-    cfg.theme.darkMode = m_themeCombo->currentIndex() == 0;
-    cfg.theme.sidebarWidth = m_sidebarWidth->value();
-    cfg.theme.iconSize = m_iconSize->value();
-    cfg.whiteboardPath = m_whiteboardPath->text().trimmed();
-    syncButtonsToConfig();
-    accept();
+void SettingsDialog::onButtonSelectionChanged() {
+    auto *item = ui->buttonListWidget->currentItem();
+    if (!item) { ui->removeButtonButton->setEnabled(false); ui->moveUpButton->setEnabled(false); ui->moveDownButton->setEnabled(false); return; }
+    int i = item->data(Qt::UserRole).toInt();
+    ui->removeButtonButton->setEnabled(!m_buttons[i].isDefault);
+    ui->moveUpButton->setEnabled(i > 0);
+    ui->moveDownButton->setEnabled(i < m_buttons.size() - 1);
 }
