@@ -16,6 +16,7 @@
 #include <QScreen>
 #include <QUrl>
 #include <QVBoxLayout>
+#include <QStringList>
 
 SidebarWindow::SidebarWindow(ConfigManager *config, AttendanceOverlay *overlay, QWidget *parent)
     : QWidget(parent), m_config(config), m_overlay(overlay), m_layout(new QVBoxLayout(this)) {
@@ -103,7 +104,7 @@ void SidebarWindow::openAttendanceEditor() {
     }
 
     bool ok = false;
-    const QString defaults = att.absentStudents.join(",");
+    const QString defaults = QStringList(att.absentStudents.toList()).join(",");
     const QString input = QInputDialog::getText(this, "班级考勤", "请输入未出勤学生（逗号分隔）", QLineEdit::Normal, defaults, &ok);
     if (!ok) return;
 

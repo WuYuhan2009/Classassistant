@@ -6,6 +6,7 @@
 #include <QLabel>
 #include <QScreen>
 #include <QVBoxLayout>
+#include <QStringList>
 
 AttendanceOverlay::AttendanceOverlay(ConfigManager *config, QWidget *parent)
     : QWidget(parent), m_config(config), m_summary(new QLabel(this)) {
@@ -31,5 +32,5 @@ void AttendanceOverlay::refresh() {
     m_summary->setText(QString("应到：%1\n实到：%2\n请假：%3")
                            .arg(all)
                            .arg(actual)
-                           .arg(att.absentStudents.join("、")));
+                           .arg(QStringList(att.absentStudents.toList()).join("、")));
 }
