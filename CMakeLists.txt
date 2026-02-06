@@ -6,6 +6,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTOUIC_SEARCH_PATHS
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui
+)
 
 find_package(Qt5 5.12 REQUIRED COMPONENTS Core Gui Widgets Svg Network)
 
@@ -48,4 +51,7 @@ add_executable(Classassistant ${SOURCES} ${HEADERS} ${UIS} ${RESOURCES})
 
 target_link_libraries(Classassistant PRIVATE Qt5::Core Qt5::Gui Qt5::Widgets Qt5::Svg Qt5::Network)
 
-target_include_directories(Classassistant PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_include_directories(Classassistant PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_BINARY_DIR}
+)
