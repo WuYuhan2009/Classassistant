@@ -3,6 +3,7 @@
 #include <QCoreApplication>
 #include <QIcon>
 #include <QMenu>
+#include <QScreen>
 #include <QStyle>
 #include <QSystemTrayIcon>
 
