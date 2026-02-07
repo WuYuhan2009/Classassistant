@@ -4,6 +4,7 @@
 
 #include <QApplication>
 #include <QCloseEvent>
+#include <QIcon>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QScreen>
@@ -65,8 +66,9 @@ void FloatingBall::mouseReleaseEvent(QMouseEvent* e) {
     if (e->button() == Qt::LeftButton && m_isDragging) {
         const QRect screen = QApplication::primaryScreen()->availableGeometry();
         const int x = screen.right() - width() - 8;
-        const int y = qBound(screen.top() + 8, y(), screen.bottom() - height() - 8);
-        move(x, y);
+        const int currentY = this->y();
+        const int boundedY = qBound(screen.top() + 8, currentY, screen.bottom() - height() - 8);
+        move(x, boundedY);
     }
 }
 
