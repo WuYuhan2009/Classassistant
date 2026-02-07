@@ -2,6 +2,30 @@
 
 #include <QDir>
 #include <QFile>
+#include <QTextStream>
+
+namespace {
+QVector<AppButton> defaultButtons() {
+    return {
+        {"希沃白板", ":/assets/seewo.png", "exe", "SEEWO", true},
+        {"班级考勤", ":/assets/check.png", "func", "ATTENDANCE", true},
+        {"快速换课", ":/assets/classisland.png", "url", "classisland://open", true},
+        {"随机点名", ":/assets/dice.png", "func", "RANDOM_CALL", true},
+        {"AI 助手", ":/assets/ai.png", "url", "https://www.doubao.com/chat/", true},
+        {"系统设置", ":/assets/settings.png", "func", "SETTINGS", true},
+    };
+}
+
+QStringList defaultStudents() {
+    return {"张三", "李四", "王五", "赵六", "示例学生"};
+}
+
+void applyDefaults(QString& seewoPath, QVector<AppButton>& buttons, QStringList& students) {
+    seewoPath = "C:/Program Files (x86)/Seewo/EasiNote5/swenlauncher/swenlauncher.exe";
+    buttons = defaultButtons();
+    students = defaultStudents();
+}
+}  // namespace
 
 Config& Config::instance() {
     static Config ins;
@@ -18,39 +42,56 @@ Config::Config() {
 void Config::load() {
     QFile file(m_configPath);
     if (!file.open(QIODevice::ReadOnly)) {
-        seewoPath = "C:/Program Files (x86)/Seewo/EasiNote5/swenlauncher/swenlauncher.exe";
-        m_students = {"张三", "李四", "王五", "赵六", "示例学生"};
-
-        m_buttons = {
-            {"希沃白板", ":/assets/seewo.png", "exe", "SEEWO", true},
-            {"班级考勤", ":/assets/check.png", "func", "ATTENDANCE", true},
-            {"快速换课", ":/assets/classisland.png", "url", "classisland://open", true},
-            {"随机点名", ":/assets/dice.png", "func", "RANDOM_CALL", true},
-            {"AI 助手", ":/assets/ai.png", "url", "https://www.doubao.com/chat/", true},
-            {"系统设置", ":/assets/settings.png", "func", "SETTINGS", true},
-        };
+        applyDefaults(seewoPath, m_buttons, m_students);
         save();
         return;
     }
 
     const QByteArray data = file.readAll();
-    const QJsonObject root = QJsonDocument::fromJson(data).object();
-    seewoPath = root["seewoPath"].toString();
+    const auto doc = QJsonDocument::fromJson(data);
+    if (!doc.isObject()) {
+        applyDefaults(seewoPath, m_buttons, m_students);
+        save();
+        return;
+    }
+
+    const QJsonObject root = doc.object();
+    seewoPath = root["seewoPath"].toString().trimmed();
 
     m_students.clear();
-    for (const auto& v : root["students"].toArray()) {
-        m_students.append(v.toString());
+    const auto students = root["students"].toArray();
+    for (const auto& v : students) {
+        const QString name = v.toString().trimmed();
+        if (!name.isEmpty()) {
+            m_students.append(name);
+        }
     }
 
     m_buttons.clear();
     const QJsonArray btnArr = root["buttons"].toArray();
     for (const auto& v : btnArr) {
         const QJsonObject o = v.toObject();
-        m_buttons.append({o["name"].toString(),
-                          o["icon"].toString(),
-                          o["action"].toString(),
-                          o["target"].toString(),
+        const QString name = o["name"].toString().trimmed();
+        const QString action = o["action"].toString().trimmed();
+        if (name.isEmpty() || action.isEmpty()) {
+            continue;
+        }
+
+        m_buttons.append({name,
+                          o["icon"].toString().trimmed(),
+                          action,
+                          o["target"].toString().trimmed(),
                           o["isSystem"].toBool()});
+    }
+
+    if (seewoPath.isEmpty()) {
+        seewoPath = "C:/Program Files (x86)/Seewo/EasiNote5/swenlauncher/swenlauncher.exe";
+    }
+    if (m_students.isEmpty()) {
+        m_students = defaultStudents();
+    }
+    if (m_buttons.isEmpty()) {
+        m_buttons = defaultButtons();
     }
 }
 
@@ -77,8 +118,8 @@ void Config::save() {
     root["buttons"] = btnArr;
 
     QFile file(m_configPath);
-    if (file.open(QIODevice::WriteOnly)) {
-        file.write(QJsonDocument(root).toJson());
+    if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        file.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
     }
 }
 
@@ -102,14 +143,36 @@ void Config::setStudentList(const QStringList& list) {
 
 void Config::importStudentsFromText(const QString& filePath) {
     QFile file(filePath);
-    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        m_students.clear();
-        while (!file.atEnd()) {
-            const QString line = QString::fromUtf8(file.readLine()).trimmed();
-            if (!line.isEmpty()) {
-                m_students.append(line);
-            }
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return;
+    }
+
+    QStringList parsedStudents;
+    QTextStream in(&file);
+
+    while (!in.atEnd()) {
+        QString line = in.readLine().trimmed();
+        if (line.isEmpty()) {
+            continue;
         }
+
+        line.replace(';', ',');
+        const QStringList parts = line.split(',', Qt::SkipEmptyParts);
+        if (parts.size() > 1) {
+            for (const auto& part : parts) {
+                const QString name = part.trimmed();
+                if (!name.isEmpty()) {
+                    parsedStudents.append(name);
+                }
+            }
+        } else {
+            parsedStudents.append(line);
+        }
+    }
+
+    parsedStudents.removeDuplicates();
+    if (!parsedStudents.isEmpty()) {
+        m_students = parsedStudents;
         save();
     }
 }

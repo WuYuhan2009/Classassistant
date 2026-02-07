@@ -4,7 +4,6 @@
 
 #include <QApplication>
 #include <QCloseEvent>
-#include <QDate>
 #include <QFileDialog>
 #include <QHeaderView>
 #include <QHBoxLayout>
@@ -12,7 +11,7 @@
 #include <QPushButton>
 #include <QScreen>
 #include <QVBoxLayout>
-#include <cstdlib>
+#include <QRandomGenerator>
 
 AttendanceWidget::AttendanceWidget(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnBottomHint | Qt::Tool);
@@ -116,7 +115,7 @@ RandomCallDialog::RandomCallDialog(QWidget* parent) : QDialog(parent) {
             return;
         }
 
-        m_nameLabel->setText(m_list[std::rand() % m_list.size()]);
+        m_nameLabel->setText(m_list[QRandomGenerator::global()->bounded(m_list.size())]);
         ++m_count;
         if (m_count > 20) {
             m_timer->setInterval(100);

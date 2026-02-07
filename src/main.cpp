@@ -3,14 +3,16 @@
 #include <QCoreApplication>
 #include <QIcon>
 #include <QMenu>
-#include <QScreen>
+#include <QStyle>
 #include <QSystemTrayIcon>
 
 #include "ui/FloatingBall.h"
 #include "ui/Sidebar.h"
 
 int main(int argc, char* argv[]) {
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+#endif
 
     QApplication app(argc, argv);
     app.setQuitOnLastWindowClosed(false);
@@ -41,7 +43,11 @@ int main(int argc, char* argv[]) {
     QObject::connect(sidebar, &Sidebar::requestHide, showBall);
 
     auto* tray = new QSystemTrayIcon(&app);
-    tray->setIcon(QIcon(":/assets/icon.png"));
+    QIcon trayIcon(":/assets/icon.png");
+    if (trayIcon.isNull()) {
+        trayIcon = app.style()->standardIcon(QStyle::SP_ComputerIcon);
+    }
+    tray->setIcon(trayIcon);
     tray->setToolTip("班级小助手");
 
     auto* menu = new QMenu();

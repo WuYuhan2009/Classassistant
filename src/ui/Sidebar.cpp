@@ -4,9 +4,9 @@
 
 #include <QDesktopServices>
 #include <QFile>
+#include <QIcon>
 #include <QProcess>
 #include <QPushButton>
-#include <QScreen>
 #include <QUrl>
 
 Sidebar::Sidebar(QWidget* parent) : QWidget(parent) {
@@ -43,7 +43,13 @@ void Sidebar::rebuildUI() {
         btn->setFixedSize(60, 60);
         btn->setToolTip(btnData.name);
 
-        if (QFile::exists(btnData.iconPath)) {
+        const QIcon icon(btnData.iconPath);
+        if (!icon.isNull()) {
+            btn->setIcon(icon);
+            btn->setIconSize(QSize(48, 48));
+            btn->setStyleSheet("background-color: white; border-radius: 10px; border: 1px solid #ddd;");
+            btn->setText("");
+        } else if (QFile::exists(btnData.iconPath)) {
             btn->setStyleSheet(QString("border-image: url(%1); border: none;").arg(btnData.iconPath));
             btn->setText("");
         } else {
