@@ -3,7 +3,6 @@
 #include <QApplication>
 #include <QDate>
 #include <QFileDialog>
-#include <QHeaderView>
 #include <QHBoxLayout>
 #include <QMessageBox>
 #include <QPushButton>
@@ -11,96 +10,136 @@
 #include <QScreen>
 #include <QVBoxLayout>
 
-AttendanceWidget::AttendanceWidget(QWidget* parent) : QWidget(parent) {
+namespace {
+QString buttonStyle() {
+    return "QPushButton{background:#ffffff;border:1px solid #c8c8c8;border-radius:10px;font-weight:600;}"
+           "QPushButton:hover{background:#f5f9ff;}";
+}
+}
+
+AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnBottomHint | Qt::Tool);
     setAttribute(Qt::WA_TranslucentBackground);
-    resize(360, 280);
 
-    const QRect screen = QApplication::primaryScreen()->availableGeometry();
-    move(screen.width() - 380, screen.height() - 320);
+    auto* root = new QVBoxLayout(this);
+    root->setContentsMargins(0, 0, 0, 0);
 
-    auto* layout = new QVBoxLayout(this);
-    auto* container = new QWidget;
-    container->setStyleSheet("background-color: rgba(255,255,255,0.92); border-radius: 10px; border: 1px solid #ddd;");
-    auto* innerLayout = new QVBoxLayout(container);
+    auto* panel = new QWidget;
+    panel->setStyleSheet("background:#fff7d6;border:2px solid #f0c14b;border-radius:12px;");
+    auto* inner = new QVBoxLayout(panel);
 
-    auto* title = new QLabel("📅 今日考勤（仅选择未出勤/请假）");
-    title->setStyleSheet("font-weight: bold; font-size: 14px; color: #333;");
-    innerLayout->addWidget(title);
+    m_title = new QLabel("📌 今日考勤概览");
+    m_title->setStyleSheet("font-size:16px;font-weight:700;color:#7a4b00;");
 
-    m_table = new QTableWidget;
-    m_table->setColumnCount(2);
-    m_table->setHorizontalHeaderLabels({"姓名", "状态"});
-    m_table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_table->setSelectionMode(QAbstractItemView::NoSelection);
-    connect(m_table, &QTableWidget::cellClicked, this, &AttendanceWidget::onCellClicked);
-    innerLayout->addWidget(m_table);
+    m_counts = new QLabel;
+    m_counts->setStyleSheet("font-size:15px;font-weight:700;color:#8b1e1e;");
 
-    m_summary = new QLabel;
-    innerLayout->addWidget(m_summary);
+    m_absentList = new QLabel;
+    m_absentList->setWordWrap(true);
+    m_absentList->setStyleSheet("font-size:14px;font-weight:600;color:#8b1e1e;background:#fff3f3;border:1px solid #f3c5c5;border-radius:8px;padding:8px;");
 
-    layout->addWidget(container);
+    inner->addWidget(m_title);
+    inner->addWidget(m_counts);
+    inner->addWidget(m_absentList);
+    root->addWidget(panel);
+
     resetDaily();
 }
 
-void AttendanceWidget::checkDailyReset() {
+void AttendanceSummaryWidget::syncDaily() {
     const QString today = QDate::currentDate().toString(Qt::ISODate);
-    if (today != m_lastResetDate) {
+    if (m_lastResetDate != today) {
         m_lastResetDate = today;
-        resetDaily();
+        m_absentees.clear();
     }
 }
 
-void AttendanceWidget::resetDaily() {
+void AttendanceSummaryWidget::resetDaily() {
     m_lastResetDate = QDate::currentDate().toString(Qt::ISODate);
-    const QStringList students = Config::instance().getStudentList();
-    m_table->setRowCount(students.size());
-
-    for (int i = 0; i < students.size(); ++i) {
-        m_table->setItem(i, 0, new QTableWidgetItem(students[i]));
-        auto* status = new QTableWidgetItem("出勤");
-        status->setForeground(QBrush(Qt::darkGreen));
-        m_table->setItem(i, 1, status);
-    }
-    updateSummary();
+    m_absentees.clear();
+    refreshUi();
 }
 
-void AttendanceWidget::onCellClicked(int row, int col) {
-    Q_UNUSED(col);
-    checkDailyReset();
-    auto* item = m_table->item(row, 1);
-    if (item->text() == "出勤") {
-        item->setText("请假");
-        item->setForeground(QBrush(Qt::red));
-    } else {
-        item->setText("出勤");
-        item->setForeground(QBrush(Qt::darkGreen));
-    }
-    updateSummary();
+void AttendanceSummaryWidget::applyAbsentees(const QStringList& absentees) {
+    syncDaily();
+    m_absentees = absentees;
+    refreshUi();
 }
 
-void AttendanceWidget::updateSummary() {
-    const int total = m_table->rowCount();
-    int leaveCount = 0;
-    QStringList leaveNames;
+void AttendanceSummaryWidget::refreshUi() {
+    const int total = Config::instance().getStudentList().size();
+    const int absent = m_absentees.size();
+    const int present = qMax(0, total - absent);
 
-    for (int i = 0; i < total; ++i) {
-        auto* state = m_table->item(i, 1);
-        if (state && state->text() == "请假") {
-            ++leaveCount;
-            leaveNames.append(m_table->item(i, 0)->text());
+    m_counts->setText(QString("应到：%1   实到：%2").arg(total).arg(present));
+    m_absentList->setText(QString("缺勤人员：%1").arg(m_absentees.isEmpty() ? "无" : m_absentees.join("、")));
+
+    setFixedWidth(Config::instance().attendanceSummaryWidth);
+    adjustSize();
+
+    const QRect screen = QApplication::primaryScreen()->availableGeometry();
+    const int x = screen.right() - width() - 12;
+    const int y = screen.bottom() - height() - 12;
+    move(x, y);
+}
+
+void AttendanceSummaryWidget::closeEvent(QCloseEvent* event) {
+    hide();
+    event->ignore();
+}
+
+AttendanceSelectDialog::AttendanceSelectDialog(QWidget* parent) : QDialog(parent) {
+    setWindowTitle("考勤选择（选择缺勤人员）");
+    resize(420, 520);
+    setWindowFlags(windowFlags() | Qt::Tool);
+
+    auto* layout = new QVBoxLayout(this);
+    auto* tip = new QLabel("请选择今日缺勤人员，点击保存后将同步到底部考勤概览。\n（名单窗口可关闭，考勤概览窗口不会关闭）");
+    tip->setWordWrap(true);
+    layout->addWidget(tip);
+
+    m_roster = new QListWidget;
+    m_roster->setSelectionMode(QAbstractItemView::MultiSelection);
+    const auto students = Config::instance().getStudentList();
+    for (const auto& s : students) {
+        auto* item = new QListWidgetItem(s);
+        item->setCheckState(Qt::Unchecked);
+        m_roster->addItem(item);
+    }
+    layout->addWidget(m_roster, 1);
+
+    auto* actions = new QHBoxLayout;
+    auto* saveBtn = new QPushButton("保存缺勤名单");
+    saveBtn->setStyleSheet(buttonStyle());
+    auto* cancelBtn = new QPushButton("关闭");
+    cancelBtn->setStyleSheet(buttonStyle());
+    connect(saveBtn, &QPushButton::clicked, this, &AttendanceSelectDialog::saveSelection);
+    connect(cancelBtn, &QPushButton::clicked, this, &AttendanceSelectDialog::hide);
+    actions->addWidget(saveBtn);
+    actions->addWidget(cancelBtn);
+    layout->addLayout(actions);
+}
+
+void AttendanceSelectDialog::setSelectedAbsentees(const QStringList& absentees) {
+    for (int i = 0; i < m_roster->count(); ++i) {
+        auto* item = m_roster->item(i);
+        item->setCheckState(absentees.contains(item->text()) ? Qt::Checked : Qt::Unchecked);
+    }
+}
+
+void AttendanceSelectDialog::saveSelection() {
+    QStringList absentees;
+    for (int i = 0; i < m_roster->count(); ++i) {
+        auto* item = m_roster->item(i);
+        if (item->checkState() == Qt::Checked) {
+            absentees.append(item->text());
         }
     }
-
-    const int present = total - leaveCount;
-    m_summary->setText(QString("应到: %1  实到: %2\n请假: %3")
-                           .arg(total)
-                           .arg(present)
-                           .arg(leaveNames.isEmpty() ? "无" : leaveNames.join("、")));
+    emit saved(absentees);
+    hide();
 }
 
-void AttendanceWidget::closeEvent(QCloseEvent* event) {
+void AttendanceSelectDialog::closeEvent(QCloseEvent* event) {
     hide();
     event->ignore();
 }
@@ -122,7 +161,7 @@ RandomCallDialog::RandomCallDialog(QWidget* parent) : QDialog(parent) {
     l->addWidget(m_nameLabel);
 
     auto* closeBtn = new QPushButton("隐藏");
-    closeBtn->setStyleSheet("background: rgba(255,255,255,0.3); border: none; border-radius: 5px; color: white; padding: 5px;");
+    closeBtn->setStyleSheet(buttonStyle());
     connect(closeBtn, &QPushButton::clicked, this, &RandomCallDialog::hide);
     l->addWidget(closeBtn, 0, Qt::AlignCenter);
 
@@ -149,7 +188,6 @@ void RandomCallDialog::startAnim() {
         show();
         return;
     }
-
     m_count = 0;
     m_nameLabel->setStyleSheet("font-size: 40px; font-weight: bold; color: white;");
     m_timer->start(50);
@@ -174,6 +212,7 @@ AddButtonDialog::AddButtonDialog(QWidget* parent) : QDialog(parent) {
 
     m_iconEdit = new QLineEdit;
     auto* iconBtn = new QPushButton("选择图标");
+    iconBtn->setStyleSheet(buttonStyle());
     connect(iconBtn, &QPushButton::clicked, [this]() {
         const QString p = QFileDialog::getOpenFileName(this, "选择图标", "", "Images (*.png *.jpg *.ico *.svg)");
         if (!p.isEmpty()) m_iconEdit->setText(p);
@@ -200,6 +239,8 @@ AddButtonDialog::AddButtonDialog(QWidget* parent) : QDialog(parent) {
     auto* actions = new QHBoxLayout;
     auto* ok = new QPushButton("确定");
     auto* cancel = new QPushButton("取消");
+    ok->setStyleSheet(buttonStyle());
+    cancel->setStyleSheet(buttonStyle());
     connect(ok, &QPushButton::clicked, this, &QDialog::accept);
     connect(cancel, &QPushButton::clicked, this, &QDialog::reject);
     actions->addStretch();
@@ -218,30 +259,43 @@ AppButton AddButtonDialog::resultButton() const {
 
 FirstRunWizard::FirstRunWizard(QWidget* parent) : QDialog(parent) {
     setWindowTitle("欢迎使用 ClassAssistant");
-    resize(480, 340);
+    resize(520, 420);
     setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
 
     auto* layout = new QVBoxLayout(this);
-    layout->addWidget(new QLabel("首次启动向导：请完成基础配置"));
+    auto* intro = new QLabel("首次启动向导：请完成基础初始化设置（后续可在设置中修改）");
+    intro->setWordWrap(true);
+    layout->addWidget(intro);
 
     m_darkMode = new QCheckBox("启用深色模式");
     layout->addWidget(m_darkMode);
 
-    layout->addWidget(new QLabel("侧栏宽度"));
-    m_sidebarWidth = new QSlider(Qt::Horizontal);
-    m_sidebarWidth->setRange(60, 180);
-    m_sidebarWidth->setValue(Config::instance().sidebarWidth);
-    layout->addWidget(m_sidebarWidth);
-
-    layout->addWidget(new QLabel("图标大小"));
+    layout->addWidget(new QLabel("功能按钮图标大小"));
     m_iconSize = new QSlider(Qt::Horizontal);
-    m_iconSize->setRange(24, 64);
+    m_iconSize->setRange(28, 72);
     m_iconSize->setValue(Config::instance().iconSize);
     layout->addWidget(m_iconSize);
 
-    layout->addWidget(new QLabel("希沃路径"));
+    layout->addWidget(new QLabel("展开球不透明度"));
+    m_floatingOpacity = new QSlider(Qt::Horizontal);
+    m_floatingOpacity->setRange(35, 100);
+    m_floatingOpacity->setValue(Config::instance().floatingOpacity);
+    layout->addWidget(m_floatingOpacity);
+
+    layout->addWidget(new QLabel("考勤概览宽度"));
+    m_summaryWidth = new QSlider(Qt::Horizontal);
+    m_summaryWidth->setRange(300, 520);
+    m_summaryWidth->setValue(Config::instance().attendanceSummaryWidth);
+    layout->addWidget(m_summaryWidth);
+
+    m_startCollapsed = new QCheckBox("启动后默认收起到右下角悬浮球");
+    m_startCollapsed->setChecked(Config::instance().startCollapsed);
+    layout->addWidget(m_startCollapsed);
+
+    layout->addWidget(new QLabel("默认程序路径（希沃）"));
     m_seewoPathEdit = new QLineEdit(Config::instance().seewoPath);
     auto* browse = new QPushButton("选择程序路径");
+    browse->setStyleSheet(buttonStyle());
     connect(browse, &QPushButton::clicked, [this]() {
         const QString p = QFileDialog::getOpenFileName(this, "选择程序", "", "Executable (*.exe);;All Files (*)");
         if (!p.isEmpty()) m_seewoPathEdit->setText(p);
@@ -249,7 +303,8 @@ FirstRunWizard::FirstRunWizard(QWidget* parent) : QDialog(parent) {
     layout->addWidget(m_seewoPathEdit);
     layout->addWidget(browse);
 
-    auto* done = new QPushButton("完成");
+    auto* done = new QPushButton("完成初始化");
+    done->setStyleSheet(buttonStyle());
     connect(done, &QPushButton::clicked, this, &FirstRunWizard::finishSetup);
     layout->addStretch();
     layout->addWidget(done);
@@ -258,8 +313,10 @@ FirstRunWizard::FirstRunWizard(QWidget* parent) : QDialog(parent) {
 void FirstRunWizard::finishSetup() {
     auto& cfg = Config::instance();
     cfg.darkMode = m_darkMode->isChecked();
-    cfg.sidebarWidth = m_sidebarWidth->value();
     cfg.iconSize = m_iconSize->value();
+    cfg.floatingOpacity = m_floatingOpacity->value();
+    cfg.attendanceSummaryWidth = m_summaryWidth->value();
+    cfg.startCollapsed = m_startCollapsed->isChecked();
     cfg.seewoPath = m_seewoPathEdit->text().trimmed();
     cfg.firstRunCompleted = true;
     cfg.save();
@@ -272,26 +329,35 @@ void FirstRunWizard::closeEvent(QCloseEvent* event) {
 
 SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     setWindowTitle("ClassAssistant 设置");
-    resize(620, 520);
+    resize(640, 580);
 
     auto* layout = new QVBoxLayout(this);
 
     m_darkMode = new QCheckBox("深色模式");
     layout->addWidget(m_darkMode);
 
-    layout->addWidget(new QLabel("侧栏宽度"));
-    m_sidebarWidth = new QSlider(Qt::Horizontal);
-    m_sidebarWidth->setRange(60, 180);
-    layout->addWidget(m_sidebarWidth);
-
-    layout->addWidget(new QLabel("图标大小"));
+    layout->addWidget(new QLabel("按钮图标大小"));
     m_iconSize = new QSlider(Qt::Horizontal);
-    m_iconSize->setRange(24, 64);
+    m_iconSize->setRange(28, 72);
     layout->addWidget(m_iconSize);
+
+    layout->addWidget(new QLabel("悬浮球透明度"));
+    m_floatingOpacity = new QSlider(Qt::Horizontal);
+    m_floatingOpacity->setRange(35, 100);
+    layout->addWidget(m_floatingOpacity);
+
+    layout->addWidget(new QLabel("考勤概览宽度"));
+    m_summaryWidth = new QSlider(Qt::Horizontal);
+    m_summaryWidth->setRange(300, 520);
+    layout->addWidget(m_summaryWidth);
+
+    m_startCollapsed = new QCheckBox("启动时收起到悬浮球");
+    layout->addWidget(m_startCollapsed);
 
     auto* pathLayout = new QHBoxLayout;
     m_seewoPathEdit = new QLineEdit;
     auto* choosePath = new QPushButton("选择路径");
+    choosePath->setStyleSheet(buttonStyle());
     connect(choosePath, &QPushButton::clicked, [this]() {
         const QString p = QFileDialog::getOpenFileName(this, "选择可执行文件", "", "Executable (*.exe);;All Files (*)");
         if (!p.isEmpty()) m_seewoPathEdit->setText(p);
@@ -302,6 +368,7 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     layout->addLayout(pathLayout);
 
     auto* importBtn = new QPushButton("导入班级名单（Excel/CSV/TXT）");
+    importBtn->setStyleSheet(buttonStyle());
     connect(importBtn, &QPushButton::clicked, this, &SettingsDialog::importStudents);
     layout->addWidget(importBtn);
 
@@ -314,6 +381,10 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     auto* btnRemove = new QPushButton("删除按钮");
     auto* btnUp = new QPushButton("上移");
     auto* btnDown = new QPushButton("下移");
+    btnAdd->setStyleSheet(buttonStyle());
+    btnRemove->setStyleSheet(buttonStyle());
+    btnUp->setStyleSheet(buttonStyle());
+    btnDown->setStyleSheet(buttonStyle());
     connect(btnAdd, &QPushButton::clicked, this, &SettingsDialog::addButton);
     connect(btnRemove, &QPushButton::clicked, this, &SettingsDialog::removeButton);
     connect(btnUp, &QPushButton::clicked, this, &SettingsDialog::moveUp);
@@ -325,6 +396,7 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     layout->addLayout(btnOps);
 
     auto* save = new QPushButton("保存并应用");
+    save->setStyleSheet(buttonStyle());
     connect(save, &QPushButton::clicked, this, &SettingsDialog::saveData);
     layout->addWidget(save);
 
@@ -334,8 +406,10 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
 void SettingsDialog::loadData() {
     const auto& cfg = Config::instance();
     m_darkMode->setChecked(cfg.darkMode);
-    m_sidebarWidth->setValue(cfg.sidebarWidth);
     m_iconSize->setValue(cfg.iconSize);
+    m_floatingOpacity->setValue(cfg.floatingOpacity);
+    m_summaryWidth->setValue(cfg.attendanceSummaryWidth);
+    m_startCollapsed->setChecked(cfg.startCollapsed);
     m_seewoPathEdit->setText(cfg.seewoPath);
 
     m_buttonList->clear();
@@ -347,9 +421,6 @@ void SettingsDialog::loadData() {
         item->setData(Qt::UserRole + 2, b.action);
         item->setData(Qt::UserRole + 3, b.target);
         item->setData(Qt::UserRole + 4, b.isSystem);
-        if (b.isSystem) {
-            item->setToolTip("系统按钮，禁止删除");
-        }
         m_buttonList->addItem(item);
     }
 }
@@ -419,8 +490,10 @@ void SettingsDialog::moveDown() {
 void SettingsDialog::saveData() {
     auto& cfg = Config::instance();
     cfg.darkMode = m_darkMode->isChecked();
-    cfg.sidebarWidth = m_sidebarWidth->value();
     cfg.iconSize = m_iconSize->value();
+    cfg.floatingOpacity = m_floatingOpacity->value();
+    cfg.attendanceSummaryWidth = m_summaryWidth->value();
+    cfg.startCollapsed = m_startCollapsed->isChecked();
     cfg.seewoPath = m_seewoPathEdit->text().trimmed();
 
     QVector<AppButton> buttons;

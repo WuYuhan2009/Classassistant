@@ -2,7 +2,6 @@
 
 #include "../Utils.h"
 
-#include <QCloseEvent>
 #include <QDesktopServices>
 #include <QFile>
 #include <QIcon>
@@ -10,21 +9,49 @@
 #include <QPushButton>
 #include <QUrl>
 
+namespace {
+constexpr int kSidebarWidth = 84;
+}
+
 Sidebar::Sidebar(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::FramelessWindowHint | Qt::Tool | Qt::WindowStaysOnTopHint);
     setAttribute(Qt::WA_TranslucentBackground);
 
-    m_attendance = new AttendanceWidget();
+    m_attendanceSummary = new AttendanceSummaryWidget();
+    m_attendanceSummary->show();
+    m_attendanceSelector = new AttendanceSelectDialog();
     m_randomCall = new RandomCallDialog();
     m_settings = new SettingsDialog();
 
     connect(m_settings, &SettingsDialog::configChanged, this, &Sidebar::reloadConfig);
+    connect(m_attendanceSelector, &AttendanceSelectDialog::saved, m_attendanceSummary, &AttendanceSummaryWidget::applyAbsentees);
 
     m_layout = new QVBoxLayout(this);
-    m_layout->setContentsMargins(5, 20, 5, 20);
-    m_layout->setSpacing(10);
+    m_layout->setContentsMargins(6, 12, 6, 12);
+    m_layout->setSpacing(8);
 
     rebuildUI();
+}
+
+QPushButton* Sidebar::createIconButton(const QString& text,
+                                       const QString& iconPath,
+                                       const QString& tooltip,
+                                       const QString& fallbackEmoji) {
+    auto* btn = new QPushButton(text);
+    btn->setFixedSize(kSidebarWidth - 12, kSidebarWidth - 12);
+    btn->setToolTip(tooltip);
+
+    const QIcon icon(iconPath);
+    if (!icon.isNull()) {
+        btn->setIcon(icon);
+        btn->setIconSize(QSize(Config::instance().iconSize, Config::instance().iconSize));
+        btn->setText("");
+    } else if (!fallbackEmoji.isEmpty()) {
+        btn->setText(fallbackEmoji);
+    }
+
+    btn->setStyleSheet("background: rgba(255,255,255,0.96); border: 1px solid #cfd5dd; border-radius: 12px; font-size: 22px;");
+    return btn;
 }
 
 void Sidebar::rebuildUI() {
@@ -33,49 +60,25 @@ void Sidebar::rebuildUI() {
         delete item;
     }
 
-    setFixedWidth(Config::instance().sidebarWidth);
-    setStyleSheet("QWidget { background-color: rgba(240, 240, 240, 0.95); border-top-left-radius: 10px; border-bottom-left-radius: 10px; }");
-
-    const auto buttons = Config::instance().getButtons();
-    for (const auto& btnData : buttons) {
-        if (btnData.target == "SETTINGS" && btnData.action == "func") {
-            continue;
-        }
-
-        auto* btn = new QPushButton(btnData.name.left(2));
-        btn->setFixedSize(Config::instance().sidebarWidth - 10, Config::instance().sidebarWidth - 10);
-        btn->setToolTip(btnData.name);
-
-        const QIcon icon(btnData.iconPath);
-        if (!icon.isNull()) {
-            btn->setIcon(icon);
-            btn->setIconSize(QSize(Config::instance().iconSize, Config::instance().iconSize));
-            btn->setStyleSheet("background-color: white; border-radius: 10px; border: 1px solid #ddd;");
-            btn->setText("");
-        } else if (QFile::exists(btnData.iconPath)) {
-            btn->setStyleSheet(QString("border-image: url(%1); border: none;").arg(btnData.iconPath));
-            btn->setText("");
-        } else {
-            btn->setStyleSheet("background-color: white; border-radius: 10px; border: 1px solid #ccc; font-weight: bold; color: #333;");
-        }
-
-        connect(btn, &QPushButton::clicked, [this, btnData]() { handleAction(btnData.action, btnData.target); });
-        m_layout->addWidget(btn);
-    }
+    setFixedWidth(kSidebarWidth);
+    setStyleSheet("QWidget { background-color: rgba(244, 248, 252, 0.95); border-top-left-radius: 14px; border-bottom-left-radius: 14px; }");
 
     m_layout->addStretch();
+    const auto buttons = Config::instance().getButtons();
+    for (const auto& b : buttons) {
+        auto* btn = createIconButton(b.name.left(2), b.iconPath, b.name, "🔘");
+        connect(btn, &QPushButton::clicked, [this, b]() { handleAction(b.action, b.target); });
+        m_layout->addWidget(btn, 0, Qt::AlignHCenter);
+    }
 
-    auto* settingsBtn = new QPushButton("设置");
-    settingsBtn->setFixedSize(Config::instance().sidebarWidth - 10, 42);
-    settingsBtn->setStyleSheet("background-color: #f7f7f7; border-radius: 6px; border: 1px solid #ddd;");
+    auto* settingsBtn = createIconButton("设", ":/assets/icon_settings.png", "设置", "⚙️");
     connect(settingsBtn, &QPushButton::clicked, this, &Sidebar::openSettings);
-    m_layout->addWidget(settingsBtn);
+    m_layout->addWidget(settingsBtn, 0, Qt::AlignHCenter);
 
-    auto* collapseBtn = new QPushButton("收起");
-    collapseBtn->setFixedSize(Config::instance().sidebarWidth - 10, 42);
-    collapseBtn->setStyleSheet("background-color: #ddd; border-radius: 6px;");
+    auto* collapseBtn = createIconButton("收", ":/assets/icon_collapse.png", "收起", "⏷");
     connect(collapseBtn, &QPushButton::clicked, this, &Sidebar::requestHide);
-    m_layout->addWidget(collapseBtn);
+    m_layout->addWidget(collapseBtn, 0, Qt::AlignHCenter);
+    m_layout->addStretch();
 }
 
 void Sidebar::openSettings() {
@@ -86,8 +89,9 @@ void Sidebar::openSettings() {
 
 void Sidebar::reloadConfig() {
     Config::instance().load();
-    m_attendance->resetDaily();
     rebuildUI();
+    m_attendanceSummary->resetDaily();
+    m_attendanceSummary->show();
 }
 
 void Sidebar::closeEvent(QCloseEvent* event) {
@@ -105,12 +109,10 @@ void Sidebar::handleAction(const QString& action, const QString& target) {
         QDesktopServices::openUrl(QUrl(target));
     } else if (action == "func") {
         if (target == "ATTENDANCE") {
-            if (m_attendance->isVisible()) {
-                m_attendance->hide();
-            } else {
-                m_attendance->show();
-                m_attendance->raise();
-            }
+            m_attendanceSummary->show();
+            m_attendanceSummary->raise();
+            m_attendanceSelector->show();
+            m_attendanceSelector->raise();
         } else if (target == "RANDOM_CALL") {
             m_randomCall->startAnim();
         } else if (target == "SETTINGS") {

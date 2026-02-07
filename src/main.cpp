@@ -12,6 +12,10 @@
 #include "ui/Sidebar.h"
 #include "ui/Tools.h"
 
+namespace {
+constexpr int kSidebarWidth = 84;
+}
+
 int main(int argc, char* argv[]) {
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
@@ -23,9 +27,10 @@ int main(int argc, char* argv[]) {
     auto applyTheme = [&]() {
         if (Config::instance().darkMode) {
             app.setStyleSheet(
-                "QWidget{background:#2b2b2b;color:#e8e8e8;}"
-                "QPushButton{background:#3c3c3c;border:1px solid #666;padding:6px;border-radius:6px;}"
-                "QLineEdit,QListWidget,QTableWidget{background:#1f1f1f;color:#f0f0f0;border:1px solid #555;}");
+                "QWidget{background:#1f2329;color:#e6edf3;}"
+                "QPushButton{background:#30363d;border:1px solid #586069;padding:6px;border-radius:8px;color:#e6edf3;}"
+                "QLineEdit,QListWidget,QTableWidget,QComboBox{background:#0d1117;color:#e6edf3;border:1px solid #586069;}"
+                "QLabel{color:#e6edf3;}");
         } else {
             app.setStyleSheet("");
         }
@@ -42,8 +47,9 @@ int main(int argc, char* argv[]) {
 
     auto updatePos = [&]() {
         const QRect screen = app.primaryScreen()->availableGeometry();
-        sidebar->resize(Config::instance().sidebarWidth, screen.height());
-        sidebar->move(screen.width() - Config::instance().sidebarWidth, 0);
+        sidebar->resize(kSidebarWidth, qMin(screen.height() - 20, 760));
+        sidebar->move(screen.right() - kSidebarWidth + 1, screen.center().y() - sidebar->height() / 2);
+        ball->setWindowOpacity(Config::instance().floatingOpacity / 100.0);
     };
 
     auto showSidebar = [&]() {
@@ -56,6 +62,7 @@ int main(int argc, char* argv[]) {
 
     auto showBall = [&]() {
         sidebar->hide();
+        ball->moveToBottomRight();
         ball->show();
         ball->raise();
     };
@@ -71,7 +78,10 @@ int main(int argc, char* argv[]) {
     QObject::connect(sidebar, &Sidebar::requestHide, showBall);
 
     auto* tray = new QSystemTrayIcon(&app);
-    QIcon trayIcon(":/assets/icon.png");
+    QIcon trayIcon(":/assets/icon_tray.png");
+    if (trayIcon.isNull()) {
+        trayIcon = QIcon::fromTheme("applications-education");
+    }
     if (trayIcon.isNull()) {
         trayIcon = app.style()->standardIcon(QStyle::SP_ComputerIcon);
     }
@@ -99,6 +109,12 @@ int main(int argc, char* argv[]) {
         }
     });
 
-    showSidebar();
+    updatePos();
+    if (Config::instance().startCollapsed) {
+        showBall();
+    } else {
+        showSidebar();
+    }
+
     return app.exec();
 }

@@ -1,38 +1,54 @@
 #pragma once
 
-#include <QCloseEvent>
-#include <QDialog>
-#include <QListWidget>
-#include <QComboBox>
 #include <QCheckBox>
+#include <QCloseEvent>
+#include <QComboBox>
+#include <QDialog>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QSlider>
-#include <QTableWidget>
 #include <QTimer>
 #include <QWidget>
 
 #include "../Utils.h"
 
-class AttendanceWidget : public QWidget {
+class AttendanceSummaryWidget : public QWidget {
     Q_OBJECT
 public:
-    explicit AttendanceWidget(QWidget* parent = nullptr);
+    explicit AttendanceSummaryWidget(QWidget* parent = nullptr);
     void resetDaily();
+    void applyAbsentees(const QStringList& absentees);
 
 protected:
     void closeEvent(QCloseEvent* event) override;
 
-private slots:
-    void onCellClicked(int row, int col);
+private:
+    QString m_lastResetDate;
+    QStringList m_absentees;
+    QLabel* m_title;
+    QLabel* m_counts;
+    QLabel* m_absentList;
+
+    void syncDaily();
+    void refreshUi();
+};
+
+class AttendanceSelectDialog : public QDialog {
+    Q_OBJECT
+public:
+    explicit AttendanceSelectDialog(QWidget* parent = nullptr);
+    void setSelectedAbsentees(const QStringList& absentees);
+
+signals:
+    void saved(const QStringList& absentees);
+
+protected:
+    void closeEvent(QCloseEvent* event) override;
 
 private:
-    QTableWidget* m_table;
-    QLabel* m_summary;
-    QString m_lastResetDate;
-
-    void checkDailyReset();
-    void updateSummary();
+    QListWidget* m_roster;
+    void saveSelection();
 };
 
 class RandomCallDialog : public QDialog {
@@ -74,8 +90,10 @@ protected:
 
 private:
     QCheckBox* m_darkMode;
-    QSlider* m_sidebarWidth;
     QSlider* m_iconSize;
+    QSlider* m_floatingOpacity;
+    QSlider* m_summaryWidth;
+    QCheckBox* m_startCollapsed;
     QLineEdit* m_seewoPathEdit;
 
     void finishSetup();
@@ -94,8 +112,10 @@ protected:
 
 private:
     QCheckBox* m_darkMode;
-    QSlider* m_sidebarWidth;
     QSlider* m_iconSize;
+    QSlider* m_floatingOpacity;
+    QSlider* m_summaryWidth;
+    QCheckBox* m_startCollapsed;
     QLineEdit* m_seewoPathEdit;
     QListWidget* m_buttonList;
 

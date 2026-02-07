@@ -31,8 +31,10 @@ public:
     bool importStudentsFromText(const QString& filePath, QString* errorMessage = nullptr);
 
     bool darkMode = false;
-    int sidebarWidth = 70;
-    int iconSize = 48;
+    int iconSize = 46;
+    int floatingOpacity = 85;
+    int attendanceSummaryWidth = 360;
+    bool startCollapsed = false;
     bool firstRunCompleted = false;
     QString seewoPath;
 

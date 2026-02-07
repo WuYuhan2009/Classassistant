@@ -1,10 +1,12 @@
 #pragma once
 
-#include <QVBoxLayout>
 #include <QCloseEvent>
+#include <QVBoxLayout>
 #include <QWidget>
 
 #include "Tools.h"
+
+class QPushButton;
 
 class Sidebar : public QWidget {
     Q_OBJECT
@@ -24,9 +26,14 @@ protected:
 
 private:
     QVBoxLayout* m_layout;
-    AttendanceWidget* m_attendance;
+    AttendanceSummaryWidget* m_attendanceSummary;
+    AttendanceSelectDialog* m_attendanceSelector;
     RandomCallDialog* m_randomCall;
     SettingsDialog* m_settings;
 
     void handleAction(const QString& action, const QString& target);
+    QPushButton* createIconButton(const QString& text,
+                                  const QString& iconPath,
+                                  const QString& tooltip,
+                                  const QString& fallbackEmoji = "");
 };

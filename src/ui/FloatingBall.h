@@ -6,6 +6,7 @@ class FloatingBall : public QWidget {
     Q_OBJECT
 public:
     explicit FloatingBall(QWidget* parent = nullptr);
+    void moveToBottomRight();
 
 signals:
     void clicked();

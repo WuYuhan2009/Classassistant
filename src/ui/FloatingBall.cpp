@@ -1,5 +1,7 @@
 #include "FloatingBall.h"
 
+#include "../Utils.h"
+
 #include <QApplication>
 #include <QCloseEvent>
 #include <QMouseEvent>
@@ -9,25 +11,36 @@
 FloatingBall::FloatingBall(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
     setAttribute(Qt::WA_TranslucentBackground);
-    setFixedSize(64, 64);
+    setFixedSize(70, 70);
+    setWindowOpacity(Config::instance().floatingOpacity / 100.0);
+    moveToBottomRight();
+}
 
+void FloatingBall::moveToBottomRight() {
     const QRect screen = QApplication::primaryScreen()->availableGeometry();
-    move(screen.width() - 90, screen.height() - 110);
+    move(screen.right() - width() - 14, screen.bottom() - height() - 14);
 }
 
 void FloatingBall::paintEvent(QPaintEvent* event) {
     Q_UNUSED(event);
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
-    p.setBrush(QColor(0, 120, 215, 210));
-    p.setPen(Qt::NoPen);
-    p.drawEllipse(4, 4, 56, 56);
 
-    p.setPen(Qt::white);
-    QFont f = font();
-    f.setBold(true);
-    p.setFont(f);
-    p.drawText(rect(), Qt::AlignCenter, "展开");
+    p.setBrush(QColor(0, 123, 255, 220));
+    p.setPen(QPen(QColor(255, 255, 255, 170), 2));
+    p.drawEllipse(3, 3, 64, 64);
+
+    QIcon icon(":/assets/icon_expand.png");
+    if (!icon.isNull()) {
+        icon.paint(&p, QRect(16, 16, 38, 38));
+    } else {
+        p.setPen(Qt::white);
+        QFont f = font();
+        f.setBold(true);
+        f.setPointSize(12);
+        p.setFont(f);
+        p.drawText(rect(), Qt::AlignCenter, "展开");
+    }
 }
 
 void FloatingBall::mousePressEvent(QMouseEvent* e) {
@@ -47,6 +60,13 @@ void FloatingBall::mouseMoveEvent(QMouseEvent* e) {
 void FloatingBall::mouseReleaseEvent(QMouseEvent* e) {
     if (e->button() == Qt::LeftButton && !m_isDragging) {
         emit clicked();
+        return;
+    }
+    if (e->button() == Qt::LeftButton && m_isDragging) {
+        const QRect screen = QApplication::primaryScreen()->availableGeometry();
+        const int x = screen.right() - width() - 8;
+        const int y = qBound(screen.top() + 8, y(), screen.bottom() - height() - 8);
+        move(x, y);
     }
 }
 

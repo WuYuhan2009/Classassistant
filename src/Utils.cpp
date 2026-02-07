@@ -6,14 +6,14 @@
 #include <QTextStream>
 
 namespace {
+constexpr int kSidebarWidth = 84;
+
 QVector<AppButton> defaultButtons() {
     return {
-        {"希沃白板", ":/assets/seewo.png", "exe", "SEEWO", true},
-        {"班级考勤", ":/assets/check.png", "func", "ATTENDANCE", true},
-        {"快速换课", ":/assets/classisland.png", "url", "classisland://open", true},
-        {"随机点名", ":/assets/dice.png", "func", "RANDOM_CALL", true},
-        {"AI 助手", ":/assets/ai.png", "url", "https://www.doubao.com/chat/", true},
-        {"系统设置", ":/assets/settings.png", "func", "SETTINGS", true},
+        {"希沃白板", ":/assets/icon_seewo.png", "exe", "SEEWO", true},
+        {"班级考勤", ":/assets/icon_attendance.png", "func", "ATTENDANCE", true},
+        {"随机点名", ":/assets/icon_random.png", "func", "RANDOM_CALL", true},
+        {"AI 助手", ":/assets/icon_ai.png", "url", "https://www.doubao.com/chat/", true},
     };
 }
 
@@ -24,8 +24,10 @@ QStringList defaultStudents() {
 void applyDefaults(Config& config, QVector<AppButton>& buttons, QStringList& students) {
     config.seewoPath = "C:/Program Files (x86)/Seewo/EasiNote5/swenlauncher/swenlauncher.exe";
     config.darkMode = false;
-    config.sidebarWidth = 70;
-    config.iconSize = 48;
+    config.iconSize = 46;
+    config.floatingOpacity = 85;
+    config.attendanceSummaryWidth = 360;
+    config.startCollapsed = false;
     config.firstRunCompleted = false;
     buttons = defaultButtons();
     students = defaultStudents();
@@ -62,8 +64,10 @@ void Config::load() {
     const QJsonObject root = doc.object();
     seewoPath = root["seewoPath"].toString().trimmed();
     darkMode = root["darkMode"].toBool(false);
-    sidebarWidth = qBound(60, root["sidebarWidth"].toInt(70), 180);
-    iconSize = qBound(24, root["iconSize"].toInt(48), 64);
+    iconSize = qBound(28, root["iconSize"].toInt(46), 72);
+    floatingOpacity = qBound(35, root["floatingOpacity"].toInt(85), 100);
+    attendanceSummaryWidth = qBound(300, root["attendanceSummaryWidth"].toInt(360), 520);
+    startCollapsed = root["startCollapsed"].toBool(false);
     firstRunCompleted = root["firstRunCompleted"].toBool(false);
 
     m_students.clear();
@@ -79,13 +83,17 @@ void Config::load() {
         const auto o = v.toObject();
         const QString name = o["name"].toString().trimmed();
         const QString action = o["action"].toString().trimmed();
-        if (name.isEmpty() || action.isEmpty()) {
+        const QString target = o["target"].toString().trimmed();
+        if (name.isEmpty() || action.isEmpty() || target.isEmpty()) {
+            continue;
+        }
+        if (target == "classisland://open") {
             continue;
         }
         m_buttons.append({name,
                           o["icon"].toString().trimmed(),
                           action,
-                          o["target"].toString().trimmed(),
+                          target,
                           o["isSystem"].toBool(false)});
     }
 
@@ -104,9 +112,12 @@ void Config::save() {
     QJsonObject root;
     root["seewoPath"] = seewoPath;
     root["darkMode"] = darkMode;
-    root["sidebarWidth"] = sidebarWidth;
     root["iconSize"] = iconSize;
+    root["floatingOpacity"] = floatingOpacity;
+    root["attendanceSummaryWidth"] = attendanceSummaryWidth;
+    root["startCollapsed"] = startCollapsed;
     root["firstRunCompleted"] = firstRunCompleted;
+    root["fixedSidebarWidth"] = kSidebarWidth;
 
     QJsonArray stuArr;
     for (const auto& s : m_students) {
