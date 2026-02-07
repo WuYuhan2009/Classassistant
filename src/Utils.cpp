@@ -2,6 +2,7 @@
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QTextStream>
 
 namespace {
@@ -17,15 +18,15 @@ QVector<AppButton> defaultButtons() {
 }
 
 QStringList defaultStudents() {
-    return QStringList{QStringLiteral("张三"),
-                       QStringLiteral("李四"),
-                       QStringLiteral("王五"),
-                       QStringLiteral("赵六"),
-                       QStringLiteral("示例学生")};
+    return QStringList{QStringLiteral("张三"), QStringLiteral("李四"), QStringLiteral("王五"), QStringLiteral("赵六"), QStringLiteral("示例学生")};
 }
 
-void applyDefaults(QString& seewoPath, QVector<AppButton>& buttons, QStringList& students) {
-    seewoPath = "C:/Program Files (x86)/Seewo/EasiNote5/swenlauncher/swenlauncher.exe";
+void applyDefaults(Config& config, QVector<AppButton>& buttons, QStringList& students) {
+    config.seewoPath = "C:/Program Files (x86)/Seewo/EasiNote5/swenlauncher/swenlauncher.exe";
+    config.darkMode = false;
+    config.sidebarWidth = 70;
+    config.iconSize = 48;
+    config.firstRunCompleted = false;
     buttons = defaultButtons();
     students = defaultStudents();
 }
@@ -46,25 +47,27 @@ Config::Config() {
 void Config::load() {
     QFile file(m_configPath);
     if (!file.open(QIODevice::ReadOnly)) {
-        applyDefaults(seewoPath, m_buttons, m_students);
+        applyDefaults(*this, m_buttons, m_students);
         save();
         return;
     }
 
-    const QByteArray data = file.readAll();
-    const auto doc = QJsonDocument::fromJson(data);
+    const auto doc = QJsonDocument::fromJson(file.readAll());
     if (!doc.isObject()) {
-        applyDefaults(seewoPath, m_buttons, m_students);
+        applyDefaults(*this, m_buttons, m_students);
         save();
         return;
     }
 
     const QJsonObject root = doc.object();
     seewoPath = root["seewoPath"].toString().trimmed();
+    darkMode = root["darkMode"].toBool(false);
+    sidebarWidth = qBound(60, root["sidebarWidth"].toInt(70), 180);
+    iconSize = qBound(24, root["iconSize"].toInt(48), 64);
+    firstRunCompleted = root["firstRunCompleted"].toBool(false);
 
     m_students.clear();
-    const auto students = root["students"].toArray();
-    for (const auto& v : students) {
+    for (const auto& v : root["students"].toArray()) {
         const QString name = v.toString().trimmed();
         if (!name.isEmpty()) {
             m_students.append(name);
@@ -72,20 +75,18 @@ void Config::load() {
     }
 
     m_buttons.clear();
-    const QJsonArray btnArr = root["buttons"].toArray();
-    for (const auto& v : btnArr) {
-        const QJsonObject o = v.toObject();
+    for (const auto& v : root["buttons"].toArray()) {
+        const auto o = v.toObject();
         const QString name = o["name"].toString().trimmed();
         const QString action = o["action"].toString().trimmed();
         if (name.isEmpty() || action.isEmpty()) {
             continue;
         }
-
         m_buttons.append({name,
                           o["icon"].toString().trimmed(),
                           action,
                           o["target"].toString().trimmed(),
-                          o["isSystem"].toBool()});
+                          o["isSystem"].toBool(false)});
     }
 
     if (seewoPath.isEmpty()) {
@@ -102,6 +103,10 @@ void Config::load() {
 void Config::save() {
     QJsonObject root;
     root["seewoPath"] = seewoPath;
+    root["darkMode"] = darkMode;
+    root["sidebarWidth"] = sidebarWidth;
+    root["iconSize"] = iconSize;
+    root["firstRunCompleted"] = firstRunCompleted;
 
     QJsonArray stuArr;
     for (const auto& s : m_students) {
@@ -127,56 +132,63 @@ void Config::save() {
     }
 }
 
-QVector<AppButton> Config::getButtons() {
-    return m_buttons;
-}
+QVector<AppButton> Config::getButtons() { return m_buttons; }
 
 void Config::setButtons(const QVector<AppButton>& btns) {
     m_buttons = btns;
     save();
 }
 
-QStringList Config::getStudentList() {
-    return m_students;
-}
+QStringList Config::getStudentList() { return m_students; }
 
 void Config::setStudentList(const QStringList& list) {
     m_students = list;
     save();
 }
 
-void Config::importStudentsFromText(const QString& filePath) {
+bool Config::importStudentsFromText(const QString& filePath, QString* errorMessage) {
+    const QString suffix = QFileInfo(filePath).suffix().toLower();
+    if (suffix == "xls" || suffix == "xlsx") {
+        if (errorMessage) {
+            *errorMessage = "当前版本不依赖第三方库，Excel 请先另存为 CSV 或 TXT 再导入。";
+        }
+        return false;
+    }
+
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        return;
+        if (errorMessage) {
+            *errorMessage = "名单文件读取失败。";
+        }
+        return false;
     }
 
     QStringList parsedStudents;
     QTextStream in(&file);
-
     while (!in.atEnd()) {
         QString line = in.readLine().trimmed();
         if (line.isEmpty()) {
             continue;
         }
-
         line.replace(';', ',');
         const QStringList parts = line.split(',', Qt::SkipEmptyParts);
-        if (parts.size() > 1) {
-            for (const auto& part : parts) {
-                const QString name = part.trimmed();
-                if (!name.isEmpty()) {
-                    parsedStudents.append(name);
-                }
+        for (const auto& part : parts) {
+            const QString name = part.trimmed();
+            if (!name.isEmpty()) {
+                parsedStudents.append(name);
             }
-        } else {
-            parsedStudents.append(line);
         }
     }
 
     parsedStudents.removeDuplicates();
-    if (!parsedStudents.isEmpty()) {
-        m_students = parsedStudents;
-        save();
+    if (parsedStudents.isEmpty()) {
+        if (errorMessage) {
+            *errorMessage = "文件中没有可用学生数据。";
+        }
+        return false;
     }
+
+    m_students = parsedStudents;
+    save();
+    return true;
 }

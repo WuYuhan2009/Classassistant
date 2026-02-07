@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QVBoxLayout>
+#include <QCloseEvent>
 #include <QWidget>
 
 #include "Tools.h"
@@ -10,9 +11,16 @@ class Sidebar : public QWidget {
 public:
     explicit Sidebar(QWidget* parent = nullptr);
     void rebuildUI();
+    void openSettings();
 
 signals:
     void requestHide();
+
+public slots:
+    void reloadConfig();
+
+protected:
+    void closeEvent(QCloseEvent* event) override;
 
 private:
     QVBoxLayout* m_layout;

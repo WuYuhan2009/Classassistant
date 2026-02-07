@@ -28,8 +28,12 @@ public:
 
     QStringList getStudentList();
     void setStudentList(const QStringList& list);
-    void importStudentsFromText(const QString& filePath);
+    bool importStudentsFromText(const QString& filePath, QString* errorMessage = nullptr);
 
+    bool darkMode = false;
+    int sidebarWidth = 70;
+    int iconSize = 48;
+    bool firstRunCompleted = false;
     QString seewoPath;
 
 private:

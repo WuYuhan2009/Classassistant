@@ -2,6 +2,7 @@
 
 #include "../Utils.h"
 
+#include <QCloseEvent>
 #include <QDesktopServices>
 #include <QFile>
 #include <QIcon>
@@ -17,7 +18,7 @@ Sidebar::Sidebar(QWidget* parent) : QWidget(parent) {
     m_randomCall = new RandomCallDialog();
     m_settings = new SettingsDialog();
 
-    connect(m_settings, &SettingsDialog::configChanged, this, &Sidebar::rebuildUI);
+    connect(m_settings, &SettingsDialog::configChanged, this, &Sidebar::reloadConfig);
 
     m_layout = new QVBoxLayout(this);
     m_layout->setContentsMargins(5, 20, 5, 20);
@@ -27,26 +28,28 @@ Sidebar::Sidebar(QWidget* parent) : QWidget(parent) {
 }
 
 void Sidebar::rebuildUI() {
-    QLayoutItem* item;
-    while ((item = m_layout->takeAt(0)) != nullptr) {
-        if (item->widget()) {
-            delete item->widget();
-        }
+    while (QLayoutItem* item = m_layout->takeAt(0)) {
+        if (item->widget()) delete item->widget();
         delete item;
     }
 
+    setFixedWidth(Config::instance().sidebarWidth);
     setStyleSheet("QWidget { background-color: rgba(240, 240, 240, 0.95); border-top-left-radius: 10px; border-bottom-left-radius: 10px; }");
 
     const auto buttons = Config::instance().getButtons();
     for (const auto& btnData : buttons) {
+        if (btnData.target == "SETTINGS" && btnData.action == "func") {
+            continue;
+        }
+
         auto* btn = new QPushButton(btnData.name.left(2));
-        btn->setFixedSize(60, 60);
+        btn->setFixedSize(Config::instance().sidebarWidth - 10, Config::instance().sidebarWidth - 10);
         btn->setToolTip(btnData.name);
 
         const QIcon icon(btnData.iconPath);
         if (!icon.isNull()) {
             btn->setIcon(icon);
-            btn->setIconSize(QSize(48, 48));
+            btn->setIconSize(QSize(Config::instance().iconSize, Config::instance().iconSize));
             btn->setStyleSheet("background-color: white; border-radius: 10px; border: 1px solid #ddd;");
             btn->setText("");
         } else if (QFile::exists(btnData.iconPath)) {
@@ -62,11 +65,34 @@ void Sidebar::rebuildUI() {
 
     m_layout->addStretch();
 
-    auto* collapseBtn = new QPushButton(">>>");
-    collapseBtn->setFixedSize(60, 40);
-    collapseBtn->setStyleSheet("background-color: #ddd; border-radius: 5px;");
+    auto* settingsBtn = new QPushButton("设置");
+    settingsBtn->setFixedSize(Config::instance().sidebarWidth - 10, 42);
+    settingsBtn->setStyleSheet("background-color: #f7f7f7; border-radius: 6px; border: 1px solid #ddd;");
+    connect(settingsBtn, &QPushButton::clicked, this, &Sidebar::openSettings);
+    m_layout->addWidget(settingsBtn);
+
+    auto* collapseBtn = new QPushButton("收起");
+    collapseBtn->setFixedSize(Config::instance().sidebarWidth - 10, 42);
+    collapseBtn->setStyleSheet("background-color: #ddd; border-radius: 6px;");
     connect(collapseBtn, &QPushButton::clicked, this, &Sidebar::requestHide);
     m_layout->addWidget(collapseBtn);
+}
+
+void Sidebar::openSettings() {
+    m_settings->show();
+    m_settings->raise();
+    m_settings->activateWindow();
+}
+
+void Sidebar::reloadConfig() {
+    Config::instance().load();
+    m_attendance->resetDaily();
+    rebuildUI();
+}
+
+void Sidebar::closeEvent(QCloseEvent* event) {
+    hide();
+    event->ignore();
 }
 
 void Sidebar::handleAction(const QString& action, const QString& target) {
@@ -83,11 +109,12 @@ void Sidebar::handleAction(const QString& action, const QString& target) {
                 m_attendance->hide();
             } else {
                 m_attendance->show();
+                m_attendance->raise();
             }
         } else if (target == "RANDOM_CALL") {
             m_randomCall->startAnim();
         } else if (target == "SETTINGS") {
-            m_settings->exec();
+            openSettings();
         }
     }
 }

@@ -7,8 +7,10 @@
 #include <QStyle>
 #include <QSystemTrayIcon>
 
+#include "Utils.h"
 #include "ui/FloatingBall.h"
 #include "ui/Sidebar.h"
+#include "ui/Tools.h"
 
 int main(int argc, char* argv[]) {
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
@@ -18,26 +20,51 @@ int main(int argc, char* argv[]) {
     QApplication app(argc, argv);
     app.setQuitOnLastWindowClosed(false);
 
+    auto applyTheme = [&]() {
+        if (Config::instance().darkMode) {
+            app.setStyleSheet(
+                "QWidget{background:#2b2b2b;color:#e8e8e8;}"
+                "QPushButton{background:#3c3c3c;border:1px solid #666;padding:6px;border-radius:6px;}"
+                "QLineEdit,QListWidget,QTableWidget{background:#1f1f1f;color:#f0f0f0;border:1px solid #555;}");
+        } else {
+            app.setStyleSheet("");
+        }
+    };
+
+    if (!Config::instance().firstRunCompleted) {
+        FirstRunWizard wizard;
+        wizard.exec();
+    }
+    applyTheme();
+
     auto* sidebar = new Sidebar();
     auto* ball = new FloatingBall();
 
     auto updatePos = [&]() {
         const QRect screen = app.primaryScreen()->availableGeometry();
-        sidebar->resize(70, screen.height());
-        sidebar->move(screen.width() - 70, 0);
+        sidebar->resize(Config::instance().sidebarWidth, screen.height());
+        sidebar->move(screen.width() - Config::instance().sidebarWidth, 0);
     };
-    updatePos();
 
     auto showSidebar = [&]() {
         updatePos();
         ball->hide();
         sidebar->show();
         sidebar->raise();
+        sidebar->activateWindow();
     };
 
     auto showBall = [&]() {
         sidebar->hide();
         ball->show();
+        ball->raise();
+    };
+
+    auto reloadAll = [&]() {
+        Config::instance().load();
+        applyTheme();
+        sidebar->reloadConfig();
+        updatePos();
     };
 
     QObject::connect(ball, &FloatingBall::clicked, showSidebar);
@@ -52,10 +79,17 @@ int main(int argc, char* argv[]) {
     tray->setToolTip("班级小助手");
 
     auto* menu = new QMenu();
-    auto* actionShow = menu->addAction("显示侧边栏");
-    auto* actionQuit = menu->addAction("退出");
-    QObject::connect(actionShow, &QAction::triggered, showSidebar);
+    auto* actionOpenSettings = menu->addAction("打开设置");
+    auto* actionShowSidebar = menu->addAction("展开侧边栏");
+    auto* actionReloadConfig = menu->addAction("重载配置");
+    menu->addSeparator();
+    auto* actionQuit = menu->addAction("退出程序");
+
+    QObject::connect(actionOpenSettings, &QAction::triggered, [sidebar]() { sidebar->openSettings(); });
+    QObject::connect(actionShowSidebar, &QAction::triggered, showSidebar);
+    QObject::connect(actionReloadConfig, &QAction::triggered, reloadAll);
     QObject::connect(actionQuit, &QAction::triggered, [&]() { app.quit(); });
+
     tray->setContextMenu(menu);
     tray->show();
 
@@ -66,6 +100,5 @@ int main(int argc, char* argv[]) {
     });
 
     showSidebar();
-
     return app.exec();
 }
