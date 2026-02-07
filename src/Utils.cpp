@@ -132,14 +132,14 @@ void Config::save() {
     }
 }
 
-QVector<AppButton> Config::getButtons() { return m_buttons; }
+QVector<AppButton> Config::getButtons() const { return m_buttons; }
 
 void Config::setButtons(const QVector<AppButton>& btns) {
     m_buttons = btns;
     save();
 }
 
-QStringList Config::getStudentList() { return m_students; }
+QStringList Config::getStudentList() const { return m_students; }
 
 void Config::setStudentList(const QStringList& list) {
     m_students = list;

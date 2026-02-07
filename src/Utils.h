@@ -23,10 +23,10 @@ public:
     void load();
     void save();
 
-    QVector<AppButton> getButtons();
+    QVector<AppButton> getButtons() const;
     void setButtons(const QVector<AppButton>& btns);
 
-    QStringList getStudentList();
+    QStringList getStudentList() const;
     void setStudentList(const QStringList& list);
     bool importStudentsFromText(const QString& filePath, QString* errorMessage = nullptr);
 
