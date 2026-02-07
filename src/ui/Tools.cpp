@@ -270,12 +270,6 @@ FirstRunWizard::FirstRunWizard(QWidget* parent) : QDialog(parent) {
     m_darkMode = new QCheckBox("启用深色模式");
     layout->addWidget(m_darkMode);
 
-    layout->addWidget(new QLabel("功能按钮图标大小"));
-    m_iconSize = new QSlider(Qt::Horizontal);
-    m_iconSize->setRange(28, 72);
-    m_iconSize->setValue(Config::instance().iconSize);
-    layout->addWidget(m_iconSize);
-
     layout->addWidget(new QLabel("展开球不透明度"));
     m_floatingOpacity = new QSlider(Qt::Horizontal);
     m_floatingOpacity->setRange(35, 100);
@@ -291,6 +285,14 @@ FirstRunWizard::FirstRunWizard(QWidget* parent) : QDialog(parent) {
     m_startCollapsed = new QCheckBox("启动后默认收起到右下角悬浮球");
     m_startCollapsed->setChecked(Config::instance().startCollapsed);
     layout->addWidget(m_startCollapsed);
+
+    m_trayClickToOpen = new QCheckBox("托盘单击时展开侧栏");
+    m_trayClickToOpen->setChecked(Config::instance().trayClickToOpen);
+    layout->addWidget(m_trayClickToOpen);
+
+    m_showAttendanceSummaryOnStart = new QCheckBox("启动时显示考勤概览窗口");
+    m_showAttendanceSummaryOnStart->setChecked(Config::instance().showAttendanceSummaryOnStart);
+    layout->addWidget(m_showAttendanceSummaryOnStart);
 
     layout->addWidget(new QLabel("默认程序路径（希沃）"));
     m_seewoPathEdit = new QLineEdit(Config::instance().seewoPath);
@@ -313,10 +315,11 @@ FirstRunWizard::FirstRunWizard(QWidget* parent) : QDialog(parent) {
 void FirstRunWizard::finishSetup() {
     auto& cfg = Config::instance();
     cfg.darkMode = m_darkMode->isChecked();
-    cfg.iconSize = m_iconSize->value();
     cfg.floatingOpacity = m_floatingOpacity->value();
     cfg.attendanceSummaryWidth = m_summaryWidth->value();
     cfg.startCollapsed = m_startCollapsed->isChecked();
+    cfg.trayClickToOpen = m_trayClickToOpen->isChecked();
+    cfg.showAttendanceSummaryOnStart = m_showAttendanceSummaryOnStart->isChecked();
     cfg.seewoPath = m_seewoPathEdit->text().trimmed();
     cfg.firstRunCompleted = true;
     cfg.save();
@@ -336,11 +339,6 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     m_darkMode = new QCheckBox("深色模式");
     layout->addWidget(m_darkMode);
 
-    layout->addWidget(new QLabel("按钮图标大小"));
-    m_iconSize = new QSlider(Qt::Horizontal);
-    m_iconSize->setRange(28, 72);
-    layout->addWidget(m_iconSize);
-
     layout->addWidget(new QLabel("悬浮球透明度"));
     m_floatingOpacity = new QSlider(Qt::Horizontal);
     m_floatingOpacity->setRange(35, 100);
@@ -353,6 +351,12 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
 
     m_startCollapsed = new QCheckBox("启动时收起到悬浮球");
     layout->addWidget(m_startCollapsed);
+
+    m_trayClickToOpen = new QCheckBox("托盘单击时展开侧栏");
+    layout->addWidget(m_trayClickToOpen);
+
+    m_showAttendanceSummaryOnStart = new QCheckBox("启动时显示考勤概览");
+    layout->addWidget(m_showAttendanceSummaryOnStart);
 
     auto* pathLayout = new QHBoxLayout;
     m_seewoPathEdit = new QLineEdit;
@@ -395,6 +399,11 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     btnOps->addWidget(btnDown);
     layout->addLayout(btnOps);
 
+    auto* restore = new QPushButton("恢复默认设置");
+    restore->setStyleSheet(buttonStyle());
+    connect(restore, &QPushButton::clicked, this, &SettingsDialog::restoreDefaults);
+    layout->addWidget(restore);
+
     auto* save = new QPushButton("保存并应用");
     save->setStyleSheet(buttonStyle());
     connect(save, &QPushButton::clicked, this, &SettingsDialog::saveData);
@@ -406,10 +415,11 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
 void SettingsDialog::loadData() {
     const auto& cfg = Config::instance();
     m_darkMode->setChecked(cfg.darkMode);
-    m_iconSize->setValue(cfg.iconSize);
     m_floatingOpacity->setValue(cfg.floatingOpacity);
     m_summaryWidth->setValue(cfg.attendanceSummaryWidth);
     m_startCollapsed->setChecked(cfg.startCollapsed);
+    m_trayClickToOpen->setChecked(cfg.trayClickToOpen);
+    m_showAttendanceSummaryOnStart->setChecked(cfg.showAttendanceSummaryOnStart);
     m_seewoPathEdit->setText(cfg.seewoPath);
 
     m_buttonList->clear();
@@ -490,10 +500,11 @@ void SettingsDialog::moveDown() {
 void SettingsDialog::saveData() {
     auto& cfg = Config::instance();
     cfg.darkMode = m_darkMode->isChecked();
-    cfg.iconSize = m_iconSize->value();
     cfg.floatingOpacity = m_floatingOpacity->value();
     cfg.attendanceSummaryWidth = m_summaryWidth->value();
     cfg.startCollapsed = m_startCollapsed->isChecked();
+    cfg.trayClickToOpen = m_trayClickToOpen->isChecked();
+    cfg.showAttendanceSummaryOnStart = m_showAttendanceSummaryOnStart->isChecked();
     cfg.seewoPath = m_seewoPathEdit->text().trimmed();
 
     QVector<AppButton> buttons;
@@ -510,6 +521,15 @@ void SettingsDialog::saveData() {
     cfg.save();
     emit configChanged();
     hide();
+}
+
+void SettingsDialog::restoreDefaults() {
+    const auto reply = QMessageBox::question(this, "恢复默认", "确定恢复默认设置和默认按钮/名单吗？");
+    if (reply != QMessageBox::Yes) return;
+
+    Config::instance().resetToDefaults(true);
+    loadData();
+    emit configChanged();
 }
 
 void SettingsDialog::closeEvent(QCloseEvent* event) {

@@ -28,6 +28,8 @@ void applyDefaults(Config& config, QVector<AppButton>& buttons, QStringList& stu
     config.floatingOpacity = 85;
     config.attendanceSummaryWidth = 360;
     config.startCollapsed = false;
+    config.trayClickToOpen = true;
+    config.showAttendanceSummaryOnStart = true;
     config.firstRunCompleted = false;
     buttons = defaultButtons();
     students = defaultStudents();
@@ -68,6 +70,8 @@ void Config::load() {
     floatingOpacity = qBound(35, root["floatingOpacity"].toInt(85), 100);
     attendanceSummaryWidth = qBound(300, root["attendanceSummaryWidth"].toInt(360), 520);
     startCollapsed = root["startCollapsed"].toBool(false);
+    trayClickToOpen = root["trayClickToOpen"].toBool(true);
+    showAttendanceSummaryOnStart = root["showAttendanceSummaryOnStart"].toBool(true);
     firstRunCompleted = root["firstRunCompleted"].toBool(false);
 
     m_students.clear();
@@ -116,6 +120,8 @@ void Config::save() {
     root["floatingOpacity"] = floatingOpacity;
     root["attendanceSummaryWidth"] = attendanceSummaryWidth;
     root["startCollapsed"] = startCollapsed;
+    root["trayClickToOpen"] = trayClickToOpen;
+    root["showAttendanceSummaryOnStart"] = showAttendanceSummaryOnStart;
     root["firstRunCompleted"] = firstRunCompleted;
     root["fixedSidebarWidth"] = kSidebarWidth;
 
@@ -143,6 +149,15 @@ void Config::save() {
     }
 }
 
+
+void Config::resetToDefaults(bool preserveFirstRun) {
+    const bool oldFirstRun = firstRunCompleted;
+    applyDefaults(*this, m_buttons, m_students);
+    if (preserveFirstRun) {
+        firstRunCompleted = oldFirstRun;
+    }
+    save();
+}
 QVector<AppButton> Config::getButtons() const { return m_buttons; }
 
 void Config::setButtons(const QVector<AppButton>& btns) {

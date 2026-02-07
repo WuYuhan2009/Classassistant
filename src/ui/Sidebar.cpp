@@ -18,7 +18,9 @@ Sidebar::Sidebar(QWidget* parent) : QWidget(parent) {
     setAttribute(Qt::WA_TranslucentBackground);
 
     m_attendanceSummary = new AttendanceSummaryWidget();
-    m_attendanceSummary->show();
+    if (Config::instance().showAttendanceSummaryOnStart) {
+        m_attendanceSummary->show();
+    }
     m_attendanceSelector = new AttendanceSelectDialog();
     m_randomCall = new RandomCallDialog();
     m_settings = new SettingsDialog();
@@ -91,7 +93,11 @@ void Sidebar::reloadConfig() {
     Config::instance().load();
     rebuildUI();
     m_attendanceSummary->resetDaily();
-    m_attendanceSummary->show();
+    if (Config::instance().showAttendanceSummaryOnStart) {
+        m_attendanceSummary->show();
+    } else {
+        m_attendanceSummary->hide();
+    }
 }
 
 void Sidebar::closeEvent(QCloseEvent* event) {

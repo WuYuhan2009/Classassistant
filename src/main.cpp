@@ -104,7 +104,7 @@ int main(int argc, char* argv[]) {
     tray->show();
 
     QObject::connect(tray, &QSystemTrayIcon::activated, [&](QSystemTrayIcon::ActivationReason reason) {
-        if (reason == QSystemTrayIcon::Trigger) {
+        if (reason == QSystemTrayIcon::Trigger && Config::instance().trayClickToOpen) {
             showSidebar();
         }
     });

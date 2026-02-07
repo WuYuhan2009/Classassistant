@@ -22,6 +22,7 @@ public:
 
     void load();
     void save();
+    void resetToDefaults(bool preserveFirstRun = false);
 
     QVector<AppButton> getButtons() const;
     void setButtons(const QVector<AppButton>& btns);
@@ -35,6 +36,8 @@ public:
     int floatingOpacity = 85;
     int attendanceSummaryWidth = 360;
     bool startCollapsed = false;
+    bool trayClickToOpen = true;
+    bool showAttendanceSummaryOnStart = true;
     bool firstRunCompleted = false;
     QString seewoPath;
 

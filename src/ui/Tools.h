@@ -90,10 +90,11 @@ protected:
 
 private:
     QCheckBox* m_darkMode;
-    QSlider* m_iconSize;
     QSlider* m_floatingOpacity;
     QSlider* m_summaryWidth;
     QCheckBox* m_startCollapsed;
+    QCheckBox* m_trayClickToOpen;
+    QCheckBox* m_showAttendanceSummaryOnStart;
     QLineEdit* m_seewoPathEdit;
 
     void finishSetup();
@@ -112,10 +113,11 @@ protected:
 
 private:
     QCheckBox* m_darkMode;
-    QSlider* m_iconSize;
     QSlider* m_floatingOpacity;
     QSlider* m_summaryWidth;
     QCheckBox* m_startCollapsed;
+    QCheckBox* m_trayClickToOpen;
+    QCheckBox* m_showAttendanceSummaryOnStart;
     QLineEdit* m_seewoPathEdit;
     QListWidget* m_buttonList;
 
@@ -126,4 +128,5 @@ private:
     void removeButton();
     void moveUp();
     void moveDown();
+    void restoreDefaults();
 };
