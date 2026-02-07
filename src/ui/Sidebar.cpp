@@ -72,7 +72,7 @@ void Sidebar::rebuildUI() {
 void Sidebar::handleAction(const QString& action, const QString& target) {
     if (action == "exe") {
         const QString path = (target == "SEEWO") ? Config::instance().seewoPath : target;
-        if (!QProcess::startDetached(path)) {
+        if (!QProcess::startDetached(path, {})) {
             QDesktopServices::openUrl(QUrl::fromLocalFile(path));
         }
     } else if (action == "url") {

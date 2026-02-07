@@ -17,7 +17,11 @@ QVector<AppButton> defaultButtons() {
 }
 
 QStringList defaultStudents() {
-    return {"张三", "李四", "王五", "赵六", "示例学生"};
+    return QStringList{QStringLiteral("张三"),
+                       QStringLiteral("李四"),
+                       QStringLiteral("王五"),
+                       QStringLiteral("赵六"),
+                       QStringLiteral("示例学生")};
 }
 
 void applyDefaults(QString& seewoPath, QVector<AppButton>& buttons, QStringList& students) {
