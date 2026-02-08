@@ -1,5 +1,12 @@
 cmake_minimum_required(VERSION 3.10)
 
+# Qt Creator + Ninja + 新版 CMake 在部分环境下会提前注入空的
+# CMAKE_CONFIGURATION_TYPES，导致编译器 ABI 检测阶段找不到 Debug 配置。
+# 在 project() 前兜底，保证 try_compile 可用。
+if(DEFINED CMAKE_CONFIGURATION_TYPES AND CMAKE_CONFIGURATION_TYPES STREQUAL "")
+    set(CMAKE_CONFIGURATION_TYPES "Debug;Release;RelWithDebInfo;MinSizeRel" CACHE STRING "" FORCE)
+endif()
+
 project(ClassAssistant VERSION 1.0.0 LANGUAGES CXX)
 
 # ==============================
@@ -11,6 +18,16 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
+
+# 单配置生成器默认给 Release，避免空 build type 导致配置异常
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
+# 让 try_compile 在多配置场景固定使用 Debug
+if(CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_TRY_COMPILE_CONFIGURATION Debug CACHE STRING "" FORCE)
+endif()
 
 # ==============================
 # ⭐ Win7 兼容关键（必须）
