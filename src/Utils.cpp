@@ -1,34 +1,13 @@
 #include "Utils.h"
 
 #include <QCoreApplication>
-#include <QCryptographicHash>
 #include <QDir>
-#include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
-#include <QUrl>
-#include <QMap>
-#include <QNetworkAccessManager>
-#include <QNetworkReply>
-#include <QNetworkRequest>
 #include <QTextStream>
-#include <QTimer>
 
 namespace {
 constexpr int kSidebarWidth = 84;
-
-const QMap<QString, QString>& remoteIconMap() {
-    static const QMap<QString, QString> kMap = {
-        {"icon_seewo.png", "https://upload.cc/i1/2026/02/08/Y6wmA8.png"},
-        {"icon_attendance.png", "https://upload.cc/i1/2026/02/08/HNo35p.png"},
-        {"icon_random.png", "https://upload.cc/i1/2026/02/08/Dt8WIg.png"},
-        {"icon_ai.png", "https://upload.cc/i1/2026/02/08/GeojsQ.png"},
-        {"icon_settings.png", "https://upload.cc/i1/2026/02/08/vCRlDF.png"},
-        {"icon_collapse.png", "https://upload.cc/i1/2026/02/08/BTjyOR.png"},
-        {"icon_expand.png", "https://upload.cc/i1/2026/02/08/N59bqp.png"},
-    };
-    return kMap;
-}
 
 QVector<AppButton> defaultButtons() {
     return {
@@ -43,20 +22,6 @@ QStringList defaultStudents() {
     return QStringList{QStringLiteral("张三"), QStringLiteral("李四"), QStringLiteral("王五"), QStringLiteral("赵六"), QStringLiteral("示例学生")};
 }
 
-QString iconCacheDirPath() {
-    const QString dataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    return dataPath + "/icons";
-}
-
-QString httpCacheFilePath(const QString& iconRef) {
-    const QByteArray md5 = QCryptographicHash::hash(iconRef.toUtf8(), QCryptographicHash::Md5).toHex();
-    return iconCacheDirPath() + "/" + QString::fromLatin1(md5) + ".png";
-}
-
-QString namedCacheFilePath(const QString& fileName) {
-    return iconCacheDirPath() + "/" + fileName;
-}
-
 void applyDefaults(Config& config, QVector<AppButton>& buttons, QStringList& students) {
     config.seewoPath = "C:/Program Files (x86)/Seewo/EasiNote5/swenlauncher/swenlauncher.exe";
     config.iconSize = 46;
@@ -65,50 +30,12 @@ void applyDefaults(Config& config, QVector<AppButton>& buttons, QStringList& stu
     config.startCollapsed = false;
     config.trayClickToOpen = true;
     config.showAttendanceSummaryOnStart = true;
+    config.randomNoRepeat = true;
     config.firstRunCompleted = false;
     buttons = defaultButtons();
     students = defaultStudents();
 }
 
-bool downloadToFile(QNetworkAccessManager& manager, const QUrl& url, const QString& outPath) {
-    QNetworkRequest request(url);
-#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
-    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
-                         QNetworkRequest::NoLessSafeRedirectPolicy);
-#elif QT_VERSION >= QT_VERSION_CHECK(5, 9, 0)
-    request.setAttribute(QNetworkRequest::FollowRedirectsAttribute, true);
-#endif
-    QNetworkReply* reply = manager.get(request);
-
-    QEventLoop loop;
-    QTimer timeout;
-    timeout.setSingleShot(true);
-    QObject::connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
-    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    timeout.start(4000);
-    loop.exec();
-
-    if (timeout.isActive()) {
-        timeout.stop();
-    } else {
-        reply->abort();
-    }
-
-    const bool ok = reply->error() == QNetworkReply::NoError;
-    const QByteArray data = reply->readAll();
-    reply->deleteLater();
-
-    if (!ok || data.isEmpty()) {
-        return false;
-    }
-
-    QFile out(outPath);
-    if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        return false;
-    }
-    out.write(data);
-    return true;
-}
 }  // namespace
 
 Config& Config::instance() {
@@ -146,6 +73,7 @@ void Config::load() {
     startCollapsed = root["startCollapsed"].toBool(false);
     trayClickToOpen = root["trayClickToOpen"].toBool(true);
     showAttendanceSummaryOnStart = root["showAttendanceSummaryOnStart"].toBool(true);
+    randomNoRepeat = root["randomNoRepeat"].toBool(true);
     firstRunCompleted = root["firstRunCompleted"].toBool(false);
 
     m_students.clear();
@@ -199,6 +127,7 @@ void Config::save() {
     root["startCollapsed"] = startCollapsed;
     root["trayClickToOpen"] = trayClickToOpen;
     root["showAttendanceSummaryOnStart"] = showAttendanceSummaryOnStart;
+    root["randomNoRepeat"] = randomNoRepeat;
     root["firstRunCompleted"] = firstRunCompleted;
     root["fixedSidebarWidth"] = kSidebarWidth;
 
@@ -305,21 +234,13 @@ QString Config::resolveIconPath(const QString& iconRef) const {
         return iconRef;
     }
 
-    if (iconRef.startsWith("http://") || iconRef.startsWith("https://")) {
-        const QString cachedHttpPath = httpCacheFilePath(iconRef);
-        if (QFile::exists(cachedHttpPath)) {
-            return cachedHttpPath;
-        }
-        return {};
-    }
-
     if (QFileInfo(iconRef).isAbsolute() && QFile::exists(iconRef)) {
         return iconRef;
     }
 
-    const QString namedCachedPath = namedCacheFilePath(iconRef);
-    if (QFile::exists(namedCachedPath)) {
-        return namedCachedPath;
+    const QString appDirIcons = QCoreApplication::applicationDirPath() + "/assets/icons/" + iconRef;
+    if (QFile::exists(appDirIcons)) {
+        return appDirIcons;
     }
 
     const QString appDirAsset = QCoreApplication::applicationDirPath() + "/assets/" + iconRef;
@@ -327,28 +248,16 @@ QString Config::resolveIconPath(const QString& iconRef) const {
         return appDirAsset;
     }
 
+    const QString currentDirIcons = QDir::currentPath() + "/assets/icons/" + iconRef;
+    if (QFile::exists(currentDirIcons)) {
+        return currentDirIcons;
+    }
+
     const QString currentDirAsset = QDir::currentPath() + "/assets/" + iconRef;
     if (QFile::exists(currentDirAsset)) {
         return currentDirAsset;
     }
 
-    return QString(":/assets/%1").arg(iconRef);
+    return {};
 }
 
-void Config::ensureRemoteIconCache() {
-    if (m_remoteIconCacheAttempted) {
-        return;
-    }
-    m_remoteIconCacheAttempted = true;
-
-    QDir().mkpath(iconCacheDirPath());
-    QNetworkAccessManager manager;
-    const auto iconMap = remoteIconMap();
-    for (auto it = iconMap.constBegin(); it != iconMap.constEnd(); ++it) {
-        const QString localPath = namedCacheFilePath(it.key());
-        if (QFile::exists(localPath)) {
-            continue;
-        }
-        downloadToFile(manager, QUrl(it.value()), localPath);
-    }
-}

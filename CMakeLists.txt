@@ -1,5 +1,21 @@
 cmake_minimum_required(VERSION 3.10)
 
+# Qt Creator + Ninja + 新版 CMake 在部分环境下会传入异常的
+# CMAKE_CONFIGURATION_TYPES（空值或不含 Debug），导致 project() 阶段
+# 的编译器检测 try_compile 报错：No CMake configuration for build type "Debug" found。
+# 在 project() 前统一兜底。
+if(DEFINED CMAKE_CONFIGURATION_TYPES)
+    if(CMAKE_CONFIGURATION_TYPES STREQUAL "")
+        set(CMAKE_CONFIGURATION_TYPES "Debug;Release;RelWithDebInfo;MinSizeRel" CACHE STRING "" FORCE)
+    else()
+        set(_cfg_types ";${CMAKE_CONFIGURATION_TYPES};")
+        if(NOT _cfg_types MATCHES ";Debug;")
+            set(CMAKE_CONFIGURATION_TYPES "Debug;${CMAKE_CONFIGURATION_TYPES}" CACHE STRING "" FORCE)
+        endif()
+    endif()
+    set(CMAKE_TRY_COMPILE_CONFIGURATION Debug CACHE STRING "" FORCE)
+endif()
+
 project(ClassAssistant VERSION 1.0.0 LANGUAGES CXX)
 
 # ==============================
@@ -12,6 +28,12 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
+# 单配置生成器默认给 Release，避免空 build type 导致配置异常
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
+
 # ==============================
 # ⭐ Win7 兼容关键（必须）
 # ==============================
@@ -23,7 +45,7 @@ endif()
 # ==============================
 # 查找 Qt
 # ==============================
-find_package(Qt5 COMPONENTS Core Gui Widgets Network REQUIRED)
+find_package(Qt5 COMPONENTS Core Gui Widgets REQUIRED)
 
 if(WIN32)
     find_package(Qt5 COMPONENTS WinExtras REQUIRED)
@@ -60,7 +82,6 @@ target_link_libraries(ClassAssistant PRIVATE
     Qt5::Core
     Qt5::Gui
     Qt5::Widgets
-    Qt5::Network
 )
 
 if(WIN32)
