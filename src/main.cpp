@@ -6,6 +6,7 @@
 #include <QScreen>
 #include <QStyle>
 #include <QSystemTrayIcon>
+#include <QTimer>
 
 #include "Utils.h"
 #include "ui/FloatingBall.h"
@@ -28,8 +29,6 @@ int main(int argc, char* argv[]) {
 
     QApplication app(argc, argv);
     app.setQuitOnLastWindowClosed(false);
-
-    Config::instance().ensureRemoteIconCache();
 
     if (!Config::instance().firstRunCompleted) {
         FirstRunWizard wizard;
@@ -100,9 +99,19 @@ int main(int argc, char* argv[]) {
     QObject::connect(actionQuit, &QAction::triggered, [&]() { app.quit(); });
 
     tray->setContextMenu(menu);
-    if (QSystemTrayIcon::isSystemTrayAvailable()) {
+    auto ensureTrayShown = [tray]() {
+        if (!QSystemTrayIcon::isSystemTrayAvailable()) {
+            return;
+        }
         tray->show();
-    }
+#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
+        if (!tray->isVisible()) {
+            QTimer::singleShot(1000, tray, [tray]() { tray->show(); });
+        }
+#endif
+    };
+    ensureTrayShown();
+    QTimer::singleShot(1200, tray, ensureTrayShown);
 
     QObject::connect(tray, &QSystemTrayIcon::activated, [&](QSystemTrayIcon::ActivationReason reason) {
         if ((reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::DoubleClick)

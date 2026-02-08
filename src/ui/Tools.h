@@ -6,6 +6,7 @@
 #include <QDialog>
 #include <QLabel>
 #include <QLineEdit>
+#include <QPushButton>
 #include <QListWidget>
 #include <QSlider>
 #include <QTimer>
@@ -64,9 +65,17 @@ protected:
 
 private:
     QLabel* m_nameLabel;
+    QLabel* m_hintLabel;
+    QPushButton* m_toggleButton;
+    QPushButton* m_closeButton;
     QTimer* m_timer;
     QStringList m_list;
+    QStringList m_remainingList;
     int m_count = 0;
+    bool m_running = false;
+
+    void toggleRolling();
+    QString drawName() const;
 };
 
 class AddButtonDialog : public QDialog {
@@ -96,6 +105,7 @@ private:
     QCheckBox* m_startCollapsed;
     QCheckBox* m_trayClickToOpen;
     QCheckBox* m_showAttendanceSummaryOnStart;
+    QCheckBox* m_randomNoRepeat;
     QLineEdit* m_seewoPathEdit;
 
     void finishSetup();
@@ -118,6 +128,7 @@ private:
     QCheckBox* m_startCollapsed;
     QCheckBox* m_trayClickToOpen;
     QCheckBox* m_showAttendanceSummaryOnStart;
+    QCheckBox* m_randomNoRepeat;
     QLineEdit* m_seewoPathEdit;
     QListWidget* m_buttonList;
 

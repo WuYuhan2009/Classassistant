@@ -18,7 +18,7 @@ QString buttonStyle() {
 }
 
 AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(parent) {
-    setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnBottomHint | Qt::Tool);
+    setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
     setAttribute(Qt::WA_TranslucentBackground);
 
     auto* root = new QVBoxLayout(this);
@@ -79,7 +79,7 @@ void AttendanceSummaryWidget::refreshUi() {
 
     const QRect screen = QApplication::primaryScreen()->availableGeometry();
     const int x = screen.right() - width() - 12;
-    const int y = screen.bottom() - height() - 12;
+    const int y = screen.top() + 12;
     move(x, y);
 }
 
@@ -90,7 +90,7 @@ void AttendanceSummaryWidget::closeEvent(QCloseEvent* event) {
 
 AttendanceSelectDialog::AttendanceSelectDialog(QWidget* parent) : QDialog(parent) {
     setWindowTitle("考勤选择（选择缺勤人员）");
-    resize(420, 520);
+    setFixedSize(420, 520);
     setWindowFlags(windowFlags() | Qt::Tool);
 
     auto* layout = new QVBoxLayout(this);
@@ -177,50 +177,120 @@ void AttendanceSelectDialog::closeEvent(QCloseEvent* event) {
 RandomCallDialog::RandomCallDialog(QWidget* parent) : QDialog(parent) {
     setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
     setAttribute(Qt::WA_TranslucentBackground);
-    resize(400, 200);
+    setFixedSize(520, 320);
 
     auto* layout = new QVBoxLayout(this);
-    auto* bg = new QLabel(this);
-    bg->setStyleSheet("background-color: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:1, stop:0 #85C1E9, stop:1 #2E86C1); border-radius: 20px; color: white;");
+    layout->setContentsMargins(0, 0, 0, 0);
+
+    auto* bg = new QWidget(this);
+    bg->setStyleSheet("background:qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:1, stop:0 #4f8cff, stop:1 #6d5efc);border-radius:24px;");
     layout->addWidget(bg);
 
-    auto* l = new QVBoxLayout(bg);
-    m_nameLabel = new QLabel("准备点名...");
-    m_nameLabel->setAlignment(Qt::AlignCenter);
-    m_nameLabel->setStyleSheet("font-size: 40px; font-weight: bold;");
-    l->addWidget(m_nameLabel);
+    auto* panelLayout = new QVBoxLayout(bg);
+    panelLayout->setContentsMargins(24, 20, 24, 20);
+    panelLayout->setSpacing(14);
 
-    auto* closeBtn = new QPushButton("隐藏");
-    closeBtn->setStyleSheet(buttonStyle());
-    connect(closeBtn, &QPushButton::clicked, this, &RandomCallDialog::hide);
-    l->addWidget(closeBtn, 0, Qt::AlignCenter);
+    auto* title = new QLabel("🎯 随机点名");
+    title->setStyleSheet("font-size:22px;font-weight:800;color:#ffffff;");
+    panelLayout->addWidget(title, 0, Qt::AlignHCenter);
+
+    m_nameLabel = new QLabel("准备开始");
+    m_nameLabel->setAlignment(Qt::AlignCenter);
+    m_nameLabel->setMinimumHeight(128);
+    m_nameLabel->setStyleSheet("font-size:44px;font-weight:900;color:#1b2a4a;background:rgba(255,255,255,0.92);border-radius:18px;padding:8px;");
+    panelLayout->addWidget(m_nameLabel);
+
+    m_hintLabel = new QLabel("点击“开始点名”后滚动，点击“停止并确定”锁定本次结果");
+    m_hintLabel->setWordWrap(true);
+    m_hintLabel->setStyleSheet("font-size:14px;font-weight:600;color:#e8eeff;");
+    panelLayout->addWidget(m_hintLabel);
+
+    auto* btnRow = new QHBoxLayout;
+    m_toggleButton = new QPushButton("开始点名");
+    m_closeButton = new QPushButton("隐藏窗口");
+    m_toggleButton->setMinimumHeight(42);
+    m_closeButton->setMinimumHeight(42);
+    m_toggleButton->setStyleSheet("QPushButton{background:#ffffff;color:#3554d1;border:none;border-radius:12px;font-size:16px;font-weight:800;padding:8px 16px;}QPushButton:hover{background:#eef3ff;}");
+    m_closeButton->setStyleSheet("QPushButton{background:rgba(255,255,255,0.18);color:#ffffff;border:1px solid rgba(255,255,255,0.45);border-radius:12px;font-size:15px;font-weight:700;padding:8px 16px;}QPushButton:hover{background:rgba(255,255,255,0.28);}");
+    btnRow->addWidget(m_toggleButton, 1);
+    btnRow->addWidget(m_closeButton, 1);
+    panelLayout->addLayout(btnRow);
+
+    connect(m_toggleButton, &QPushButton::clicked, this, &RandomCallDialog::toggleRolling);
+    connect(m_closeButton, &QPushButton::clicked, this, &RandomCallDialog::hide);
 
     m_timer = new QTimer(this);
     connect(m_timer, &QTimer::timeout, [this]() {
         if (m_list.isEmpty()) {
+            m_timer->stop();
+            m_running = false;
+            m_nameLabel->setText("无名单");
+            m_toggleButton->setText("开始点名");
             return;
         }
-        m_nameLabel->setText(m_list[QRandomGenerator::global()->bounded(m_list.size())]);
+        m_nameLabel->setText(drawName());
         ++m_count;
-        if (m_count > 20) m_timer->setInterval(100);
-        if (m_count > 30) m_timer->setInterval(300);
-        if (m_count > 35) {
-            m_timer->stop();
-            m_nameLabel->setStyleSheet("font-size: 50px; font-weight: bold; color: #F1C40F;");
-        }
+        if (m_count > 24) m_timer->setInterval(110);
+        if (m_count > 34) m_timer->setInterval(180);
     });
+}
+
+QString RandomCallDialog::drawName() const {
+    const QStringList& pool = (Config::instance().randomNoRepeat && !m_remainingList.isEmpty()) ? m_remainingList : m_list;
+    if (pool.isEmpty()) {
+        return "无名单";
+    }
+    return pool[QRandomGenerator::global()->bounded(pool.size())];
+}
+
+void RandomCallDialog::toggleRolling() {
+    if (!m_running) {
+        if (m_list.isEmpty()) {
+            m_nameLabel->setText("无名单");
+            return;
+        }
+        m_count = 0;
+        m_running = true;
+        m_toggleButton->setText("停止并确定");
+        m_hintLabel->setText("点名进行中...");
+        m_nameLabel->setStyleSheet("font-size:44px;font-weight:900;color:#1b2a4a;background:rgba(255,255,255,0.92);border-radius:18px;padding:8px;");
+        m_timer->start(45);
+        return;
+    }
+
+    m_timer->stop();
+    m_running = false;
+    const QString selected = m_nameLabel->text().trimmed();
+    m_nameLabel->setStyleSheet("font-size:50px;font-weight:900;color:#f5b301;background:rgba(12,19,40,0.75);border-radius:18px;padding:8px;");
+    m_toggleButton->setText("再来一次");
+
+    if (Config::instance().randomNoRepeat && !selected.isEmpty() && selected != "无名单") {
+        m_remainingList.removeAll(selected);
+        if (m_remainingList.isEmpty()) {
+            m_remainingList = m_list;
+            m_hintLabel->setText("本轮已点完全部学生，已自动重置名单。");
+        } else {
+            m_hintLabel->setText(QString("已确定：%1（剩余 %2 人）").arg(selected).arg(m_remainingList.size()));
+        }
+    } else {
+        m_hintLabel->setText(QString("已确定：%1").arg(selected));
+    }
 }
 
 void RandomCallDialog::startAnim() {
     m_list = Config::instance().getStudentList();
+    m_remainingList = m_list;
+    m_running = false;
+    m_timer->stop();
+    m_toggleButton->setText("开始点名");
     if (m_list.isEmpty()) {
         m_nameLabel->setText("无名单");
-        show();
-        return;
+        m_hintLabel->setText("请先在设置中导入名单");
+    } else {
+        m_nameLabel->setText("准备开始");
+        m_hintLabel->setText(Config::instance().randomNoRepeat ? "当前模式：无重复点名（每轮自动重置）" : "当前模式：允许重复点名");
     }
-    m_count = 0;
-    m_nameLabel->setStyleSheet("font-size: 40px; font-weight: bold; color: white;");
-    m_timer->start(50);
+    m_nameLabel->setStyleSheet("font-size:44px;font-weight:900;color:#1b2a4a;background:rgba(255,255,255,0.92);border-radius:18px;padding:8px;");
     show();
 }
 
@@ -231,7 +301,7 @@ void RandomCallDialog::closeEvent(QCloseEvent* event) {
 
 AddButtonDialog::AddButtonDialog(QWidget* parent) : QDialog(parent) {
     setWindowTitle("添加自定义按钮");
-    resize(420, 260);
+    setFixedSize(420, 260);
 
     auto* layout = new QVBoxLayout(this);
 
@@ -289,7 +359,7 @@ AppButton AddButtonDialog::resultButton() const {
 
 FirstRunWizard::FirstRunWizard(QWidget* parent) : QDialog(parent) {
     setWindowTitle("欢迎使用 ClassAssistant");
-    resize(520, 420);
+    setFixedSize(520, 420);
     setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
 
     auto* layout = new QVBoxLayout(this);
@@ -321,6 +391,10 @@ FirstRunWizard::FirstRunWizard(QWidget* parent) : QDialog(parent) {
     m_showAttendanceSummaryOnStart->setChecked(Config::instance().showAttendanceSummaryOnStart);
     layout->addWidget(m_showAttendanceSummaryOnStart);
 
+    m_randomNoRepeat = new QCheckBox("随机点名无重复（点完一轮自动重置）");
+    m_randomNoRepeat->setChecked(Config::instance().randomNoRepeat);
+    layout->addWidget(m_randomNoRepeat);
+
     layout->addWidget(new QLabel("默认程序路径（希沃）"));
     m_seewoPathEdit = new QLineEdit(Config::instance().seewoPath);
     auto* browse = new QPushButton("选择程序路径");
@@ -346,6 +420,7 @@ void FirstRunWizard::finishSetup() {
     cfg.startCollapsed = m_startCollapsed->isChecked();
     cfg.trayClickToOpen = m_trayClickToOpen->isChecked();
     cfg.showAttendanceSummaryOnStart = m_showAttendanceSummaryOnStart->isChecked();
+    cfg.randomNoRepeat = m_randomNoRepeat->isChecked();
     cfg.seewoPath = m_seewoPathEdit->text().trimmed();
     cfg.firstRunCompleted = true;
     cfg.save();
@@ -358,7 +433,7 @@ void FirstRunWizard::closeEvent(QCloseEvent* event) {
 
 SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     setWindowTitle("ClassAssistant 设置");
-    resize(640, 580);
+    setFixedSize(640, 580);
 
     auto* layout = new QVBoxLayout(this);
 
@@ -380,6 +455,9 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
 
     m_showAttendanceSummaryOnStart = new QCheckBox("启动时显示考勤概览");
     layout->addWidget(m_showAttendanceSummaryOnStart);
+
+    m_randomNoRepeat = new QCheckBox("随机点名无重复（点完一轮自动重置）");
+    layout->addWidget(m_randomNoRepeat);
 
     auto* pathLayout = new QHBoxLayout;
     m_seewoPathEdit = new QLineEdit;
@@ -447,6 +525,7 @@ void SettingsDialog::loadData() {
     m_startCollapsed->setChecked(cfg.startCollapsed);
     m_trayClickToOpen->setChecked(cfg.trayClickToOpen);
     m_showAttendanceSummaryOnStart->setChecked(cfg.showAttendanceSummaryOnStart);
+    m_randomNoRepeat->setChecked(cfg.randomNoRepeat);
     m_seewoPathEdit->setText(cfg.seewoPath);
 
     m_buttonList->clear();
@@ -531,6 +610,7 @@ void SettingsDialog::saveData() {
     cfg.startCollapsed = m_startCollapsed->isChecked();
     cfg.trayClickToOpen = m_trayClickToOpen->isChecked();
     cfg.showAttendanceSummaryOnStart = m_showAttendanceSummaryOnStart->isChecked();
+    cfg.randomNoRepeat = m_randomNoRepeat->isChecked();
     cfg.seewoPath = m_seewoPathEdit->text().trimmed();
 
     QVector<AppButton> buttons;

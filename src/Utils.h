@@ -32,7 +32,6 @@ public:
     bool importStudentsFromText(const QString& filePath, QString* errorMessage = nullptr);
 
     QString resolveIconPath(const QString& iconRef) const;
-    void ensureRemoteIconCache();
 
     int iconSize = 46;
     int floatingOpacity = 85;
@@ -40,6 +39,7 @@ public:
     bool startCollapsed = false;
     bool trayClickToOpen = true;
     bool showAttendanceSummaryOnStart = true;
+    bool randomNoRepeat = true;
     bool firstRunCompleted = false;
     QString seewoPath;
 
@@ -49,5 +49,4 @@ private:
     QString m_configPath;
     QVector<AppButton> m_buttons;
     QStringList m_students;
-    bool m_remoteIconCacheAttempted = false;
 };

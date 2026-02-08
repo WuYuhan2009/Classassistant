@@ -5,6 +5,7 @@
 #include <QDesktopServices>
 #include <QFile>
 #include <QIcon>
+#include <QMessageBox>
 #include <QProcess>
 #include <QPushButton>
 #include <QUrl>
@@ -119,8 +120,14 @@ void Sidebar::closeEvent(QCloseEvent* event) {
 void Sidebar::handleAction(const QString& action, const QString& target) {
     if (action == "exe") {
         const QString path = (target == "SEEWO") ? Config::instance().seewoPath : target;
+        if (path.trimmed().isEmpty()) {
+            QMessageBox::warning(this, "启动失败", "程序路径为空，请在设置中配置后重试。");
+            return;
+        }
         if (!QProcess::startDetached(path, {})) {
-            QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+            if (!QDesktopServices::openUrl(QUrl::fromLocalFile(path))) {
+                QMessageBox::warning(this, "启动失败", QString("无法打开目标：%1").arg(path));
+            }
         }
     } else if (action == "url") {
         QDesktopServices::openUrl(QUrl(target));
