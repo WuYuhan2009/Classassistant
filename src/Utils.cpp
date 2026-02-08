@@ -72,7 +72,10 @@ void applyDefaults(Config& config, QVector<AppButton>& buttons, QStringList& stu
 
 bool downloadToFile(QNetworkAccessManager& manager, const QUrl& url, const QString& outPath) {
     QNetworkRequest request(url);
-#if QT_VERSION >= QT_VERSION_CHECK(5, 9, 0)
+#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                         QNetworkRequest::NoLessSafeRedirectPolicy);
+#elif QT_VERSION >= QT_VERSION_CHECK(5, 9, 0)
     request.setAttribute(QNetworkRequest::FollowRedirectsAttribute, true);
 #endif
     QNetworkReply* reply = manager.get(request);
@@ -200,13 +203,14 @@ void Config::save() {
     root["fixedSidebarWidth"] = kSidebarWidth;
 
     QJsonArray stuArr;
-    for (const auto& s : m_students) {
-        stuArr.append(s);
+    for (auto it = m_students.cbegin(); it != m_students.cend(); ++it) {
+        stuArr.append(*it);
     }
     root["students"] = stuArr;
 
     QJsonArray btnArr;
-    for (const auto& b : m_buttons) {
+    for (auto it = m_buttons.cbegin(); it != m_buttons.cend(); ++it) {
+        const AppButton& b = *it;
         QJsonObject o;
         o["name"] = b.name;
         o["icon"] = b.iconPath;
