@@ -3,11 +3,28 @@
 #include "../Utils.h"
 
 #include <QApplication>
+#include <QCoreApplication>
+#include <QDir>
 #include <QCloseEvent>
 #include <QIcon>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QScreen>
+
+namespace {
+QIcon loadExpandIcon() {
+    const QStringList paths = {
+        ":/assets/icon_expand.png",
+        QCoreApplication::applicationDirPath() + "/assets/icon_expand.png",
+        QDir::currentPath() + "/assets/icon_expand.png",
+    };
+    for (const auto& p : paths) {
+        QIcon icon(p);
+        if (!icon.isNull()) return icon;
+    }
+    return {};
+}
+}
 
 FloatingBall::FloatingBall(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
@@ -27,15 +44,15 @@ void FloatingBall::paintEvent(QPaintEvent* event) {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
 
-    p.setBrush(QColor(0, 123, 255, 220));
-    p.setPen(QPen(QColor(255, 255, 255, 170), 2));
+    p.setBrush(QColor(244, 248, 252, 242));
+    p.setPen(QPen(QColor(192, 204, 219, 210), 2));
     p.drawEllipse(3, 3, 64, 64);
 
-    QIcon icon(":/assets/icon_expand.png");
+    QIcon icon = loadExpandIcon();
     if (!icon.isNull()) {
-        icon.paint(&p, QRect(16, 16, 38, 38));
+        icon.paint(&p, QRect(15, 15, 40, 40));
     } else {
-        p.setPen(Qt::white);
+        p.setPen(QColor(79, 102, 130));
         QFont f = font();
         f.setBold(true);
         f.setPointSize(12);

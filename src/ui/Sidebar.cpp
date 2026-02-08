@@ -2,7 +2,9 @@
 
 #include "../Utils.h"
 
+#include <QCoreApplication>
 #include <QDesktopServices>
+#include <QDir>
 #include <QFile>
 #include <QIcon>
 #include <QProcess>
@@ -11,6 +13,28 @@
 
 namespace {
 constexpr int kSidebarWidth = 84;
+
+QIcon loadNamedIcon(const QString& pathOrName) {
+    if (pathOrName.isEmpty()) return {};
+    QIcon icon(pathOrName);
+    if (!icon.isNull()) return icon;
+
+    QString fileName = pathOrName;
+    if (pathOrName.startsWith(":/assets/")) {
+        fileName = pathOrName.mid(QString(":/assets/").size());
+    }
+    const QStringList candidates = {
+        QString(":/assets/%1").arg(fileName),
+        QCoreApplication::applicationDirPath() + "/assets/" + fileName,
+        QDir::currentPath() + "/assets/" + fileName,
+        pathOrName,
+    };
+    for (const auto& c : candidates) {
+        QIcon test(c);
+        if (!test.isNull()) return test;
+    }
+    return {};
+}
 }
 
 Sidebar::Sidebar(QWidget* parent) : QWidget(parent) {
@@ -43,16 +67,17 @@ QPushButton* Sidebar::createIconButton(const QString& text,
     btn->setFixedSize(kSidebarWidth - 12, kSidebarWidth - 12);
     btn->setToolTip(tooltip);
 
-    const QIcon icon(iconPath);
+    const QIcon icon = loadNamedIcon(iconPath);
     if (!icon.isNull()) {
         btn->setIcon(icon);
-        btn->setIconSize(QSize(Config::instance().iconSize, Config::instance().iconSize));
+        const int iconSide = qMin(40, qMax(24, Config::instance().iconSize));
+        btn->setIconSize(QSize(iconSide, iconSide));
         btn->setText("");
     } else if (!fallbackEmoji.isEmpty()) {
         btn->setText(fallbackEmoji);
     }
 
-    btn->setStyleSheet("background: rgba(255,255,255,0.96); border: 1px solid #cfd5dd; border-radius: 12px; font-size: 22px;");
+    btn->setStyleSheet("background: rgba(255,255,255,0.96); border: 1px solid #cfd5dd; border-radius: 12px; font-size: 22px; padding: 4px;");
     return btn;
 }
 
@@ -63,7 +88,7 @@ void Sidebar::rebuildUI() {
     }
 
     setFixedWidth(kSidebarWidth);
-    setStyleSheet("QWidget { background-color: rgba(244, 248, 252, 0.95); border-top-left-radius: 14px; border-bottom-left-radius: 14px; }");
+    setStyleSheet("QWidget { background-color: rgba(244, 248, 252, 0.96); border-top-left-radius: 14px; border-bottom-left-radius: 14px; }");
 
     m_layout->addStretch();
     const auto buttons = Config::instance().getButtons();
@@ -73,9 +98,18 @@ void Sidebar::rebuildUI() {
         m_layout->addWidget(btn, 0, Qt::AlignHCenter);
     }
 
-    auto* settingsBtn = createIconButton("设", ":/assets/icon_settings.png", "设置", "⚙️");
-    connect(settingsBtn, &QPushButton::clicked, this, &Sidebar::openSettings);
-    m_layout->addWidget(settingsBtn, 0, Qt::AlignHCenter);
+    bool hasSettingsButton = false;
+    for (const auto& b : buttons) {
+        if (b.action == "func" && b.target == "SETTINGS") {
+            hasSettingsButton = true;
+            break;
+        }
+    }
+    if (!hasSettingsButton) {
+        auto* settingsBtn = createIconButton("设", ":/assets/icon_settings.png", "设置", "⚙️");
+        connect(settingsBtn, &QPushButton::clicked, this, &Sidebar::openSettings);
+        m_layout->addWidget(settingsBtn, 0, Qt::AlignHCenter);
+    }
 
     auto* collapseBtn = createIconButton("收", ":/assets/icon_collapse.png", "收起", "⏷");
     connect(collapseBtn, &QPushButton::clicked, this, &Sidebar::requestHide);
