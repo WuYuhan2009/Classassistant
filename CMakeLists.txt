@@ -1,10 +1,19 @@
 cmake_minimum_required(VERSION 3.10)
 
-# Qt Creator + Ninja + 新版 CMake 在部分环境下会提前注入空的
-# CMAKE_CONFIGURATION_TYPES，导致编译器 ABI 检测阶段找不到 Debug 配置。
-# 在 project() 前兜底，保证 try_compile 可用。
-if(DEFINED CMAKE_CONFIGURATION_TYPES AND CMAKE_CONFIGURATION_TYPES STREQUAL "")
-    set(CMAKE_CONFIGURATION_TYPES "Debug;Release;RelWithDebInfo;MinSizeRel" CACHE STRING "" FORCE)
+# Qt Creator + Ninja + 新版 CMake 在部分环境下会传入异常的
+# CMAKE_CONFIGURATION_TYPES（空值或不含 Debug），导致 project() 阶段
+# 的编译器检测 try_compile 报错：No CMake configuration for build type "Debug" found。
+# 在 project() 前统一兜底。
+if(DEFINED CMAKE_CONFIGURATION_TYPES)
+    if(CMAKE_CONFIGURATION_TYPES STREQUAL "")
+        set(CMAKE_CONFIGURATION_TYPES "Debug;Release;RelWithDebInfo;MinSizeRel" CACHE STRING "" FORCE)
+    else()
+        set(_cfg_types ";${CMAKE_CONFIGURATION_TYPES};")
+        if(NOT _cfg_types MATCHES ";Debug;")
+            set(CMAKE_CONFIGURATION_TYPES "Debug;${CMAKE_CONFIGURATION_TYPES}" CACHE STRING "" FORCE)
+        endif()
+    endif()
+    set(CMAKE_TRY_COMPILE_CONFIGURATION Debug CACHE STRING "" FORCE)
 endif()
 
 project(ClassAssistant VERSION 1.0.0 LANGUAGES CXX)
@@ -24,10 +33,6 @@ if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
 
-# 让 try_compile 在多配置场景固定使用 Debug
-if(CMAKE_CONFIGURATION_TYPES)
-    set(CMAKE_TRY_COMPILE_CONFIGURATION Debug CACHE STRING "" FORCE)
-endif()
 
 # ==============================
 # ⭐ Win7 兼容关键（必须）
