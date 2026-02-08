@@ -31,7 +31,9 @@ public:
     void setStudentList(const QStringList& list);
     bool importStudentsFromText(const QString& filePath, QString* errorMessage = nullptr);
 
-    bool darkMode = false;
+    QString resolveIconPath(const QString& iconRef) const;
+    void ensureRemoteIconCache();
+
     int iconSize = 46;
     int floatingOpacity = 85;
     int attendanceSummaryWidth = 360;
@@ -47,4 +49,5 @@ private:
     QString m_configPath;
     QVector<AppButton> m_buttons;
     QStringList m_students;
+    bool m_remoteIconCacheAttempted = false;
 };

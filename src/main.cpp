@@ -14,6 +14,11 @@
 
 namespace {
 constexpr int kSidebarWidth = 84;
+
+QIcon loadNamedIcon(const QString& fileName) {
+    const QString resolvedPath = Config::instance().resolveIconPath(fileName);
+    return QIcon(resolvedPath);
+}
 }
 
 int main(int argc, char* argv[]) {
@@ -24,23 +29,13 @@ int main(int argc, char* argv[]) {
     QApplication app(argc, argv);
     app.setQuitOnLastWindowClosed(false);
 
-    auto applyTheme = [&]() {
-        if (Config::instance().darkMode) {
-            app.setStyleSheet(
-                "QWidget{background:#1f2329;color:#e6edf3;}"
-                "QPushButton{background:#30363d;border:1px solid #586069;padding:6px;border-radius:8px;color:#e6edf3;}"
-                "QLineEdit,QListWidget,QTableWidget,QComboBox{background:#0d1117;color:#e6edf3;border:1px solid #586069;}"
-                "QLabel{color:#e6edf3;}");
-        } else {
-            app.setStyleSheet("");
-        }
-    };
+    Config::instance().ensureRemoteIconCache();
 
     if (!Config::instance().firstRunCompleted) {
         FirstRunWizard wizard;
         wizard.exec();
     }
-    applyTheme();
+    app.setStyleSheet("");
 
     auto* sidebar = new Sidebar();
     auto* ball = new FloatingBall();
@@ -69,7 +64,7 @@ int main(int argc, char* argv[]) {
 
     auto reloadAll = [&]() {
         Config::instance().load();
-        applyTheme();
+        app.setStyleSheet("");
         sidebar->reloadConfig();
         updatePos();
     };
@@ -78,7 +73,10 @@ int main(int argc, char* argv[]) {
     QObject::connect(sidebar, &Sidebar::requestHide, showBall);
 
     auto* tray = new QSystemTrayIcon(&app);
-    QIcon trayIcon(":/assets/icon_tray.png");
+    QIcon trayIcon = loadNamedIcon("icon_settings.png");
+    if (trayIcon.isNull()) {
+        trayIcon = loadNamedIcon("icon_tray.png");
+    }
     if (trayIcon.isNull()) {
         trayIcon = QIcon::fromTheme("applications-education");
     }
@@ -86,6 +84,7 @@ int main(int argc, char* argv[]) {
         trayIcon = app.style()->standardIcon(QStyle::SP_ComputerIcon);
     }
     tray->setIcon(trayIcon);
+    app.setWindowIcon(trayIcon);
     tray->setToolTip("班级小助手");
 
     auto* menu = new QMenu();
@@ -101,10 +100,13 @@ int main(int argc, char* argv[]) {
     QObject::connect(actionQuit, &QAction::triggered, [&]() { app.quit(); });
 
     tray->setContextMenu(menu);
-    tray->show();
+    if (QSystemTrayIcon::isSystemTrayAvailable()) {
+        tray->show();
+    }
 
     QObject::connect(tray, &QSystemTrayIcon::activated, [&](QSystemTrayIcon::ActivationReason reason) {
-        if (reason == QSystemTrayIcon::Trigger && Config::instance().trayClickToOpen) {
+        if ((reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::DoubleClick)
+            && Config::instance().trayClickToOpen) {
             showSidebar();
         }
     });

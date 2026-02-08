@@ -29,14 +29,14 @@ AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(pare
     auto* inner = new QVBoxLayout(panel);
 
     m_title = new QLabel("📌 今日考勤概览");
-    m_title->setStyleSheet("font-size:16px;font-weight:700;color:#7a4b00;");
+    m_title->setStyleSheet("font-size:18px;font-weight:800;color:#7a4b00;");
 
     m_counts = new QLabel;
-    m_counts->setStyleSheet("font-size:15px;font-weight:700;color:#8b1e1e;");
+    m_counts->setStyleSheet("font-size:17px;font-weight:800;color:#8b1e1e;");
 
     m_absentList = new QLabel;
     m_absentList->setWordWrap(true);
-    m_absentList->setStyleSheet("font-size:14px;font-weight:600;color:#8b1e1e;background:#fff3f3;border:1px solid #f3c5c5;border-radius:8px;padding:8px;");
+    m_absentList->setStyleSheet("font-size:16px;font-weight:700;color:#8b1e1e;background:#fff3f3;border:1px solid #f3c5c5;border-radius:8px;padding:8px;");
 
     inner->addWidget(m_title);
     inner->addWidget(m_counts);
@@ -98,6 +98,11 @@ AttendanceSelectDialog::AttendanceSelectDialog(QWidget* parent) : QDialog(parent
     tip->setWordWrap(true);
     layout->addWidget(tip);
 
+    m_searchEdit = new QLineEdit;
+    m_searchEdit->setPlaceholderText("搜索学生姓名...");
+    connect(m_searchEdit, &QLineEdit::textChanged, this, &AttendanceSelectDialog::filterRoster);
+    layout->addWidget(m_searchEdit);
+
     m_roster = new QListWidget;
     m_roster->setSelectionMode(QAbstractItemView::MultiSelection);
     const auto students = Config::instance().getStudentList();
@@ -109,15 +114,40 @@ AttendanceSelectDialog::AttendanceSelectDialog(QWidget* parent) : QDialog(parent
     layout->addWidget(m_roster, 1);
 
     auto* actions = new QHBoxLayout;
+    auto* markAllBtn = new QPushButton("全选缺勤");
+    auto* clearAllBtn = new QPushButton("清空勾选");
     auto* saveBtn = new QPushButton("保存缺勤名单");
     saveBtn->setStyleSheet(buttonStyle());
+    markAllBtn->setStyleSheet(buttonStyle());
+    clearAllBtn->setStyleSheet(buttonStyle());
     auto* cancelBtn = new QPushButton("关闭");
     cancelBtn->setStyleSheet(buttonStyle());
+    connect(markAllBtn, &QPushButton::clicked, [this]() {
+        for (int i = 0; i < m_roster->count(); ++i) {
+            auto* item = m_roster->item(i);
+            if (!item->isHidden()) item->setCheckState(Qt::Checked);
+        }
+    });
+    connect(clearAllBtn, &QPushButton::clicked, [this]() {
+        for (int i = 0; i < m_roster->count(); ++i) {
+            m_roster->item(i)->setCheckState(Qt::Unchecked);
+        }
+    });
     connect(saveBtn, &QPushButton::clicked, this, &AttendanceSelectDialog::saveSelection);
     connect(cancelBtn, &QPushButton::clicked, this, &AttendanceSelectDialog::hide);
+    actions->addWidget(markAllBtn);
+    actions->addWidget(clearAllBtn);
     actions->addWidget(saveBtn);
     actions->addWidget(cancelBtn);
     layout->addLayout(actions);
+}
+
+void AttendanceSelectDialog::filterRoster(const QString& keyword) {
+    const QString k = keyword.trimmed();
+    for (int i = 0; i < m_roster->count(); ++i) {
+        auto* item = m_roster->item(i);
+        item->setHidden(!k.isEmpty() && !item->text().contains(k, Qt::CaseInsensitive));
+    }
 }
 
 void AttendanceSelectDialog::setSelectedAbsentees(const QStringList& absentees) {
@@ -267,9 +297,6 @@ FirstRunWizard::FirstRunWizard(QWidget* parent) : QDialog(parent) {
     intro->setWordWrap(true);
     layout->addWidget(intro);
 
-    m_darkMode = new QCheckBox("启用深色模式");
-    layout->addWidget(m_darkMode);
-
     layout->addWidget(new QLabel("展开球不透明度"));
     m_floatingOpacity = new QSlider(Qt::Horizontal);
     m_floatingOpacity->setRange(35, 100);
@@ -314,7 +341,6 @@ FirstRunWizard::FirstRunWizard(QWidget* parent) : QDialog(parent) {
 
 void FirstRunWizard::finishSetup() {
     auto& cfg = Config::instance();
-    cfg.darkMode = m_darkMode->isChecked();
     cfg.floatingOpacity = m_floatingOpacity->value();
     cfg.attendanceSummaryWidth = m_summaryWidth->value();
     cfg.startCollapsed = m_startCollapsed->isChecked();
@@ -335,9 +361,6 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     resize(640, 580);
 
     auto* layout = new QVBoxLayout(this);
-
-    m_darkMode = new QCheckBox("深色模式");
-    layout->addWidget(m_darkMode);
 
     layout->addWidget(new QLabel("悬浮球透明度"));
     m_floatingOpacity = new QSlider(Qt::Horizontal);
@@ -409,12 +432,16 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     connect(save, &QPushButton::clicked, this, &SettingsDialog::saveData);
     layout->addWidget(save);
 
+    auto* quitAppBtn = new QPushButton("退出程序");
+    quitAppBtn->setStyleSheet(buttonStyle());
+    connect(quitAppBtn, &QPushButton::clicked, qApp, &QCoreApplication::quit);
+    layout->addWidget(quitAppBtn);
+
     loadData();
 }
 
 void SettingsDialog::loadData() {
     const auto& cfg = Config::instance();
-    m_darkMode->setChecked(cfg.darkMode);
     m_floatingOpacity->setValue(cfg.floatingOpacity);
     m_summaryWidth->setValue(cfg.attendanceSummaryWidth);
     m_startCollapsed->setChecked(cfg.startCollapsed);
@@ -499,7 +526,6 @@ void SettingsDialog::moveDown() {
 
 void SettingsDialog::saveData() {
     auto& cfg = Config::instance();
-    cfg.darkMode = m_darkMode->isChecked();
     cfg.floatingOpacity = m_floatingOpacity->value();
     cfg.attendanceSummaryWidth = m_summaryWidth->value();
     cfg.startCollapsed = m_startCollapsed->isChecked();

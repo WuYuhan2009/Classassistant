@@ -27,15 +27,16 @@ void FloatingBall::paintEvent(QPaintEvent* event) {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
 
-    p.setBrush(QColor(0, 123, 255, 220));
-    p.setPen(QPen(QColor(255, 255, 255, 170), 2));
+    p.setBrush(QColor(244, 248, 252, 242));
+    p.setPen(QPen(QColor(192, 204, 219, 210), 2));
     p.drawEllipse(3, 3, 64, 64);
 
-    QIcon icon(":/assets/icon_expand.png");
+    const QString expandIconPath = Config::instance().resolveIconPath("icon_expand.png");
+    QIcon icon(expandIconPath);
     if (!icon.isNull()) {
-        icon.paint(&p, QRect(16, 16, 38, 38));
+        icon.paint(&p, QRect(15, 15, 40, 40));
     } else {
-        p.setPen(Qt::white);
+        p.setPen(QColor(79, 102, 130));
         QFont f = font();
         f.setBold(true);
         f.setPointSize(12);

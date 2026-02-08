@@ -1,19 +1,41 @@
 #include "Utils.h"
 
+#include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QDir>
+#include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
+#include <QUrl>
+#include <QMap>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QTextStream>
+#include <QTimer>
 
 namespace {
 constexpr int kSidebarWidth = 84;
 
+const QMap<QString, QString>& remoteIconMap() {
+    static const QMap<QString, QString> kMap = {
+        {"icon_seewo.png", "https://upload.cc/i1/2026/02/08/Y6wmA8.png"},
+        {"icon_attendance.png", "https://upload.cc/i1/2026/02/08/HNo35p.png"},
+        {"icon_random.png", "https://upload.cc/i1/2026/02/08/Dt8WIg.png"},
+        {"icon_ai.png", "https://upload.cc/i1/2026/02/08/GeojsQ.png"},
+        {"icon_settings.png", "https://upload.cc/i1/2026/02/08/vCRlDF.png"},
+        {"icon_collapse.png", "https://upload.cc/i1/2026/02/08/BTjyOR.png"},
+        {"icon_expand.png", "https://upload.cc/i1/2026/02/08/N59bqp.png"},
+    };
+    return kMap;
+}
+
 QVector<AppButton> defaultButtons() {
     return {
-        {"希沃白板", ":/assets/icon_seewo.png", "exe", "SEEWO", true},
-        {"班级考勤", ":/assets/icon_attendance.png", "func", "ATTENDANCE", true},
-        {"随机点名", ":/assets/icon_random.png", "func", "RANDOM_CALL", true},
-        {"AI 助手", ":/assets/icon_ai.png", "url", "https://www.doubao.com/chat/", true},
+        {"希沃白板", "icon_seewo.png", "exe", "SEEWO", true},
+        {"班级考勤", "icon_attendance.png", "func", "ATTENDANCE", true},
+        {"随机点名", "icon_random.png", "func", "RANDOM_CALL", true},
+        {"AI 助手", "icon_ai.png", "url", "https://www.doubao.com/chat/", true},
     };
 }
 
@@ -21,9 +43,22 @@ QStringList defaultStudents() {
     return QStringList{QStringLiteral("张三"), QStringLiteral("李四"), QStringLiteral("王五"), QStringLiteral("赵六"), QStringLiteral("示例学生")};
 }
 
+QString iconCacheDirPath() {
+    const QString dataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    return dataPath + "/icons";
+}
+
+QString httpCacheFilePath(const QString& iconRef) {
+    const QByteArray md5 = QCryptographicHash::hash(iconRef.toUtf8(), QCryptographicHash::Md5).toHex();
+    return iconCacheDirPath() + "/" + QString::fromLatin1(md5) + ".png";
+}
+
+QString namedCacheFilePath(const QString& fileName) {
+    return iconCacheDirPath() + "/" + fileName;
+}
+
 void applyDefaults(Config& config, QVector<AppButton>& buttons, QStringList& students) {
     config.seewoPath = "C:/Program Files (x86)/Seewo/EasiNote5/swenlauncher/swenlauncher.exe";
-    config.darkMode = false;
     config.iconSize = 46;
     config.floatingOpacity = 85;
     config.attendanceSummaryWidth = 360;
@@ -33,6 +68,43 @@ void applyDefaults(Config& config, QVector<AppButton>& buttons, QStringList& stu
     config.firstRunCompleted = false;
     buttons = defaultButtons();
     students = defaultStudents();
+}
+
+bool downloadToFile(QNetworkAccessManager& manager, const QUrl& url, const QString& outPath) {
+    QNetworkRequest request(url);
+#if QT_VERSION >= QT_VERSION_CHECK(5, 9, 0)
+    request.setAttribute(QNetworkRequest::FollowRedirectsAttribute, true);
+#endif
+    QNetworkReply* reply = manager.get(request);
+
+    QEventLoop loop;
+    QTimer timeout;
+    timeout.setSingleShot(true);
+    QObject::connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    timeout.start(4000);
+    loop.exec();
+
+    if (timeout.isActive()) {
+        timeout.stop();
+    } else {
+        reply->abort();
+    }
+
+    const bool ok = reply->error() == QNetworkReply::NoError;
+    const QByteArray data = reply->readAll();
+    reply->deleteLater();
+
+    if (!ok || data.isEmpty()) {
+        return false;
+    }
+
+    QFile out(outPath);
+    if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        return false;
+    }
+    out.write(data);
+    return true;
 }
 }  // namespace
 
@@ -65,7 +137,6 @@ void Config::load() {
 
     const QJsonObject root = doc.object();
     seewoPath = root["seewoPath"].toString().trimmed();
-    darkMode = root["darkMode"].toBool(false);
     iconSize = qBound(28, root["iconSize"].toInt(46), 72);
     floatingOpacity = qBound(35, root["floatingOpacity"].toInt(85), 100);
     attendanceSummaryWidth = qBound(300, root["attendanceSummaryWidth"].toInt(360), 520);
@@ -94,8 +165,12 @@ void Config::load() {
         if (target == "classisland://open") {
             continue;
         }
+        QString iconRef = o["icon"].toString().trimmed();
+        if (iconRef.startsWith(":/assets/")) {
+            iconRef = iconRef.mid(QString(":/assets/").size());
+        }
         m_buttons.append({name,
-                          o["icon"].toString().trimmed(),
+                          iconRef,
                           action,
                           target,
                           o["isSystem"].toBool(false)});
@@ -115,7 +190,6 @@ void Config::load() {
 void Config::save() {
     QJsonObject root;
     root["seewoPath"] = seewoPath;
-    root["darkMode"] = darkMode;
     root["iconSize"] = iconSize;
     root["floatingOpacity"] = floatingOpacity;
     root["attendanceSummaryWidth"] = attendanceSummaryWidth;
@@ -148,7 +222,6 @@ void Config::save() {
         file.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
     }
 }
-
 
 void Config::resetToDefaults(bool preserveFirstRun) {
     const bool oldFirstRun = firstRunCompleted;
@@ -217,4 +290,61 @@ bool Config::importStudentsFromText(const QString& filePath, QString* errorMessa
     m_students = parsedStudents;
     save();
     return true;
+}
+
+QString Config::resolveIconPath(const QString& iconRef) const {
+    if (iconRef.isEmpty()) {
+        return {};
+    }
+
+    if (iconRef.startsWith(":/")) {
+        return iconRef;
+    }
+
+    if (iconRef.startsWith("http://") || iconRef.startsWith("https://")) {
+        const QString cachedHttpPath = httpCacheFilePath(iconRef);
+        if (QFile::exists(cachedHttpPath)) {
+            return cachedHttpPath;
+        }
+        return {};
+    }
+
+    if (QFileInfo(iconRef).isAbsolute() && QFile::exists(iconRef)) {
+        return iconRef;
+    }
+
+    const QString namedCachedPath = namedCacheFilePath(iconRef);
+    if (QFile::exists(namedCachedPath)) {
+        return namedCachedPath;
+    }
+
+    const QString appDirAsset = QCoreApplication::applicationDirPath() + "/assets/" + iconRef;
+    if (QFile::exists(appDirAsset)) {
+        return appDirAsset;
+    }
+
+    const QString currentDirAsset = QDir::currentPath() + "/assets/" + iconRef;
+    if (QFile::exists(currentDirAsset)) {
+        return currentDirAsset;
+    }
+
+    return QString(":/assets/%1").arg(iconRef);
+}
+
+void Config::ensureRemoteIconCache() {
+    if (m_remoteIconCacheAttempted) {
+        return;
+    }
+    m_remoteIconCacheAttempted = true;
+
+    QDir().mkpath(iconCacheDirPath());
+    QNetworkAccessManager manager;
+    const auto iconMap = remoteIconMap();
+    for (auto it = iconMap.constBegin(); it != iconMap.constEnd(); ++it) {
+        const QString localPath = namedCacheFilePath(it.key());
+        if (QFile::exists(localPath)) {
+            continue;
+        }
+        downloadToFile(manager, QUrl(it.value()), localPath);
+    }
 }
