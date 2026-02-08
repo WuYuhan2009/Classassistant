@@ -23,7 +23,6 @@ QStringList defaultStudents() {
 
 void applyDefaults(Config& config, QVector<AppButton>& buttons, QStringList& students) {
     config.seewoPath = "C:/Program Files (x86)/Seewo/EasiNote5/swenlauncher/swenlauncher.exe";
-    config.darkMode = false;
     config.iconSize = 46;
     config.floatingOpacity = 85;
     config.attendanceSummaryWidth = 360;
@@ -65,7 +64,6 @@ void Config::load() {
 
     const QJsonObject root = doc.object();
     seewoPath = root["seewoPath"].toString().trimmed();
-    darkMode = root["darkMode"].toBool(false);
     iconSize = qBound(28, root["iconSize"].toInt(46), 72);
     floatingOpacity = qBound(35, root["floatingOpacity"].toInt(85), 100);
     attendanceSummaryWidth = qBound(300, root["attendanceSummaryWidth"].toInt(360), 520);
@@ -115,7 +113,6 @@ void Config::load() {
 void Config::save() {
     QJsonObject root;
     root["seewoPath"] = seewoPath;
-    root["darkMode"] = darkMode;
     root["iconSize"] = iconSize;
     root["floatingOpacity"] = floatingOpacity;
     root["attendanceSummaryWidth"] = attendanceSummaryWidth;

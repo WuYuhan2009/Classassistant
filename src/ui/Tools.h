@@ -48,7 +48,9 @@ protected:
 
 private:
     QListWidget* m_roster;
+    QLineEdit* m_searchEdit;
     void saveSelection();
+    void filterRoster(const QString& keyword);
 };
 
 class RandomCallDialog : public QDialog {
@@ -89,7 +91,6 @@ protected:
     void closeEvent(QCloseEvent* event) override;
 
 private:
-    QCheckBox* m_darkMode;
     QSlider* m_floatingOpacity;
     QSlider* m_summaryWidth;
     QCheckBox* m_startCollapsed;
@@ -112,7 +113,6 @@ protected:
     void closeEvent(QCloseEvent* event) override;
 
 private:
-    QCheckBox* m_darkMode;
     QSlider* m_floatingOpacity;
     QSlider* m_summaryWidth;
     QCheckBox* m_startCollapsed;

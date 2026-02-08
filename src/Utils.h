@@ -31,7 +31,6 @@ public:
     void setStudentList(const QStringList& list);
     bool importStudentsFromText(const QString& filePath, QString* errorMessage = nullptr);
 
-    bool darkMode = false;
     int iconSize = 46;
     int floatingOpacity = 85;
     int attendanceSummaryWidth = 360;
