@@ -3,7 +3,6 @@
 #include "../Utils.h"
 
 #include <QDesktopServices>
-#include <QFile>
 #include <QIcon>
 #include <QMessageBox>
 #include <QProcess>
@@ -24,6 +23,8 @@ Sidebar::Sidebar(QWidget* parent) : QWidget(parent) {
     }
     m_attendanceSelector = new AttendanceSelectDialog();
     m_randomCall = new RandomCallDialog();
+    m_classTimer = new ClassTimerDialog();
+    m_classNote = new ClassNoteDialog();
     m_settings = new SettingsDialog();
 
     connect(m_settings, &SettingsDialog::configChanged, this, &Sidebar::reloadConfig);
@@ -41,32 +42,34 @@ QPushButton* Sidebar::createIconButton(const QString& text,
                                        const QString& tooltip,
                                        const QString& fallbackEmoji) {
     auto* btn = new QPushButton(text);
-    btn->setFixedSize(kSidebarWidth - 12, kSidebarWidth - 12);
+    const bool compact = Config::instance().compactMode;
+    const int side = compact ? (kSidebarWidth - 24) : (kSidebarWidth - 12);
+    btn->setFixedSize(side, side);
     btn->setToolTip(tooltip);
 
-    const QString resolvedIconPath = Config::instance().resolveIconPath(iconPath);
-    const QIcon icon(resolvedIconPath);
+    const QIcon icon(Config::instance().resolveIconPath(iconPath));
     if (!icon.isNull()) {
         btn->setIcon(icon);
-        const int iconSide = qMin(40, qMax(24, Config::instance().iconSize));
+        const int iconSide = qMin(compact ? 30 : 40, qMax(20, Config::instance().iconSize));
         btn->setIconSize(QSize(iconSide, iconSide));
         btn->setText("");
     } else if (!fallbackEmoji.isEmpty()) {
         btn->setText(fallbackEmoji);
     }
 
-    btn->setStyleSheet("background: rgba(255,255,255,0.96); border: 1px solid #cfd5dd; border-radius: 12px; font-size: 22px; padding: 4px;");
+    btn->setStyleSheet("background: rgba(255,255,255,0.96); border: 1px solid #d6deea; border-radius: 12px; font-size: 20px; padding: 4px;");
     return btn;
 }
 
 void Sidebar::rebuildUI() {
     while (QLayoutItem* item = m_layout->takeAt(0)) {
-        if (item->widget()) delete item->widget();
+        delete item->widget();
         delete item;
     }
 
+    m_layout->setSpacing(Config::instance().compactMode ? 4 : 8);
     setFixedWidth(kSidebarWidth);
-    setStyleSheet("QWidget { background-color: rgba(244, 248, 252, 0.96); border-top-left-radius: 14px; border-bottom-left-radius: 14px; }");
+    setStyleSheet("QWidget { background-color: rgba(250, 252, 255, 0.97); border-top-left-radius: 16px; border-bottom-left-radius: 16px; }");
 
     m_layout->addStretch();
     const auto buttons = Config::instance().getButtons();
@@ -76,18 +79,9 @@ void Sidebar::rebuildUI() {
         m_layout->addWidget(btn, 0, Qt::AlignHCenter);
     }
 
-    bool hasSettingsButton = false;
-    for (const auto& b : buttons) {
-        if (b.action == "func" && b.target == "SETTINGS") {
-            hasSettingsButton = true;
-            break;
-        }
-    }
-    if (!hasSettingsButton) {
-        auto* settingsBtn = createIconButton("设", "icon_settings.png", "设置", "⚙️");
-        connect(settingsBtn, &QPushButton::clicked, this, &Sidebar::openSettings);
-        m_layout->addWidget(settingsBtn, 0, Qt::AlignHCenter);
-    }
+    auto* settingsBtn = createIconButton("设", "icon_settings.png", "设置", "⚙️");
+    connect(settingsBtn, &QPushButton::clicked, this, &Sidebar::openSettings);
+    m_layout->addWidget(settingsBtn, 0, Qt::AlignHCenter);
 
     auto* collapseBtn = createIconButton("收", "icon_collapse.png", "收起", "⏷");
     connect(collapseBtn, &QPushButton::clicked, this, &Sidebar::requestHide);
@@ -130,6 +124,10 @@ void Sidebar::handleAction(const QString& action, const QString& target) {
             }
         }
     } else if (action == "url") {
+        if (!Config::instance().allowExternalLinks) {
+            QMessageBox::information(this, "已禁用", "当前处于离线优先模式，URL 打开已禁用。可在设置-安全与离线中启用。");
+            return;
+        }
         QDesktopServices::openUrl(QUrl(target));
     } else if (action == "func") {
         if (target == "ATTENDANCE") {
@@ -139,6 +137,10 @@ void Sidebar::handleAction(const QString& action, const QString& target) {
             m_attendanceSelector->raise();
         } else if (target == "RANDOM_CALL") {
             m_randomCall->startAnim();
+        } else if (target == "CLASS_TIMER") {
+            m_classTimer->openTimer();
+        } else if (target == "CLASS_NOTE") {
+            m_classNote->openNote();
         } else if (target == "SETTINGS") {
             openSettings();
         }

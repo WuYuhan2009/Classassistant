@@ -29,6 +29,8 @@ private:
     AttendanceSummaryWidget* m_attendanceSummary;
     AttendanceSelectDialog* m_attendanceSelector;
     RandomCallDialog* m_randomCall;
+    ClassTimerDialog* m_classTimer;
+    ClassNoteDialog* m_classNote;
     SettingsDialog* m_settings;
 
     void handleAction(const QString& action, const QString& target);

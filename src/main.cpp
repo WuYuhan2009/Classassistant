@@ -6,6 +6,7 @@
 #include <QScreen>
 #include <QStyle>
 #include <QSystemTrayIcon>
+#include <QFont>
 #include <QTimer>
 
 #include "Utils.h"
@@ -30,11 +31,19 @@ int main(int argc, char* argv[]) {
     QApplication app(argc, argv);
     app.setQuitOnLastWindowClosed(false);
 
+    QFont uiFont("HarmonyOS Sans SC");
+    if (!uiFont.exactMatch()) {
+        uiFont = QFont("HarmonyOS Sans");
+    }
+    uiFont.setPointSize(10);
+    app.setFont(uiFont);
+    app.setStyleSheet("QWidget{font-family:'HarmonyOS Sans SC','HarmonyOS Sans','Microsoft YaHei',sans-serif;}"
+                     "QToolTip{background:#ffffff;color:#1f2d3d;border:1px solid #d8e0eb;padding:6px;border-radius:6px;}");
+
     if (!Config::instance().firstRunCompleted) {
         FirstRunWizard wizard;
         wizard.exec();
     }
-    app.setStyleSheet("");
 
     auto* sidebar = new Sidebar();
     auto* ball = new FloatingBall();
@@ -63,7 +72,6 @@ int main(int argc, char* argv[]) {
 
     auto reloadAll = [&]() {
         Config::instance().load();
-        app.setStyleSheet("");
         sidebar->reloadConfig();
         updatePos();
     };

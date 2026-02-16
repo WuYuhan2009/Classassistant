@@ -4,12 +4,17 @@
 #include <QCloseEvent>
 #include <QComboBox>
 #include <QDialog>
+#include <QGroupBox>
 #include <QLabel>
 #include <QLineEdit>
-#include <QPushButton>
 #include <QListWidget>
+#include <QPushButton>
 #include <QSlider>
+#include <QSpinBox>
+#include <QStackedWidget>
+#include <QTextEdit>
 #include <QTimer>
+#include <QTreeWidget>
 #include <QWidget>
 
 #include "../Utils.h"
@@ -82,6 +87,42 @@ private:
     QString drawName() const;
 };
 
+class ClassTimerDialog : public QDialog {
+    Q_OBJECT
+public:
+    explicit ClassTimerDialog(QWidget* parent = nullptr);
+    void openTimer();
+
+protected:
+    void closeEvent(QCloseEvent* event) override;
+
+private:
+    QLabel* m_countdownLabel;
+    QSpinBox* m_minutesSpin;
+    QPushButton* m_startPauseButton;
+    QPushButton* m_resetButton;
+    QTimer* m_timer;
+    int m_remainingSeconds = 0;
+    bool m_running = false;
+
+    void updateCountdownText();
+};
+
+class ClassNoteDialog : public QDialog {
+    Q_OBJECT
+public:
+    explicit ClassNoteDialog(QWidget* parent = nullptr);
+    void openNote();
+
+protected:
+    void closeEvent(QCloseEvent* event) override;
+
+private:
+    QTextEdit* m_editor;
+    QLabel* m_infoLabel;
+    void saveNote();
+};
+
 class AddButtonDialog : public QDialog {
     Q_OBJECT
 public:
@@ -110,6 +151,7 @@ private:
     QCheckBox* m_trayClickToOpen;
     QCheckBox* m_showAttendanceSummaryOnStart;
     QCheckBox* m_randomNoRepeat;
+    QCheckBox* m_allowExternalLinks;
     QLineEdit* m_seewoPathEdit;
 
     void finishSetup();
@@ -127,12 +169,20 @@ protected:
     void closeEvent(QCloseEvent* event) override;
 
 private:
+    QTreeWidget* m_menuTree;
+    QStackedWidget* m_stacked;
+
     QSlider* m_floatingOpacity;
     QSlider* m_summaryWidth;
     QCheckBox* m_startCollapsed;
     QCheckBox* m_trayClickToOpen;
     QCheckBox* m_showAttendanceSummaryOnStart;
+    QCheckBox* m_compactMode;
+
     QCheckBox* m_randomNoRepeat;
+    QSpinBox* m_historyCount;
+
+    QCheckBox* m_allowExternalLinks;
     QLineEdit* m_seewoPathEdit;
     QListWidget* m_buttonList;
 
@@ -144,4 +194,8 @@ private:
     void moveUp();
     void moveDown();
     void restoreDefaults();
+    QWidget* createPageDisplayStartup();
+    QWidget* createPageClassTools();
+    QWidget* createPageDataManagement();
+    QWidget* createPageSafety();
 };

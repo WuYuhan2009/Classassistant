@@ -2,21 +2,39 @@
 
 #include <QApplication>
 #include <QClipboard>
+#include <QCoreApplication>
 #include <QDate>
+#include <QFile>
 #include <QFileDialog>
-#include <QTextStream>
 #include <QHBoxLayout>
 #include <QGuiApplication>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QRandomGenerator>
 #include <QScreen>
+#include <QTextStream>
 #include <QVBoxLayout>
 
 namespace {
-QString buttonStyle() {
-    return "QPushButton{background:#ffffff;border:1px solid #c8c8c8;border-radius:10px;font-weight:600;}"
-           "QPushButton:hover{background:#f5f9ff;}";
+QString buttonStylePrimary() {
+    return "QPushButton{background:#ffffff;border:1px solid #d8e0eb;border-radius:10px;font-weight:600;padding:8px 12px;color:#1f2d3d;}"
+           "QPushButton:hover{background:#f4f8fd;}";
+}
+
+QString cardStyle() {
+    return "background:#ffffff;border:1px solid #dfe5ee;border-radius:14px;";
+}
+
+void decorateDialog(QDialog* dlg, const QString& title) {
+    dlg->setWindowTitle(title);
+    dlg->setWindowFlags((dlg->windowFlags() | Qt::Tool) & ~Qt::WindowContextHelpButtonHint);
+    dlg->setStyleSheet("QDialog{background:#f7f9fc;} QLabel{color:#223042;} "
+                       "QLineEdit,QTextEdit,QListWidget,QTreeWidget,QComboBox,QSpinBox{"
+                       "background:#ffffff;border:1px solid #d8e0eb;border-radius:8px;padding:6px;}"
+                       "QCheckBox{spacing:8px;} QSlider::groove:horizontal{height:6px;background:#dbe4ef;border-radius:3px;}"
+                       "QSlider::handle:horizontal{width:16px;margin:-5px 0;background:#ffffff;border:1px solid #9cb2ce;border-radius:8px;}"
+                       "QGroupBox{font-weight:700;border:1px solid #dfe5ee;border-radius:10px;margin-top:10px;padding-top:10px;}"
+                       "QGroupBox::title{subcontrol-origin:margin;left:10px;padding:0 6px;}");
 }
 }
 
@@ -28,18 +46,19 @@ AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(pare
     root->setContentsMargins(0, 0, 0, 0);
 
     auto* panel = new QWidget;
-    panel->setStyleSheet("background:#fff7d6;border:2px solid #f0c14b;border-radius:12px;");
+    panel->setStyleSheet(cardStyle());
     auto* inner = new QVBoxLayout(panel);
+    inner->setSpacing(10);
 
-    m_title = new QLabel("📌 今日考勤概览");
-    m_title->setStyleSheet("font-size:18px;font-weight:800;color:#7a4b00;");
+    m_title = new QLabel("今日考勤概览");
+    m_title->setStyleSheet("font-size:18px;font-weight:800;");
 
     m_counts = new QLabel;
-    m_counts->setStyleSheet("font-size:17px;font-weight:800;color:#8b1e1e;");
+    m_counts->setStyleSheet("font-size:16px;font-weight:700;color:#334f71;");
 
     m_absentList = new QLabel;
     m_absentList->setWordWrap(true);
-    m_absentList->setStyleSheet("font-size:16px;font-weight:700;color:#8b1e1e;background:#fff3f3;border:1px solid #f3c5c5;border-radius:8px;padding:8px;");
+    m_absentList->setStyleSheet("font-size:14px;background:#f8fbff;border:1px solid #e2e9f2;border-radius:10px;padding:10px;");
 
     inner->addWidget(m_title);
     inner->addWidget(m_counts);
@@ -81,9 +100,7 @@ void AttendanceSummaryWidget::refreshUi() {
     adjustSize();
 
     const QRect screen = QApplication::primaryScreen()->availableGeometry();
-    const int x = screen.right() - width() - 12;
-    const int y = screen.top() + 12;
-    move(x, y);
+    move(screen.right() - width() - 12, screen.top() + 12);
 }
 
 void AttendanceSummaryWidget::closeEvent(QCloseEvent* event) {
@@ -92,12 +109,11 @@ void AttendanceSummaryWidget::closeEvent(QCloseEvent* event) {
 }
 
 AttendanceSelectDialog::AttendanceSelectDialog(QWidget* parent) : QDialog(parent) {
-    setWindowTitle("考勤选择（选择缺勤人员）");
-    setFixedSize(420, 520);
-    setWindowFlags(windowFlags() | Qt::Tool);
+    decorateDialog(this, "考勤选择（勾选缺勤学生）");
+    setFixedSize(560, 560);
 
     auto* layout = new QVBoxLayout(this);
-    auto* tip = new QLabel("请选择今日缺勤人员，点击保存后将同步到考勤概览。\n（名单窗口可关闭，考勤概览窗口不会关闭）");
+    auto* tip = new QLabel("请选择今日缺勤人员。支持搜索、导出与一键全员到齐。");
     tip->setWordWrap(true);
     layout->addWidget(tip);
 
@@ -107,7 +123,6 @@ AttendanceSelectDialog::AttendanceSelectDialog(QWidget* parent) : QDialog(parent
     layout->addWidget(m_searchEdit);
 
     m_roster = new QListWidget;
-    m_roster->setSelectionMode(QAbstractItemView::MultiSelection);
     const auto students = Config::instance().getStudentList();
     for (const auto& s : students) {
         auto* item = new QListWidgetItem(s);
@@ -120,19 +135,20 @@ AttendanceSelectDialog::AttendanceSelectDialog(QWidget* parent) : QDialog(parent
     auto* markAllBtn = new QPushButton("全选缺勤");
     auto* clearAllBtn = new QPushButton("清空勾选");
     auto* allPresentBtn = new QPushButton("全员到齐");
-    auto* exportBtn = new QPushButton("导出缺勤名单");
-    auto* saveBtn = new QPushButton("保存缺勤名单");
-    saveBtn->setStyleSheet(buttonStyle());
-    markAllBtn->setStyleSheet(buttonStyle());
-    clearAllBtn->setStyleSheet(buttonStyle());
-    allPresentBtn->setStyleSheet(buttonStyle());
-    exportBtn->setStyleSheet(buttonStyle());
+    auto* exportBtn = new QPushButton("导出缺勤");
+    auto* saveBtn = new QPushButton("保存");
     auto* cancelBtn = new QPushButton("关闭");
-    cancelBtn->setStyleSheet(buttonStyle());
+    for (auto* btn : {markAllBtn, clearAllBtn, allPresentBtn, exportBtn, saveBtn, cancelBtn}) {
+        btn->setStyleSheet(buttonStylePrimary());
+        actions->addWidget(btn);
+    }
+
     connect(markAllBtn, &QPushButton::clicked, [this]() {
         for (int i = 0; i < m_roster->count(); ++i) {
             auto* item = m_roster->item(i);
-            if (!item->isHidden()) item->setCheckState(Qt::Checked);
+            if (!item->isHidden()) {
+                item->setCheckState(Qt::Checked);
+            }
         }
     });
     connect(clearAllBtn, &QPushButton::clicked, [this]() {
@@ -149,12 +165,6 @@ AttendanceSelectDialog::AttendanceSelectDialog(QWidget* parent) : QDialog(parent
     connect(exportBtn, &QPushButton::clicked, this, &AttendanceSelectDialog::exportSelection);
     connect(saveBtn, &QPushButton::clicked, this, &AttendanceSelectDialog::saveSelection);
     connect(cancelBtn, &QPushButton::clicked, this, &AttendanceSelectDialog::hide);
-    actions->addWidget(markAllBtn);
-    actions->addWidget(clearAllBtn);
-    actions->addWidget(allPresentBtn);
-    actions->addWidget(exportBtn);
-    actions->addWidget(saveBtn);
-    actions->addWidget(cancelBtn);
     layout->addLayout(actions);
 }
 
@@ -176,9 +186,8 @@ void AttendanceSelectDialog::setSelectedAbsentees(const QStringList& absentees) 
 void AttendanceSelectDialog::saveSelection() {
     QStringList absentees;
     for (int i = 0; i < m_roster->count(); ++i) {
-        auto* item = m_roster->item(i);
-        if (item->checkState() == Qt::Checked) {
-            absentees.append(item->text());
+        if (m_roster->item(i)->checkState() == Qt::Checked) {
+            absentees.append(m_roster->item(i)->text());
         }
     }
     emit saved(absentees);
@@ -188,14 +197,12 @@ void AttendanceSelectDialog::saveSelection() {
 void AttendanceSelectDialog::exportSelection() {
     QStringList absentees;
     for (int i = 0; i < m_roster->count(); ++i) {
-        auto* item = m_roster->item(i);
-        if (item->checkState() == Qt::Checked) {
-            absentees.append(item->text());
+        if (m_roster->item(i)->checkState() == Qt::Checked) {
+            absentees.append(m_roster->item(i)->text());
         }
     }
 
-    const QString path = QFileDialog::getSaveFileName(this,
-                                                      "导出缺勤名单",
+    const QString path = QFileDialog::getSaveFileName(this, "导出缺勤名单",
                                                       QString("考勤_%1.txt").arg(QDate::currentDate().toString("yyyyMMdd")),
                                                       "Text File (*.txt)");
     if (path.isEmpty()) {
@@ -222,55 +229,39 @@ void AttendanceSelectDialog::closeEvent(QCloseEvent* event) {
 }
 
 RandomCallDialog::RandomCallDialog(QWidget* parent) : QDialog(parent) {
-    setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
-    setAttribute(Qt::WA_TranslucentBackground);
-    setFixedSize(520, 320);
+    decorateDialog(this, "随机点名");
+    setFixedSize(620, 380);
 
     auto* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(0, 0, 0, 0);
-
-    auto* bg = new QWidget(this);
-    bg->setStyleSheet("background:qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:1, stop:0 #4f8cff, stop:1 #6d5efc);border-radius:24px;");
-    layout->addWidget(bg);
-
-    auto* panelLayout = new QVBoxLayout(bg);
-    panelLayout->setContentsMargins(24, 20, 24, 20);
-    panelLayout->setSpacing(14);
-
-    auto* title = new QLabel("🎯 随机点名");
-    title->setStyleSheet("font-size:22px;font-weight:800;color:#ffffff;");
-    panelLayout->addWidget(title, 0, Qt::AlignHCenter);
+    auto* title = new QLabel("随机点名");
+    title->setStyleSheet("font-size:22px;font-weight:800;");
+    layout->addWidget(title, 0, Qt::AlignHCenter);
 
     m_nameLabel = new QLabel("准备开始");
     m_nameLabel->setAlignment(Qt::AlignCenter);
-    m_nameLabel->setMinimumHeight(128);
-    m_nameLabel->setStyleSheet("font-size:44px;font-weight:900;color:#1b2a4a;background:rgba(255,255,255,0.92);border-radius:18px;padding:8px;");
-    panelLayout->addWidget(m_nameLabel);
+    m_nameLabel->setMinimumHeight(120);
+    m_nameLabel->setStyleSheet("font-size:42px;font-weight:900;background:#ffffff;border:1px solid #d8e0eb;border-radius:18px;padding:8px;");
+    layout->addWidget(m_nameLabel);
 
-    m_hintLabel = new QLabel("点击“开始点名”后滚动，点击“停止并确定”锁定本次结果");
+    m_hintLabel = new QLabel("点击“开始点名”后滚动，点击“停止并确定”锁定结果。");
     m_hintLabel->setWordWrap(true);
-    m_hintLabel->setStyleSheet("font-size:14px;font-weight:600;color:#e8eeff;");
-    panelLayout->addWidget(m_hintLabel);
+    layout->addWidget(m_hintLabel);
 
     m_historyLabel = new QLabel("最近点名：暂无");
     m_historyLabel->setWordWrap(true);
-    m_historyLabel->setStyleSheet("font-size:13px;color:#edf2ff;background:rgba(255,255,255,0.12);border-radius:10px;padding:8px;");
-    panelLayout->addWidget(m_historyLabel);
+    m_historyLabel->setStyleSheet("background:#ffffff;border:1px solid #e0e7f0;border-radius:10px;padding:8px;");
+    layout->addWidget(m_historyLabel);
 
-    auto* btnRow = new QHBoxLayout;
+    auto* row = new QHBoxLayout;
     m_toggleButton = new QPushButton("开始点名");
     m_copyButton = new QPushButton("复制结果");
     m_closeButton = new QPushButton("隐藏窗口");
-    m_toggleButton->setMinimumHeight(42);
-    m_copyButton->setMinimumHeight(42);
-    m_closeButton->setMinimumHeight(42);
-    m_toggleButton->setStyleSheet("QPushButton{background:#ffffff;color:#3554d1;border:none;border-radius:12px;font-size:16px;font-weight:800;padding:8px 16px;}QPushButton:hover{background:#eef3ff;}");
-    m_copyButton->setStyleSheet("QPushButton{background:rgba(255,255,255,0.2);color:#ffffff;border:1px solid rgba(255,255,255,0.5);border-radius:12px;font-size:15px;font-weight:700;padding:8px 16px;}QPushButton:hover{background:rgba(255,255,255,0.3);}");
-    m_closeButton->setStyleSheet("QPushButton{background:rgba(255,255,255,0.18);color:#ffffff;border:1px solid rgba(255,255,255,0.45);border-radius:12px;font-size:15px;font-weight:700;padding:8px 16px;}QPushButton:hover{background:rgba(255,255,255,0.28);}");
-    btnRow->addWidget(m_toggleButton, 1);
-    btnRow->addWidget(m_copyButton, 1);
-    btnRow->addWidget(m_closeButton, 1);
-    panelLayout->addLayout(btnRow);
+    for (auto* btn : {m_toggleButton, m_copyButton, m_closeButton}) {
+        btn->setMinimumHeight(42);
+        btn->setStyleSheet(buttonStylePrimary());
+        row->addWidget(btn, 1);
+    }
+    layout->addLayout(row);
 
     connect(m_toggleButton, &QPushButton::clicked, this, &RandomCallDialog::toggleRolling);
     connect(m_copyButton, &QPushButton::clicked, [this]() {
@@ -290,8 +281,12 @@ RandomCallDialog::RandomCallDialog(QWidget* parent) : QDialog(parent) {
         }
         m_nameLabel->setText(drawName());
         ++m_count;
-        if (m_count > 24) m_timer->setInterval(110);
-        if (m_count > 34) m_timer->setInterval(180);
+        if (m_count > 24) {
+            m_timer->setInterval(110);
+        }
+        if (m_count > 34) {
+            m_timer->setInterval(180);
+        }
     });
 }
 
@@ -313,7 +308,6 @@ void RandomCallDialog::toggleRolling() {
         m_running = true;
         m_toggleButton->setText("停止并确定");
         m_hintLabel->setText("点名进行中...");
-        m_nameLabel->setStyleSheet("font-size:44px;font-weight:900;color:#1b2a4a;background:rgba(255,255,255,0.92);border-radius:18px;padding:8px;");
         m_timer->start(45);
         return;
     }
@@ -321,12 +315,11 @@ void RandomCallDialog::toggleRolling() {
     m_timer->stop();
     m_running = false;
     const QString selected = m_nameLabel->text().trimmed();
-    m_nameLabel->setStyleSheet("font-size:50px;font-weight:900;color:#f5b301;background:rgba(12,19,40,0.75);border-radius:18px;padding:8px;");
     m_toggleButton->setText("再来一次");
 
     if (!selected.isEmpty() && selected != "无名单") {
         m_history.prepend(selected);
-        while (m_history.size() > 5) {
+        while (m_history.size() > Config::instance().randomHistorySize) {
             m_history.removeLast();
         }
         m_historyLabel->setText(QString("最近点名：%1").arg(m_history.join("、")));
@@ -351,11 +344,7 @@ void RandomCallDialog::startAnim() {
     m_running = false;
     m_timer->stop();
     m_toggleButton->setText("开始点名");
-    if (m_history.isEmpty()) {
-        m_historyLabel->setText("最近点名：暂无");
-    } else {
-        m_historyLabel->setText(QString("最近点名：%1").arg(m_history.join("、")));
-    }
+    m_historyLabel->setText(m_history.isEmpty() ? "最近点名：暂无" : QString("最近点名：%1").arg(m_history.join("、")));
     if (m_list.isEmpty()) {
         m_nameLabel->setText("无名单");
         m_hintLabel->setText("请先在设置中导入名单");
@@ -363,7 +352,6 @@ void RandomCallDialog::startAnim() {
         m_nameLabel->setText("准备开始");
         m_hintLabel->setText(Config::instance().randomNoRepeat ? "当前模式：无重复点名（每轮自动重置）" : "当前模式：允许重复点名");
     }
-    m_nameLabel->setStyleSheet("font-size:44px;font-weight:900;color:#1b2a4a;background:rgba(255,255,255,0.92);border-radius:18px;padding:8px;");
     show();
 }
 
@@ -372,9 +360,139 @@ void RandomCallDialog::closeEvent(QCloseEvent* event) {
     event->ignore();
 }
 
+ClassTimerDialog::ClassTimerDialog(QWidget* parent) : QDialog(parent) {
+    decorateDialog(this, "课堂计时器");
+    setFixedSize(420, 280);
+
+    auto* layout = new QVBoxLayout(this);
+    m_countdownLabel = new QLabel("00:00");
+    m_countdownLabel->setAlignment(Qt::AlignCenter);
+    m_countdownLabel->setStyleSheet("font-size:54px;font-weight:900;background:#ffffff;border:1px solid #d8e0eb;border-radius:14px;padding:12px;");
+    layout->addWidget(m_countdownLabel);
+
+    auto* spinRow = new QHBoxLayout;
+    spinRow->addWidget(new QLabel("倒计时（分钟）"));
+    m_minutesSpin = new QSpinBox;
+    m_minutesSpin->setRange(1, 180);
+    m_minutesSpin->setValue(45);
+    spinRow->addWidget(m_minutesSpin);
+    layout->addLayout(spinRow);
+
+    auto* btnRow = new QHBoxLayout;
+    m_startPauseButton = new QPushButton("开始");
+    m_resetButton = new QPushButton("重置");
+    auto* closeButton = new QPushButton("关闭");
+    for (auto* btn : {m_startPauseButton, m_resetButton, closeButton}) {
+        btn->setStyleSheet(buttonStylePrimary());
+        btnRow->addWidget(btn);
+    }
+    layout->addLayout(btnRow);
+
+    m_timer = new QTimer(this);
+    connect(m_timer, &QTimer::timeout, [this]() {
+        if (m_remainingSeconds > 0) {
+            --m_remainingSeconds;
+            updateCountdownText();
+            if (m_remainingSeconds == 0) {
+                m_timer->stop();
+                m_running = false;
+                m_startPauseButton->setText("开始");
+                QApplication::beep();
+            }
+        }
+    });
+
+    connect(m_startPauseButton, &QPushButton::clicked, [this]() {
+        if (!m_running) {
+            if (m_remainingSeconds <= 0) {
+                m_remainingSeconds = m_minutesSpin->value() * 60;
+            }
+            m_running = true;
+            m_timer->start(1000);
+            m_startPauseButton->setText("暂停");
+            return;
+        }
+        m_running = false;
+        m_timer->stop();
+        m_startPauseButton->setText("继续");
+    });
+    connect(m_resetButton, &QPushButton::clicked, [this]() {
+        m_timer->stop();
+        m_running = false;
+        m_remainingSeconds = m_minutesSpin->value() * 60;
+        m_startPauseButton->setText("开始");
+        updateCountdownText();
+    });
+    connect(closeButton, &QPushButton::clicked, this, &ClassTimerDialog::hide);
+
+    m_remainingSeconds = m_minutesSpin->value() * 60;
+    updateCountdownText();
+}
+
+void ClassTimerDialog::updateCountdownText() {
+    const int mm = m_remainingSeconds / 60;
+    const int ss = m_remainingSeconds % 60;
+    m_countdownLabel->setText(QString("%1:%2").arg(mm, 2, 10, QChar('0')).arg(ss, 2, 10, QChar('0')));
+}
+
+void ClassTimerDialog::openTimer() {
+    show();
+    raise();
+    activateWindow();
+}
+
+void ClassTimerDialog::closeEvent(QCloseEvent* event) {
+    hide();
+    event->ignore();
+}
+
+ClassNoteDialog::ClassNoteDialog(QWidget* parent) : QDialog(parent) {
+    decorateDialog(this, "课堂便签");
+    setFixedSize(480, 360);
+
+    auto* layout = new QVBoxLayout(this);
+    m_infoLabel = new QLabel("本地便签（离线存储，不联网）");
+    layout->addWidget(m_infoLabel);
+
+    m_editor = new QTextEdit;
+    layout->addWidget(m_editor, 1);
+
+    auto* row = new QHBoxLayout;
+    auto* saveBtn = new QPushButton("保存便签");
+    auto* closeBtn = new QPushButton("关闭");
+    saveBtn->setStyleSheet(buttonStylePrimary());
+    closeBtn->setStyleSheet(buttonStylePrimary());
+    row->addStretch();
+    row->addWidget(saveBtn);
+    row->addWidget(closeBtn);
+    layout->addLayout(row);
+
+    connect(saveBtn, &QPushButton::clicked, this, &ClassNoteDialog::saveNote);
+    connect(closeBtn, &QPushButton::clicked, this, &ClassNoteDialog::hide);
+}
+
+void ClassNoteDialog::saveNote() {
+    Config::instance().classNote = m_editor->toPlainText();
+    Config::instance().save();
+    m_infoLabel->setText("本地便签已保存");
+}
+
+void ClassNoteDialog::openNote() {
+    m_editor->setPlainText(Config::instance().classNote);
+    m_infoLabel->setText("本地便签（离线存储，不联网）");
+    show();
+    raise();
+    activateWindow();
+}
+
+void ClassNoteDialog::closeEvent(QCloseEvent* event) {
+    hide();
+    event->ignore();
+}
+
 AddButtonDialog::AddButtonDialog(QWidget* parent) : QDialog(parent) {
-    setWindowTitle("添加自定义按钮");
-    setFixedSize(420, 260);
+    decorateDialog(this, "添加自定义按钮");
+    setFixedSize(440, 280);
 
     auto* layout = new QVBoxLayout(this);
 
@@ -385,12 +503,13 @@ AddButtonDialog::AddButtonDialog(QWidget* parent) : QDialog(parent) {
 
     m_iconEdit = new QLineEdit;
     auto* iconBtn = new QPushButton("选择图标");
-    iconBtn->setStyleSheet(buttonStyle());
+    iconBtn->setStyleSheet(buttonStylePrimary());
     connect(iconBtn, &QPushButton::clicked, [this]() {
         const QString p = QFileDialog::getOpenFileName(this, "选择图标", "", "Images (*.png *.jpg *.ico *.svg)");
-        if (!p.isEmpty()) m_iconEdit->setText(p);
+        if (!p.isEmpty()) {
+            m_iconEdit->setText(p);
+        }
     });
-
     auto* iconLayout = new QHBoxLayout;
     iconLayout->addWidget(m_iconEdit);
     iconLayout->addWidget(iconBtn);
@@ -412,8 +531,8 @@ AddButtonDialog::AddButtonDialog(QWidget* parent) : QDialog(parent) {
     auto* actions = new QHBoxLayout;
     auto* ok = new QPushButton("确定");
     auto* cancel = new QPushButton("取消");
-    ok->setStyleSheet(buttonStyle());
-    cancel->setStyleSheet(buttonStyle());
+    ok->setStyleSheet(buttonStylePrimary());
+    cancel->setStyleSheet(buttonStylePrimary());
     connect(ok, &QPushButton::clicked, this, &QDialog::accept);
     connect(cancel, &QPushButton::clicked, this, &QDialog::reject);
     actions->addStretch();
@@ -423,24 +542,20 @@ AddButtonDialog::AddButtonDialog(QWidget* parent) : QDialog(parent) {
 }
 
 AppButton AddButtonDialog::resultButton() const {
-    return {m_nameEdit->text().trimmed(),
-            m_iconEdit->text().trimmed(),
-            m_actionCombo->currentData().toString(),
-            m_targetEdit->text().trimmed(),
-            false};
+    return {m_nameEdit->text().trimmed(), m_iconEdit->text().trimmed(), m_actionCombo->currentData().toString(),
+            m_targetEdit->text().trimmed(), false};
 }
 
 FirstRunWizard::FirstRunWizard(QWidget* parent) : QDialog(parent) {
-    setWindowTitle("欢迎使用 ClassAssistant");
-    setFixedSize(520, 420);
-    setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
+    decorateDialog(this, "欢迎使用 ClassAssistant");
+    setFixedSize(560, 460);
 
     auto* layout = new QVBoxLayout(this);
-    auto* intro = new QLabel("首次启动向导：请完成基础初始化设置（后续可在设置中修改）");
+    auto* intro = new QLabel("首次启动向导：完成基础设置（后续可在设置中修改）。");
     intro->setWordWrap(true);
     layout->addWidget(intro);
 
-    layout->addWidget(new QLabel("展开球不透明度"));
+    layout->addWidget(new QLabel("悬浮球透明度"));
     m_floatingOpacity = new QSlider(Qt::Horizontal);
     m_floatingOpacity->setRange(35, 100);
     m_floatingOpacity->setValue(Config::instance().floatingOpacity);
@@ -468,19 +583,25 @@ FirstRunWizard::FirstRunWizard(QWidget* parent) : QDialog(parent) {
     m_randomNoRepeat->setChecked(Config::instance().randomNoRepeat);
     layout->addWidget(m_randomNoRepeat);
 
+    m_allowExternalLinks = new QCheckBox("允许打开网络链接（默认关闭）");
+    m_allowExternalLinks->setChecked(Config::instance().allowExternalLinks);
+    layout->addWidget(m_allowExternalLinks);
+
     layout->addWidget(new QLabel("默认程序路径（希沃）"));
     m_seewoPathEdit = new QLineEdit(Config::instance().seewoPath);
     auto* browse = new QPushButton("选择程序路径");
-    browse->setStyleSheet(buttonStyle());
+    browse->setStyleSheet(buttonStylePrimary());
     connect(browse, &QPushButton::clicked, [this]() {
         const QString p = QFileDialog::getOpenFileName(this, "选择程序", "", "Executable (*.exe);;All Files (*)");
-        if (!p.isEmpty()) m_seewoPathEdit->setText(p);
+        if (!p.isEmpty()) {
+            m_seewoPathEdit->setText(p);
+        }
     });
     layout->addWidget(m_seewoPathEdit);
     layout->addWidget(browse);
 
     auto* done = new QPushButton("完成初始化");
-    done->setStyleSheet(buttonStyle());
+    done->setStyleSheet(buttonStylePrimary());
     connect(done, &QPushButton::clicked, this, &FirstRunWizard::finishSetup);
     layout->addStretch();
     layout->addWidget(done);
@@ -494,6 +615,7 @@ void FirstRunWizard::finishSetup() {
     cfg.trayClickToOpen = m_trayClickToOpen->isChecked();
     cfg.showAttendanceSummaryOnStart = m_showAttendanceSummaryOnStart->isChecked();
     cfg.randomNoRepeat = m_randomNoRepeat->isChecked();
+    cfg.allowExternalLinks = m_allowExternalLinks->isChecked();
     cfg.seewoPath = m_seewoPathEdit->text().trimmed();
     cfg.firstRunCompleted = true;
     cfg.save();
@@ -505,61 +627,136 @@ void FirstRunWizard::closeEvent(QCloseEvent* event) {
 }
 
 SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
-    setWindowTitle("ClassAssistant 设置");
-    setFixedSize(640, 580);
+    decorateDialog(this, "ClassAssistant 设置");
+    setFixedSize(900, 620);
 
-    auto* layout = new QVBoxLayout(this);
+    auto* root = new QHBoxLayout(this);
+    m_menuTree = new QTreeWidget;
+    m_menuTree->setHeaderHidden(true);
+    m_menuTree->setFixedWidth(230);
 
-    auto* sectionDisplay = new QLabel("【显示与启动】");
-    sectionDisplay->setStyleSheet("font-weight:800;color:#2f4f7f;");
-    layout->addWidget(sectionDisplay);
-    layout->addWidget(new QLabel("悬浮球透明度"));
+    auto* topDisplay = new QTreeWidgetItem(QStringList{"显示与启动"});
+    topDisplay->addChild(new QTreeWidgetItem(QStringList{"窗口与显示"}));
+    topDisplay->addChild(new QTreeWidgetItem(QStringList{"启动行为"}));
+    auto* topTools = new QTreeWidgetItem(QStringList{"课堂工具"});
+    topTools->addChild(new QTreeWidgetItem(QStringList{"点名设置"}));
+    topTools->addChild(new QTreeWidgetItem(QStringList{"程序路径"}));
+    auto* topData = new QTreeWidgetItem(QStringList{"数据管理"});
+    topData->addChild(new QTreeWidgetItem(QStringList{"名单与按钮"}));
+    auto* topSafety = new QTreeWidgetItem(QStringList{"安全与离线"});
+    topSafety->addChild(new QTreeWidgetItem(QStringList{"联网控制"}));
+
+    m_menuTree->addTopLevelItem(topDisplay);
+    m_menuTree->addTopLevelItem(topTools);
+    m_menuTree->addTopLevelItem(topData);
+    m_menuTree->addTopLevelItem(topSafety);
+    m_menuTree->expandAll();
+
+    m_stacked = new QStackedWidget;
+    m_stacked->addWidget(createPageDisplayStartup());
+    m_stacked->addWidget(createPageClassTools());
+    m_stacked->addWidget(createPageDataManagement());
+    m_stacked->addWidget(createPageSafety());
+
+    root->addWidget(m_menuTree);
+    root->addWidget(m_stacked, 1);
+
+    connect(m_menuTree, &QTreeWidget::currentItemChanged, [this](QTreeWidgetItem* current) {
+        if (!current) {
+            return;
+        }
+        const QString label = current->text(0);
+        if (label == "显示与启动" || label == "窗口与显示" || label == "启动行为") {
+            m_stacked->setCurrentIndex(0);
+        } else if (label == "课堂工具" || label == "点名设置" || label == "程序路径") {
+            m_stacked->setCurrentIndex(1);
+        } else if (label == "数据管理" || label == "名单与按钮") {
+            m_stacked->setCurrentIndex(2);
+        } else {
+            m_stacked->setCurrentIndex(3);
+        }
+    });
+
+    m_menuTree->setCurrentItem(topDisplay->child(0));
+    loadData();
+}
+
+QWidget* SettingsDialog::createPageDisplayStartup() {
+    auto* page = new QWidget;
+    auto* layout = new QVBoxLayout(page);
+
+    auto* groupDisplay = new QGroupBox("窗口与显示（二级）");
+    auto* displayLayout = new QVBoxLayout(groupDisplay);
+    displayLayout->addWidget(new QLabel("悬浮球透明度"));
     m_floatingOpacity = new QSlider(Qt::Horizontal);
     m_floatingOpacity->setRange(35, 100);
-    layout->addWidget(m_floatingOpacity);
+    displayLayout->addWidget(m_floatingOpacity);
 
-    layout->addWidget(new QLabel("考勤概览宽度"));
+    displayLayout->addWidget(new QLabel("考勤概览宽度"));
     m_summaryWidth = new QSlider(Qt::Horizontal);
     m_summaryWidth->setRange(300, 520);
-    layout->addWidget(m_summaryWidth);
+    displayLayout->addWidget(m_summaryWidth);
 
+    m_compactMode = new QCheckBox("紧凑模式（缩小图标与间距）");
+    displayLayout->addWidget(m_compactMode);
+
+    auto* groupStartup = new QGroupBox("启动行为（二级）");
+    auto* startupLayout = new QVBoxLayout(groupStartup);
     m_startCollapsed = new QCheckBox("启动时收起到悬浮球");
-    layout->addWidget(m_startCollapsed);
-
     m_trayClickToOpen = new QCheckBox("托盘单击时展开侧栏");
-    layout->addWidget(m_trayClickToOpen);
-
     m_showAttendanceSummaryOnStart = new QCheckBox("启动时显示考勤概览");
-    m_showAttendanceSummaryOnStart->setToolTip("关闭后可通过侧栏中的“班级考勤”再次打开");
-    layout->addWidget(m_showAttendanceSummaryOnStart);
+    startupLayout->addWidget(m_startCollapsed);
+    startupLayout->addWidget(m_trayClickToOpen);
+    startupLayout->addWidget(m_showAttendanceSummaryOnStart);
 
+    layout->addWidget(groupDisplay);
+    layout->addWidget(groupStartup);
+    layout->addStretch();
+    return page;
+}
+
+QWidget* SettingsDialog::createPageClassTools() {
+    auto* page = new QWidget;
+    auto* layout = new QVBoxLayout(page);
+
+    auto* groupRandom = new QGroupBox("点名设置（二级）");
+    auto* randomLayout = new QVBoxLayout(groupRandom);
     m_randomNoRepeat = new QCheckBox("随机点名无重复（点完一轮自动重置）");
-    m_randomNoRepeat->setToolTip("开启后每轮不会重复点到同一名学生");
-    layout->addWidget(m_randomNoRepeat);
+    randomLayout->addWidget(m_randomNoRepeat);
 
-    auto* sectionTool = new QLabel("【课堂工具】");
-    sectionTool->setStyleSheet("font-weight:800;color:#2f4f7f;");
-    layout->addWidget(sectionTool);
+    auto* historyRow = new QHBoxLayout;
+    historyRow->addWidget(new QLabel("历史记录条数（三级）"));
+    m_historyCount = new QSpinBox;
+    m_historyCount->setRange(3, 10);
+    historyRow->addWidget(m_historyCount);
+    randomLayout->addLayout(historyRow);
 
-    auto* pathLayout = new QHBoxLayout;
+    auto* groupPath = new QGroupBox("程序路径（二级）");
+    auto* pathLayout = new QHBoxLayout(groupPath);
     m_seewoPathEdit = new QLineEdit;
     auto* choosePath = new QPushButton("选择路径");
-    choosePath->setStyleSheet(buttonStyle());
+    choosePath->setStyleSheet(buttonStylePrimary());
     connect(choosePath, &QPushButton::clicked, [this]() {
         const QString p = QFileDialog::getOpenFileName(this, "选择可执行文件", "", "Executable (*.exe);;All Files (*)");
-        if (!p.isEmpty()) m_seewoPathEdit->setText(p);
+        if (!p.isEmpty()) {
+            m_seewoPathEdit->setText(p);
+        }
     });
-    pathLayout->addWidget(m_seewoPathEdit);
+    pathLayout->addWidget(m_seewoPathEdit, 1);
     pathLayout->addWidget(choosePath);
-    layout->addWidget(new QLabel("默认程序路径（希沃）"));
-    layout->addLayout(pathLayout);
 
-    auto* sectionData = new QLabel("【数据与按钮管理】");
-    sectionData->setStyleSheet("font-weight:800;color:#2f4f7f;");
-    layout->addWidget(sectionData);
+    layout->addWidget(groupRandom);
+    layout->addWidget(groupPath);
+    layout->addStretch();
+    return page;
+}
 
-    auto* importBtn = new QPushButton("导入班级名单（Excel/CSV/TXT）");
-    importBtn->setStyleSheet(buttonStyle());
+QWidget* SettingsDialog::createPageDataManagement() {
+    auto* page = new QWidget;
+    auto* layout = new QVBoxLayout(page);
+
+    auto* importBtn = new QPushButton("导入班级名单（CSV/TXT）");
+    importBtn->setStyleSheet(buttonStylePrimary());
     connect(importBtn, &QPushButton::clicked, this, &SettingsDialog::importStudents);
     layout->addWidget(importBtn);
 
@@ -572,36 +769,52 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     auto* btnRemove = new QPushButton("删除按钮");
     auto* btnUp = new QPushButton("上移");
     auto* btnDown = new QPushButton("下移");
-    btnAdd->setStyleSheet(buttonStyle());
-    btnRemove->setStyleSheet(buttonStyle());
-    btnUp->setStyleSheet(buttonStyle());
-    btnDown->setStyleSheet(buttonStyle());
+    for (auto* btn : {btnAdd, btnRemove, btnUp, btnDown}) {
+        btn->setStyleSheet(buttonStylePrimary());
+        btnOps->addWidget(btn);
+    }
     connect(btnAdd, &QPushButton::clicked, this, &SettingsDialog::addButton);
     connect(btnRemove, &QPushButton::clicked, this, &SettingsDialog::removeButton);
     connect(btnUp, &QPushButton::clicked, this, &SettingsDialog::moveUp);
     connect(btnDown, &QPushButton::clicked, this, &SettingsDialog::moveDown);
-    btnOps->addWidget(btnAdd);
-    btnOps->addWidget(btnRemove);
-    btnOps->addWidget(btnUp);
-    btnOps->addWidget(btnDown);
     layout->addLayout(btnOps);
 
-    auto* restore = new QPushButton("恢复默认设置");
-    restore->setStyleSheet(buttonStyle());
-    connect(restore, &QPushButton::clicked, this, &SettingsDialog::restoreDefaults);
-    layout->addWidget(restore);
-
+    auto* actions = new QHBoxLayout;
+    auto* restore = new QPushButton("恢复默认");
     auto* save = new QPushButton("保存并应用");
-    save->setStyleSheet(buttonStyle());
-    connect(save, &QPushButton::clicked, this, &SettingsDialog::saveData);
-    layout->addWidget(save);
-
     auto* quitAppBtn = new QPushButton("退出程序");
-    quitAppBtn->setStyleSheet(buttonStyle());
+    for (auto* btn : {restore, save, quitAppBtn}) {
+        btn->setStyleSheet(buttonStylePrimary());
+        actions->addWidget(btn);
+    }
+    connect(restore, &QPushButton::clicked, this, &SettingsDialog::restoreDefaults);
+    connect(save, &QPushButton::clicked, this, &SettingsDialog::saveData);
     connect(quitAppBtn, &QPushButton::clicked, qApp, &QCoreApplication::quit);
-    layout->addWidget(quitAppBtn);
+    layout->addLayout(actions);
+    return page;
+}
 
-    loadData();
+QWidget* SettingsDialog::createPageSafety() {
+    auto* page = new QWidget;
+    auto* layout = new QVBoxLayout(page);
+
+    auto* groupSafety = new QGroupBox("联网控制（二级）");
+    auto* safetyLayout = new QVBoxLayout(groupSafety);
+    m_allowExternalLinks = new QCheckBox("允许打开 URL 链接（默认关闭，离线推荐保持关闭）");
+    safetyLayout->addWidget(m_allowExternalLinks);
+
+    auto* tip = new QLabel("说明：为满足校园离线环境，默认禁用 URL 打开。启用后仅在本机默认浏览器打开链接，不会内置联网代码。");
+    tip->setWordWrap(true);
+    safetyLayout->addWidget(tip);
+
+    auto* saveBtn = new QPushButton("保存并应用");
+    saveBtn->setStyleSheet(buttonStylePrimary());
+    connect(saveBtn, &QPushButton::clicked, this, &SettingsDialog::saveData);
+
+    layout->addWidget(groupSafety);
+    layout->addWidget(saveBtn, 0, Qt::AlignLeft);
+    layout->addStretch();
+    return page;
 }
 
 void SettingsDialog::loadData() {
@@ -611,12 +824,14 @@ void SettingsDialog::loadData() {
     m_startCollapsed->setChecked(cfg.startCollapsed);
     m_trayClickToOpen->setChecked(cfg.trayClickToOpen);
     m_showAttendanceSummaryOnStart->setChecked(cfg.showAttendanceSummaryOnStart);
+    m_compactMode->setChecked(cfg.compactMode);
     m_randomNoRepeat->setChecked(cfg.randomNoRepeat);
+    m_historyCount->setValue(cfg.randomHistorySize);
+    m_allowExternalLinks->setChecked(cfg.allowExternalLinks);
     m_seewoPathEdit->setText(cfg.seewoPath);
 
     m_buttonList->clear();
-    const auto buttons = cfg.getButtons();
-    for (const auto& b : buttons) {
+    for (const auto& b : cfg.getButtons()) {
         auto* item = new QListWidgetItem(QString("%1 [%2]").arg(b.name, b.action));
         item->setData(Qt::UserRole, b.name);
         item->setData(Qt::UserRole + 1, b.iconPath);
@@ -664,7 +879,9 @@ void SettingsDialog::addButton() {
 
 void SettingsDialog::removeButton() {
     auto* item = m_buttonList->currentItem();
-    if (!item) return;
+    if (!item) {
+        return;
+    }
 
     if (item->data(Qt::UserRole + 4).toBool()) {
         QMessageBox::warning(this, "提示", "默认系统按钮不可删除。");
@@ -675,7 +892,9 @@ void SettingsDialog::removeButton() {
 
 void SettingsDialog::moveUp() {
     const int row = m_buttonList->currentRow();
-    if (row <= 0) return;
+    if (row <= 0) {
+        return;
+    }
     auto* item = m_buttonList->takeItem(row);
     m_buttonList->insertItem(row - 1, item);
     m_buttonList->setCurrentRow(row - 1);
@@ -683,7 +902,9 @@ void SettingsDialog::moveUp() {
 
 void SettingsDialog::moveDown() {
     const int row = m_buttonList->currentRow();
-    if (row < 0 || row >= m_buttonList->count() - 1) return;
+    if (row < 0 || row >= m_buttonList->count() - 1) {
+        return;
+    }
     auto* item = m_buttonList->takeItem(row);
     m_buttonList->insertItem(row + 1, item);
     m_buttonList->setCurrentRow(row + 1);
@@ -696,7 +917,10 @@ void SettingsDialog::saveData() {
     cfg.startCollapsed = m_startCollapsed->isChecked();
     cfg.trayClickToOpen = m_trayClickToOpen->isChecked();
     cfg.showAttendanceSummaryOnStart = m_showAttendanceSummaryOnStart->isChecked();
+    cfg.compactMode = m_compactMode->isChecked();
     cfg.randomNoRepeat = m_randomNoRepeat->isChecked();
+    cfg.randomHistorySize = m_historyCount->value();
+    cfg.allowExternalLinks = m_allowExternalLinks->isChecked();
     cfg.seewoPath = m_seewoPathEdit->text().trimmed();
 
     QVector<AppButton> buttons;
@@ -716,8 +940,9 @@ void SettingsDialog::saveData() {
 }
 
 void SettingsDialog::restoreDefaults() {
-    const auto reply = QMessageBox::question(this, "恢复默认", "确定恢复默认设置和默认按钮/名单吗？");
-    if (reply != QMessageBox::Yes) return;
+    if (QMessageBox::question(this, "恢复默认", "确定恢复默认设置和默认按钮/名单吗？") != QMessageBox::Yes) {
+        return;
+    }
 
     Config::instance().resetToDefaults(true);
     loadData();

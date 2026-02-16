@@ -40,8 +40,12 @@ public:
     bool trayClickToOpen = true;
     bool showAttendanceSummaryOnStart = true;
     bool randomNoRepeat = true;
+    bool allowExternalLinks = false;
+    bool compactMode = false;
+    int randomHistorySize = 5;
     bool firstRunCompleted = false;
     QString seewoPath;
+    QString classNote;
 
 private:
     Config();

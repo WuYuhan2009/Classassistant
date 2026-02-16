@@ -14,7 +14,8 @@ QVector<AppButton> defaultButtons() {
         {"希沃白板", "icon_seewo.png", "exe", "SEEWO", true},
         {"班级考勤", "icon_attendance.png", "func", "ATTENDANCE", true},
         {"随机点名", "icon_random.png", "func", "RANDOM_CALL", true},
-        {"AI 助手", "icon_ai.png", "url", "https://www.doubao.com/chat/", true},
+        {"课堂计时", "icon_settings.png", "func", "CLASS_TIMER", true},
+        {"课堂便签", "icon_settings.png", "func", "CLASS_NOTE", true},
     };
 }
 
@@ -31,7 +32,11 @@ void applyDefaults(Config& config, QVector<AppButton>& buttons, QStringList& stu
     config.trayClickToOpen = true;
     config.showAttendanceSummaryOnStart = true;
     config.randomNoRepeat = true;
+    config.allowExternalLinks = false;
+    config.compactMode = false;
+    config.randomHistorySize = 5;
     config.firstRunCompleted = false;
+    config.classNote = "";
     buttons = defaultButtons();
     students = defaultStudents();
 }
@@ -74,7 +79,11 @@ void Config::load() {
     trayClickToOpen = root["trayClickToOpen"].toBool(true);
     showAttendanceSummaryOnStart = root["showAttendanceSummaryOnStart"].toBool(true);
     randomNoRepeat = root["randomNoRepeat"].toBool(true);
+    allowExternalLinks = root["allowExternalLinks"].toBool(false);
+    compactMode = root["compactMode"].toBool(false);
+    randomHistorySize = qBound(3, root["randomHistorySize"].toInt(5), 10);
     firstRunCompleted = root["firstRunCompleted"].toBool(false);
+    classNote = root["classNote"].toString();
 
     m_students.clear();
     for (const auto& v : root["students"].toArray()) {
@@ -128,7 +137,11 @@ void Config::save() {
     root["trayClickToOpen"] = trayClickToOpen;
     root["showAttendanceSummaryOnStart"] = showAttendanceSummaryOnStart;
     root["randomNoRepeat"] = randomNoRepeat;
+    root["allowExternalLinks"] = allowExternalLinks;
+    root["compactMode"] = compactMode;
+    root["randomHistorySize"] = randomHistorySize;
     root["firstRunCompleted"] = firstRunCompleted;
+    root["classNote"] = classNote;
     root["fixedSidebarWidth"] = kSidebarWidth;
 
     QJsonArray stuArr;
@@ -260,4 +273,3 @@ QString Config::resolveIconPath(const QString& iconRef) const {
 
     return {};
 }
-
