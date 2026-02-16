@@ -45,7 +45,7 @@ endif()
 # ==============================
 # 查找 Qt
 # ==============================
-find_package(Qt5 COMPONENTS Core Gui Widgets REQUIRED)
+find_package(Qt5 COMPONENTS Core Gui Widgets Network REQUIRED)
 
 if(WIN32)
     find_package(Qt5 COMPONENTS WinExtras REQUIRED)
@@ -82,6 +82,7 @@ target_link_libraries(ClassAssistant PRIVATE
     Qt5::Core
     Qt5::Gui
     Qt5::Widgets
+    Qt5::Network
 )
 
 if(WIN32)

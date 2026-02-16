@@ -5,6 +5,7 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QGroupBox>
+#include <QJsonArray>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -158,6 +159,26 @@ private:
     void refreshScore();
 };
 
+class AIAssistantDialog : public QDialog {
+    Q_OBJECT
+public:
+    explicit AIAssistantDialog(QWidget* parent = nullptr);
+    void openAssistant();
+
+protected:
+    void closeEvent(QCloseEvent* event) override;
+
+private:
+    QTextEdit* m_historyView;
+    QTextEdit* m_inputEdit;
+    QPushButton* m_sendButton;
+    QLabel* m_statusLabel;
+    QJsonArray m_messages;
+
+    void appendMessageBubble(const QString& role, const QString& text);
+    void sendMessage();
+};
+
 class AddButtonDialog : public QDialog {
     Q_OBJECT
 public:
@@ -226,11 +247,15 @@ private:
     QLineEdit* m_scoreTeamBName;
     QLineEdit* m_seewoPathEdit;
     QListWidget* m_buttonList;
+    QLineEdit* m_apiKeyEdit;
+    QLineEdit* m_aiModelEdit;
+    QLineEdit* m_aiEndpointEdit;
 
     void loadData();
     void saveData();
     void importStudents();
     void addButton();
+    void restoreMissingDefaultButtons();
     void removeButton();
     void moveUp();
     void moveDown();

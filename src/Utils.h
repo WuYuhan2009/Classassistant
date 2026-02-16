@@ -19,6 +19,7 @@ struct AppButton {
 class Config {
 public:
     static Config& instance();
+    static QVector<AppButton> defaultButtons();
 
     void load();
     void save();
@@ -52,6 +53,9 @@ public:
     bool firstRunCompleted = false;
     QString seewoPath;
     QString classNote;
+    QString siliconFlowApiKey;
+    QString siliconFlowModel = "Qwen/Qwen3-8B";
+    QString siliconFlowEndpoint = "https://api.siliconflow.cn/v1/chat/completions";
 
 private:
     Config();

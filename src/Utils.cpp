@@ -9,7 +9,7 @@
 namespace {
 constexpr int kSidebarWidth = 84;
 
-QVector<AppButton> defaultButtons() {
+QVector<AppButton> buildDefaultButtons() {
     return {
         {"希沃白板", "icon_seewo.png", "exe", "SEEWO", true},
         {"班级考勤", "icon_attendance.png", "func", "ATTENDANCE", true},
@@ -18,6 +18,7 @@ QVector<AppButton> defaultButtons() {
         {"课堂便签", "icon_settings.png", "func", "CLASS_NOTE", true},
         {"分组抽签", "icon_settings.png", "func", "GROUP_SPLIT", true},
         {"课堂计分", "icon_settings.png", "func", "SCORE_BOARD", true},
+        {"AI助手", "icon_settings.png", "func", "AI_ASSISTANT", true},
     };
 }
 
@@ -45,7 +46,7 @@ void applyDefaults(Config& config, QVector<AppButton>& buttons, QStringList& stu
     config.collapseHidesToolWindows = true;
     config.firstRunCompleted = false;
     config.classNote = "";
-    buttons = defaultButtons();
+    buttons = buildDefaultButtons();
     students = defaultStudents();
 }
 
@@ -54,6 +55,10 @@ void applyDefaults(Config& config, QVector<AppButton>& buttons, QStringList& stu
 Config& Config::instance() {
     static Config ins;
     return ins;
+}
+
+QVector<AppButton> Config::defaultButtons() {
+    return buildDefaultButtons();
 }
 
 Config::Config() {
@@ -98,6 +103,9 @@ void Config::load() {
     collapseHidesToolWindows = root["collapseHidesToolWindows"].toBool(true);
     firstRunCompleted = root["firstRunCompleted"].toBool(false);
     classNote = root["classNote"].toString();
+    siliconFlowApiKey = root["siliconFlowApiKey"].toString().trimmed();
+    siliconFlowModel = root["siliconFlowModel"].toString("Qwen/Qwen3-8B").trimmed();
+    siliconFlowEndpoint = root["siliconFlowEndpoint"].toString("https://api.siliconflow.cn/v1/chat/completions").trimmed();
 
     m_students.clear();
     for (const auto& v : root["students"].toArray()) {
@@ -137,7 +145,13 @@ void Config::load() {
         m_students = defaultStudents();
     }
     if (m_buttons.isEmpty()) {
-        m_buttons = defaultButtons();
+        m_buttons = buildDefaultButtons();
+    }
+    if (siliconFlowModel.isEmpty()) {
+        siliconFlowModel = "Qwen/Qwen3-8B";
+    }
+    if (siliconFlowEndpoint.isEmpty()) {
+        siliconFlowEndpoint = "https://api.siliconflow.cn/v1/chat/completions";
     }
 }
 
@@ -162,6 +176,9 @@ void Config::save() {
     root["collapseHidesToolWindows"] = collapseHidesToolWindows;
     root["firstRunCompleted"] = firstRunCompleted;
     root["classNote"] = classNote;
+    root["siliconFlowApiKey"] = siliconFlowApiKey;
+    root["siliconFlowModel"] = siliconFlowModel;
+    root["siliconFlowEndpoint"] = siliconFlowEndpoint;
     root["fixedSidebarWidth"] = kSidebarWidth;
 
     QJsonArray stuArr;

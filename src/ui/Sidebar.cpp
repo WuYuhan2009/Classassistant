@@ -28,6 +28,7 @@ Sidebar::Sidebar(QWidget* parent) : QWidget(parent) {
     m_classNote = new ClassNoteDialog();
     m_groupSplit = new GroupSplitDialog();
     m_scoreBoard = new ScoreBoardDialog();
+    m_aiAssistant = new AIAssistantDialog();
     m_settings = new SettingsDialog();
 
     connect(m_settings, &SettingsDialog::configChanged, this, &Sidebar::reloadConfig);
@@ -125,6 +126,7 @@ void Sidebar::hideAllToolWindowsAnimated() {
     hideWidget(m_classNote);
     hideWidget(m_groupSplit);
     hideWidget(m_scoreBoard);
+    hideWidget(m_aiAssistant);
     hideWidget(m_settings);
 }
 
@@ -185,6 +187,9 @@ void Sidebar::handleAction(const QString& action, const QString& target) {
         } else if (target == "SCORE_BOARD") {
             m_scoreBoard->setWindowOpacity(1.0);
             m_scoreBoard->openBoard();
+        } else if (target == "AI_ASSISTANT") {
+            m_aiAssistant->setWindowOpacity(1.0);
+            m_aiAssistant->openAssistant();
         } else if (target == "SETTINGS") {
             m_settings->setWindowOpacity(1.0);
             openSettings();

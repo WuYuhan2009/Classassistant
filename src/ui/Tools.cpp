@@ -7,11 +7,18 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QHBoxLayout>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
+#include <QUrl>
 #include <QGuiApplication>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QPropertyAnimation>
 #include <QRandomGenerator>
+#include <QSet>
 #include <QScreen>
 #include <QTextStream>
 #include <QTime>
@@ -633,6 +640,151 @@ void ScoreBoardDialog::closeEvent(QCloseEvent* event) {
     event->ignore();
 }
 
+
+AIAssistantDialog::AIAssistantDialog(QWidget* parent) : QDialog(parent) {
+    decorateDialog(this, "AI 助手");
+    setFixedSize(700, 560);
+
+    auto* layout = new QVBoxLayout(this);
+    auto* title = new QLabel("班级 AI 助手");
+    title->setStyleSheet("font-size:22px;font-weight:800;color:#1f4f8f;");
+    layout->addWidget(title);
+
+    m_statusLabel = new QLabel("请输入问题后发送（需先在设置中填写硅基流动 API Key）。");
+    m_statusLabel->setWordWrap(true);
+    m_statusLabel->setStyleSheet("color:#4a647f;");
+    layout->addWidget(m_statusLabel);
+
+    m_historyView = new QTextEdit;
+    m_historyView->setReadOnly(true);
+    m_historyView->setMinimumHeight(300);
+    m_historyView->setStyleSheet("background:#ffffff;border:1px solid #d8e0eb;border-radius:14px;padding:12px;");
+    layout->addWidget(m_historyView, 1);
+
+    auto* inputCard = new QWidget;
+    inputCard->setStyleSheet(cardStyle());
+    auto* inputLayout = new QVBoxLayout(inputCard);
+    inputLayout->setContentsMargins(10, 10, 10, 10);
+    inputLayout->setSpacing(8);
+
+    m_inputEdit = new QTextEdit;
+    m_inputEdit->setPlaceholderText("例如：帮我生成一段课堂纪律提醒语...");
+    m_inputEdit->setMinimumHeight(92);
+    inputLayout->addWidget(m_inputEdit);
+
+    auto* actions = new QHBoxLayout;
+    auto* clearBtn = new QPushButton("清空对话");
+    m_sendButton = new QPushButton("发送");
+    clearBtn->setStyleSheet(buttonStylePrimary());
+    m_sendButton->setStyleSheet(buttonStylePrimary());
+    actions->addWidget(clearBtn);
+    actions->addStretch();
+    actions->addWidget(m_sendButton);
+    inputLayout->addLayout(actions);
+    layout->addWidget(inputCard);
+
+    connect(clearBtn, &QPushButton::clicked, [this]() {
+        m_messages = QJsonArray();
+        m_historyView->clear();
+        m_statusLabel->setText("已清空对话。请输入新问题。");
+    });
+    connect(m_sendButton, &QPushButton::clicked, this, &AIAssistantDialog::sendMessage);
+}
+
+void AIAssistantDialog::appendMessageBubble(const QString& role, const QString& text) {
+    const QString safeText = text.toHtmlEscaped().replace("\n", "<br>");
+    const bool isUser = (role == "user");
+    const QString bubbleColor = isUser ? "#eaf4ff" : "#ffffff";
+    const QString align = isUser ? "right" : "left";
+    const QString sender = isUser ? "你" : "AI助手";
+    m_historyView->append(QString("<div style='text-align:%1;margin:8px 0;'>"
+                                  "<div style='display:inline-block;max-width:88%;padding:10px 12px;"
+                                  "border:1px solid #d8e0eb;border-radius:12px;background:%2;'>"
+                                  "<div style='font-size:12px;color:#56708b;margin-bottom:4px;'>%3</div>%4"
+                                  "</div></div>")
+                              .arg(align, bubbleColor, sender, safeText));
+}
+
+void AIAssistantDialog::sendMessage() {
+    const QString userText = m_inputEdit->toPlainText().trimmed();
+    if (userText.isEmpty()) {
+        return;
+    }
+
+    const Config& cfg = Config::instance();
+    if (cfg.siliconFlowApiKey.trimmed().isEmpty()) {
+        QMessageBox::warning(this, "缺少 API Key", "请先在设置 → 安全与离线 中填写硅基流动 API Key。\n填写后保存即可直接使用。");
+        return;
+    }
+
+    appendMessageBubble("user", userText);
+    m_messages.append(QJsonObject{{"role", "user"}, {"content", userText}});
+    m_inputEdit->clear();
+    m_sendButton->setEnabled(false);
+    m_statusLabel->setText("AI 正在思考中...");
+
+    auto* manager = new QNetworkAccessManager(this);
+    QNetworkRequest request(QUrl(cfg.siliconFlowEndpoint));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    request.setRawHeader("Authorization", QString("Bearer %1").arg(cfg.siliconFlowApiKey).toUtf8());
+
+    QJsonArray messages;
+    messages.append(QJsonObject{{"role", "system"}, {"content", "你是班级课堂助手，请给出简洁、可执行的建议。"}});
+    for (const QJsonValue& v : m_messages) {
+        messages.append(v);
+    }
+
+    const QJsonObject payload{{"model", cfg.siliconFlowModel},
+                              {"messages", messages},
+                              {"temperature", 0.6},
+                              {"stream", false}};
+
+    QNetworkReply* reply = manager->post(request, QJsonDocument(payload).toJson(QJsonDocument::Compact));
+    connect(reply, &QNetworkReply::finished, this, [this, reply, manager]() {
+        m_sendButton->setEnabled(true);
+        const QByteArray body = reply->readAll();
+        if (reply->error() != QNetworkReply::NoError) {
+            m_statusLabel->setText(QString("请求失败：%1").arg(reply->errorString()));
+            appendMessageBubble("assistant", QString("请求失败：%1\n请检查网络、API Key、模型名。\n返回内容：%2")
+                                                .arg(reply->errorString(), QString::fromUtf8(body)));
+            reply->deleteLater();
+            manager->deleteLater();
+            return;
+        }
+
+        const QJsonDocument doc = QJsonDocument::fromJson(body);
+        QString aiText;
+        if (doc.isObject()) {
+            const QJsonArray choices = doc.object().value("choices").toArray();
+            if (!choices.isEmpty()) {
+                aiText = choices.first().toObject().value("message").toObject().value("content").toString().trimmed();
+            }
+        }
+
+        if (aiText.isEmpty()) {
+            aiText = "接口返回为空，请稍后重试。";
+        }
+        appendMessageBubble("assistant", aiText);
+        m_messages.append(QJsonObject{{"role", "assistant"}, {"content", aiText}});
+        m_statusLabel->setText("已收到 AI 回复。可以继续提问。");
+
+        reply->deleteLater();
+        manager->deleteLater();
+    });
+}
+
+void AIAssistantDialog::openAssistant() {
+    if (m_messages.isEmpty()) {
+        appendMessageBubble("assistant", "你好，我可以帮你生成课堂话术、课堂活动设计、班级管理提醒等内容。");
+    }
+    smoothShow(this);
+}
+
+void AIAssistantDialog::closeEvent(QCloseEvent* event) {
+    smoothHide(this);
+    event->ignore();
+}
+
 AddButtonDialog::AddButtonDialog(QWidget* parent) : QDialog(parent) {
     decorateDialog(this, "添加自定义按钮");
     setFixedSize(440, 280);
@@ -667,9 +819,13 @@ AddButtonDialog::AddButtonDialog(QWidget* parent) : QDialog(parent) {
     layout->addWidget(m_actionCombo);
 
     m_targetEdit = new QLineEdit;
-    m_targetEdit->setPlaceholderText("路径 / URL / 功能标识");
+    m_targetEdit->setPlaceholderText("路径 / URL / 功能标识（如 AI_ASSISTANT）");
     layout->addWidget(new QLabel("目标"));
     layout->addWidget(m_targetEdit);
+    auto* targetHint = new QLabel("内置功能标识示例：ATTENDANCE、RANDOM_CALL、CLASS_TIMER、CLASS_NOTE、GROUP_SPLIT、SCORE_BOARD、AI_ASSISTANT");
+    targetHint->setWordWrap(true);
+    targetHint->setStyleSheet("color:#5a6f86;font-size:12px;");
+    layout->addWidget(targetHint);
 
     auto* actions = new QHBoxLayout;
     auto* ok = new QPushButton("确定");
@@ -760,6 +916,9 @@ void FirstRunWizard::finishSetup() {
     cfg.randomNoRepeat = m_randomNoRepeat->isChecked();
     cfg.allowExternalLinks = m_allowExternalLinks->isChecked();
     cfg.seewoPath = m_seewoPathEdit->text().trimmed();
+    cfg.siliconFlowApiKey = m_apiKeyEdit->text().trimmed();
+    cfg.siliconFlowModel = m_aiModelEdit->text().trimmed().isEmpty() ? QString("Qwen/Qwen3-8B") : m_aiModelEdit->text().trimmed();
+    cfg.siliconFlowEndpoint = m_aiEndpointEdit->text().trimmed().isEmpty() ? QString("https://api.siliconflow.cn/v1/chat/completions") : m_aiEndpointEdit->text().trimmed();
     cfg.firstRunCompleted = true;
     cfg.save();
     accept();
@@ -959,7 +1118,7 @@ QWidget* SettingsDialog::createPageDataManagement() {
     connect(importBtn, &QPushButton::clicked, this, &SettingsDialog::importStudents);
     layout->addWidget(importBtn);
 
-    layout->addWidget(new QLabel("按钮管理（默认系统按钮不可删除）"));
+    layout->addWidget(new QLabel("按钮管理（除“设置”外，主界面按钮都可删改；可一键恢复默认按钮）"));
     m_buttonList = new QListWidget;
     layout->addWidget(m_buttonList, 1);
 
@@ -968,7 +1127,8 @@ QWidget* SettingsDialog::createPageDataManagement() {
     auto* btnRemove = new QPushButton("删除按钮");
     auto* btnUp = new QPushButton("上移");
     auto* btnDown = new QPushButton("下移");
-    for (auto* btn : {btnAdd, btnRemove, btnUp, btnDown}) {
+    auto* btnRestore = new QPushButton("恢复缺失默认按钮");
+    for (auto* btn : {btnAdd, btnRemove, btnUp, btnDown, btnRestore}) {
         btn->setStyleSheet(buttonStylePrimary());
         btnOps->addWidget(btn);
     }
@@ -976,6 +1136,7 @@ QWidget* SettingsDialog::createPageDataManagement() {
     connect(btnRemove, &QPushButton::clicked, this, &SettingsDialog::removeButton);
     connect(btnUp, &QPushButton::clicked, this, &SettingsDialog::moveUp);
     connect(btnDown, &QPushButton::clicked, this, &SettingsDialog::moveDown);
+    connect(btnRestore, &QPushButton::clicked, this, &SettingsDialog::restoreMissingDefaultButtons);
     layout->addLayout(btnOps);
 
     return page;
@@ -994,10 +1155,36 @@ QWidget* SettingsDialog::createPageSafety() {
     tip->setWordWrap(true);
     safetyLayout->addWidget(tip);
 
-    auto* tip2 = new QLabel("保存、还原默认、退出应用请使用窗口底部一级操作区。");
+    auto* groupAI = new QGroupBox("AI 助手（硅基流动 API）");
+    auto* aiLayout = new QVBoxLayout(groupAI);
+
+    auto* keyRow = new QHBoxLayout;
+    keyRow->addWidget(new QLabel("API Key"));
+    m_apiKeyEdit = new QLineEdit;
+    m_apiKeyEdit->setEchoMode(QLineEdit::Password);
+    m_apiKeyEdit->setPlaceholderText("sk-...");
+    keyRow->addWidget(m_apiKeyEdit, 1);
+    aiLayout->addLayout(keyRow);
+
+    auto* modelRow = new QHBoxLayout;
+    modelRow->addWidget(new QLabel("模型"));
+    m_aiModelEdit = new QLineEdit;
+    m_aiModelEdit->setPlaceholderText("Qwen/Qwen3-8B");
+    modelRow->addWidget(m_aiModelEdit, 1);
+    aiLayout->addLayout(modelRow);
+
+    auto* endpointRow = new QHBoxLayout;
+    endpointRow->addWidget(new QLabel("接口地址"));
+    m_aiEndpointEdit = new QLineEdit;
+    m_aiEndpointEdit->setPlaceholderText("https://api.siliconflow.cn/v1/chat/completions");
+    endpointRow->addWidget(m_aiEndpointEdit, 1);
+    aiLayout->addLayout(endpointRow);
+
+    auto* tip2 = new QLabel("保存、还原默认、退出应用请使用窗口底部一级操作区。设置好 API Key 并保存后，主界面 AI 按钮可直接使用。");
     tip2->setWordWrap(true);
 
     layout->addWidget(groupSafety);
+    layout->addWidget(groupAI);
     layout->addWidget(tip2);
     layout->addStretch();
     return page;
@@ -1021,6 +1208,9 @@ void SettingsDialog::loadData() {
     m_scoreTeamAName->setText(cfg.scoreTeamAName);
     m_scoreTeamBName->setText(cfg.scoreTeamBName);
     m_seewoPathEdit->setText(cfg.seewoPath);
+    m_apiKeyEdit->setText(cfg.siliconFlowApiKey);
+    m_aiModelEdit->setText(cfg.siliconFlowModel);
+    m_aiEndpointEdit->setText(cfg.siliconFlowEndpoint);
 
     m_buttonList->clear();
     for (const auto& b : cfg.getButtons()) {
@@ -1075,11 +1265,34 @@ void SettingsDialog::removeButton() {
         return;
     }
 
-    if (item->data(Qt::UserRole + 4).toBool()) {
-        QMessageBox::warning(this, "提示", "默认系统按钮不可删除。");
-        return;
-    }
     delete item;
+}
+
+void SettingsDialog::restoreMissingDefaultButtons() {
+    QSet<QString> existingTargets;
+    for (int i = 0; i < m_buttonList->count(); ++i) {
+        existingTargets.insert(m_buttonList->item(i)->data(Qt::UserRole + 3).toString());
+    }
+
+    int restored = 0;
+    for (const AppButton& button : Config::defaultButtons()) {
+        if (existingTargets.contains(button.target)) {
+            continue;
+        }
+        auto* item = new QListWidgetItem(QString("%1 [%2]").arg(button.name, button.action));
+        item->setData(Qt::UserRole, button.name);
+        item->setData(Qt::UserRole + 1, button.iconPath);
+        item->setData(Qt::UserRole + 2, button.action);
+        item->setData(Qt::UserRole + 3, button.target);
+        item->setData(Qt::UserRole + 4, button.isSystem);
+        m_buttonList->addItem(item);
+        ++restored;
+    }
+
+    QMessageBox::information(this,
+                             "完成",
+                             restored > 0 ? QString("已恢复 %1 个默认按钮。\n记得点击保存设置。").arg(restored)
+                                          : "当前没有缺失的默认按钮。");
 }
 
 void SettingsDialog::moveUp() {
@@ -1120,6 +1333,9 @@ void SettingsDialog::saveData() {
     cfg.scoreTeamAName = m_scoreTeamAName->text().trimmed().isEmpty() ? QString("红队") : m_scoreTeamAName->text().trimmed();
     cfg.scoreTeamBName = m_scoreTeamBName->text().trimmed().isEmpty() ? QString("蓝队") : m_scoreTeamBName->text().trimmed();
     cfg.seewoPath = m_seewoPathEdit->text().trimmed();
+    cfg.siliconFlowApiKey = m_apiKeyEdit->text().trimmed();
+    cfg.siliconFlowModel = m_aiModelEdit->text().trimmed().isEmpty() ? QString("Qwen/Qwen3-8B") : m_aiModelEdit->text().trimmed();
+    cfg.siliconFlowEndpoint = m_aiEndpointEdit->text().trimmed().isEmpty() ? QString("https://api.siliconflow.cn/v1/chat/completions") : m_aiEndpointEdit->text().trimmed();
 
     QVector<AppButton> buttons;
     for (int i = 0; i < m_buttonList->count(); ++i) {

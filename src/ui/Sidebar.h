@@ -34,6 +34,7 @@ private:
     ClassNoteDialog* m_classNote;
     GroupSplitDialog* m_groupSplit;
     ScoreBoardDialog* m_scoreBoard;
+    AIAssistantDialog* m_aiAssistant;
     SettingsDialog* m_settings;
 
     void handleAction(const QString& action, const QString& target);
