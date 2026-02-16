@@ -30,13 +30,20 @@ QString cardStyle() {
 void decorateDialog(QDialog* dlg, const QString& title) {
     dlg->setWindowTitle(title);
     dlg->setWindowFlags((dlg->windowFlags() | Qt::Tool) & ~Qt::WindowContextHelpButtonHint);
-    dlg->setStyleSheet("QDialog{background:#f7f9fc;} QLabel{color:#223042;} "
-                       "QLineEdit,QTextEdit,QListWidget,QTreeWidget,QComboBox,QSpinBox{"
-                       "background:#ffffff;border:1px solid #d8e0eb;border-radius:8px;padding:6px;}"
-                       "QCheckBox{spacing:8px;} QSlider::groove:horizontal{height:6px;background:#dbe4ef;border-radius:3px;}"
+    dlg->setStyleSheet("QDialog{background:#f5f8fc;} QLabel{color:#223042;} "
+                       "QLineEdit,QTextEdit,QListWidget,QTreeWidget,QComboBox,QSpinBox,QTableWidget{"
+                       "background:#ffffff;border:1px solid #d8e0eb;border-radius:10px;padding:6px;}"
+                       "QTreeWidget::item{height:28px;border-radius:8px;}"
+                       "QTreeWidget::item:selected{background:#e9f2ff;color:#1f4f8f;}"
+                       "QCheckBox{spacing:8px;} "
+                       "QSlider::groove:horizontal{height:6px;background:#dbe4ef;border-radius:3px;}"
                        "QSlider::handle:horizontal{width:16px;margin:-5px 0;background:#ffffff;border:1px solid #9cb2ce;border-radius:8px;}"
-                       "QGroupBox{font-weight:700;border:1px solid #dfe5ee;border-radius:10px;margin-top:10px;padding-top:10px;}"
-                       "QGroupBox::title{subcontrol-origin:margin;left:10px;padding:0 6px;}");
+                       "QGroupBox{font-weight:700;border:1px solid #dfe5ee;border-radius:12px;margin-top:10px;padding-top:12px;background:#ffffff;}"
+                       "QGroupBox::title{subcontrol-origin:margin;left:10px;padding:0 6px;}"
+                       "QScrollBar:vertical{background:transparent;width:10px;margin:2px;}"
+                       "QScrollBar::handle:vertical{background:#c8d8ec;min-height:20px;border-radius:5px;}"
+                       "QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{height:0;}"
+                       "QPushButton{border-radius:12px;}");
 }
 }
 
@@ -50,7 +57,7 @@ void smoothShow(QWidget* w) {
     anim->setDuration(Config::instance().animationDurationMs);
     anim->setStartValue(0.0);
     anim->setEndValue(1.0);
-    anim->setEasingCurve(QEasingCurve::OutCubic);
+    anim->setEasingCurve(QEasingCurve::OutBack);
     anim->start(QAbstractAnimation::DeleteWhenStopped);
 }
 
@@ -60,7 +67,7 @@ void smoothHide(QWidget* w) {
     anim->setDuration(Config::instance().animationDurationMs);
     anim->setStartValue(w->windowOpacity());
     anim->setEndValue(0.0);
-    anim->setEasingCurve(QEasingCurve::InCubic);
+    anim->setEasingCurve(QEasingCurve::InOutCubic);
     QObject::connect(anim, &QPropertyAnimation::finished, w, [w]() {
         w->hide();
         w->setWindowOpacity(1.0);
@@ -764,12 +771,16 @@ void FirstRunWizard::closeEvent(QCloseEvent* event) {
 
 SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     decorateDialog(this, "ClassAssistant 设置");
-    setFixedSize(900, 620);
+    setFixedSize(940, 660);
 
-    auto* root = new QHBoxLayout(this);
+    auto* root = new QVBoxLayout(this);
+    root->setContentsMargins(12, 12, 12, 12);
+    root->setSpacing(10);
+
+    auto* content = new QHBoxLayout;
     m_menuTree = new QTreeWidget;
     m_menuTree->setHeaderHidden(true);
-    m_menuTree->setFixedWidth(230);
+    m_menuTree->setFixedWidth(240);
 
     auto* topDisplay = new QTreeWidgetItem(QStringList{"显示与启动"});
     topDisplay->addChild(new QTreeWidgetItem(QStringList{"窗口与显示"}));
@@ -796,17 +807,33 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     m_stacked->addWidget(createPageDataManagement());
     m_stacked->addWidget(createPageSafety());
 
-    root->addWidget(m_menuTree);
-    root->addWidget(m_stacked, 1);
+    content->addWidget(m_menuTree);
+    content->addWidget(m_stacked, 1);
+    root->addLayout(content, 1);
+
+    auto* footer = new QHBoxLayout;
+    footer->addStretch();
+    auto* restore = new QPushButton("还原默认设置");
+    auto* save = new QPushButton("保存设置");
+    auto* quitAppBtn = new QPushButton("退出应用");
+    for (auto* btn : {restore, save, quitAppBtn}) {
+        btn->setStyleSheet(buttonStylePrimary());
+        btn->setMinimumHeight(38);
+        footer->addWidget(btn);
+    }
+    connect(restore, &QPushButton::clicked, this, &SettingsDialog::restoreDefaults);
+    connect(save, &QPushButton::clicked, this, &SettingsDialog::saveData);
+    connect(quitAppBtn, &QPushButton::clicked, qApp, &QCoreApplication::quit);
+    root->addLayout(footer);
 
     connect(m_menuTree, &QTreeWidget::currentItemChanged, [this](QTreeWidgetItem* current) {
         if (!current) {
             return;
         }
         const QString label = current->text(0);
-        if (label == "显示与启动" || label == "窗口与显示" || label == "启动行为") {
+        if (label == "显示与启动" || label == "窗口与显示" || label == "启动行为" || label == "动画与圆角") {
             m_stacked->setCurrentIndex(0);
-        } else if (label == "课堂工具" || label == "点名设置" || label == "程序路径") {
+        } else if (label == "课堂工具" || label == "点名设置" || label == "程序路径" || label == "分组与计分") {
             m_stacked->setCurrentIndex(1);
         } else if (label == "数据管理" || label == "名单与按钮") {
             m_stacked->setCurrentIndex(2);
@@ -951,18 +978,6 @@ QWidget* SettingsDialog::createPageDataManagement() {
     connect(btnDown, &QPushButton::clicked, this, &SettingsDialog::moveDown);
     layout->addLayout(btnOps);
 
-    auto* actions = new QHBoxLayout;
-    auto* restore = new QPushButton("恢复默认");
-    auto* save = new QPushButton("保存并应用");
-    auto* quitAppBtn = new QPushButton("退出程序");
-    for (auto* btn : {restore, save, quitAppBtn}) {
-        btn->setStyleSheet(buttonStylePrimary());
-        actions->addWidget(btn);
-    }
-    connect(restore, &QPushButton::clicked, this, &SettingsDialog::restoreDefaults);
-    connect(save, &QPushButton::clicked, this, &SettingsDialog::saveData);
-    connect(quitAppBtn, &QPushButton::clicked, qApp, &QCoreApplication::quit);
-    layout->addLayout(actions);
     return page;
 }
 
@@ -979,12 +994,11 @@ QWidget* SettingsDialog::createPageSafety() {
     tip->setWordWrap(true);
     safetyLayout->addWidget(tip);
 
-    auto* saveBtn = new QPushButton("保存并应用");
-    saveBtn->setStyleSheet(buttonStylePrimary());
-    connect(saveBtn, &QPushButton::clicked, this, &SettingsDialog::saveData);
+    auto* tip2 = new QLabel("保存、还原默认、退出应用请使用窗口底部一级操作区。");
+    tip2->setWordWrap(true);
 
     layout->addWidget(groupSafety);
-    layout->addWidget(saveBtn, 0, Qt::AlignLeft);
+    layout->addWidget(tip2);
     layout->addStretch();
     return page;
 }

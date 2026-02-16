@@ -4,7 +4,6 @@
 
 #include <QDesktopServices>
 #include <QIcon>
-#include <QLabel>
 #include <QMessageBox>
 #include <QProcess>
 #include <QPropertyAnimation>
@@ -77,10 +76,6 @@ void Sidebar::rebuildUI() {
     m_layout->setSpacing(Config::instance().compactMode ? 5 : 10);
     setFixedWidth(qMax(kSidebarMinWidth, Config::instance().sidebarWidth));
     setStyleSheet("QWidget { background-color: rgba(250, 252, 255, 0.98); border-top-left-radius: 20px; border-bottom-left-radius: 20px; }");
-
-    auto* title = new QLabel("班级助手");
-    title->setStyleSheet("font-size:12px;font-weight:700;color:#5a6f88;padding:6px;");
-    m_layout->addWidget(title, 0, Qt::AlignHCenter);
 
     m_layout->addStretch();
     const auto buttons = Config::instance().getButtons();

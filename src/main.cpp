@@ -72,13 +72,13 @@ int main(int argc, char* argv[]) {
         moveAnim->setDuration(Config::instance().animationDurationMs);
         moveAnim->setStartValue(startRect);
         moveAnim->setEndValue(endRect);
-        moveAnim->setEasingCurve(QEasingCurve::OutCubic);
+        moveAnim->setEasingCurve(QEasingCurve::OutBack);
 
         auto* opacityAnim = new QPropertyAnimation(sidebar, "windowOpacity", group);
         opacityAnim->setDuration(Config::instance().animationDurationMs);
         opacityAnim->setStartValue(0.0);
         opacityAnim->setEndValue(1.0);
-        opacityAnim->setEasingCurve(QEasingCurve::OutCubic);
+        opacityAnim->setEasingCurve(QEasingCurve::OutQuint);
 
         group->addAnimation(moveAnim);
         group->addAnimation(opacityAnim);
@@ -123,6 +123,7 @@ int main(int argc, char* argv[]) {
             ball->setWindowOpacity(0.0);
             ballAnim->setStartValue(0.0);
             ballAnim->setEndValue(Config::instance().floatingOpacity / 100.0);
+            ballAnim->setEasingCurve(QEasingCurve::OutBack);
             ballAnim->start(QAbstractAnimation::DeleteWhenStopped);
         });
         group->start(QAbstractAnimation::DeleteWhenStopped);
