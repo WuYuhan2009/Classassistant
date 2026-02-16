@@ -43,6 +43,12 @@ public:
     bool allowExternalLinks = false;
     bool compactMode = false;
     int randomHistorySize = 5;
+    int animationDurationMs = 240;
+    int sidebarWidth = 92;
+    int groupSplitSize = 4;
+    QString scoreTeamAName = "红队";
+    QString scoreTeamBName = "蓝队";
+    bool collapseHidesToolWindows = true;
     bool firstRunCompleted = false;
     QString seewoPath;
     QString classNote;

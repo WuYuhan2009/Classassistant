@@ -10,9 +10,11 @@
 #include <QGuiApplication>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QPropertyAnimation>
 #include <QRandomGenerator>
 #include <QScreen>
 #include <QTextStream>
+#include <QTime>
 #include <QVBoxLayout>
 
 namespace {
@@ -38,6 +40,34 @@ void decorateDialog(QDialog* dlg, const QString& title) {
 }
 }
 
+void smoothShow(QWidget* w) {
+    if (!w) return;
+    w->setWindowOpacity(0.0);
+    w->show();
+    w->raise();
+    w->activateWindow();
+    auto* anim = new QPropertyAnimation(w, "windowOpacity", w);
+    anim->setDuration(Config::instance().animationDurationMs);
+    anim->setStartValue(0.0);
+    anim->setEndValue(1.0);
+    anim->setEasingCurve(QEasingCurve::OutCubic);
+    anim->start(QAbstractAnimation::DeleteWhenStopped);
+}
+
+void smoothHide(QWidget* w) {
+    if (!w || !w->isVisible()) return;
+    auto* anim = new QPropertyAnimation(w, "windowOpacity", w);
+    anim->setDuration(Config::instance().animationDurationMs);
+    anim->setStartValue(w->windowOpacity());
+    anim->setEndValue(0.0);
+    anim->setEasingCurve(QEasingCurve::InCubic);
+    QObject::connect(anim, &QPropertyAnimation::finished, w, [w]() {
+        w->hide();
+        w->setWindowOpacity(1.0);
+    });
+    anim->start(QAbstractAnimation::DeleteWhenStopped);
+}
+
 AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnBottomHint | Qt::Tool);
     setAttribute(Qt::WA_TranslucentBackground);
@@ -46,19 +76,19 @@ AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(pare
     root->setContentsMargins(0, 0, 0, 0);
 
     auto* panel = new QWidget;
-    panel->setStyleSheet(cardStyle());
+    panel->setStyleSheet("background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 #ffffff,stop:1 #f5f9ff);border:1px solid #d9e4f2;border-radius:18px;");
     auto* inner = new QVBoxLayout(panel);
     inner->setSpacing(10);
 
     m_title = new QLabel("今日考勤概览");
-    m_title->setStyleSheet("font-size:18px;font-weight:800;");
+    m_title->setStyleSheet("font-size:18px;font-weight:800;color:#2a4362;");
 
     m_counts = new QLabel;
-    m_counts->setStyleSheet("font-size:16px;font-weight:700;color:#334f71;");
+    m_counts->setStyleSheet("font-size:16px;font-weight:800;color:#2f5e90;");
 
     m_absentList = new QLabel;
     m_absentList->setWordWrap(true);
-    m_absentList->setStyleSheet("font-size:14px;background:#f8fbff;border:1px solid #e2e9f2;border-radius:10px;padding:10px;");
+    m_absentList->setStyleSheet("font-size:14px;background:#ffffff;border:1px solid #dbe6f3;border-radius:12px;padding:10px;");
 
     inner->addWidget(m_title);
     inner->addWidget(m_counts);
@@ -93,7 +123,8 @@ void AttendanceSummaryWidget::refreshUi() {
     const int absent = m_absentees.size();
     const int present = qMax(0, total - absent);
 
-    m_counts->setText(QString("应到：%1   实到：%2").arg(total).arg(present));
+    m_counts->setText(QString("应到：%1   实到：%2   缺勤：%3").arg(total).arg(present).arg(absent));
+    m_title->setText(QString("今日考勤概览  ·  %1").arg(QTime::currentTime().toString("HH:mm")));
     m_absentList->setText(QString("缺勤人员：%1").arg(m_absentees.isEmpty() ? "无" : m_absentees.join("、")));
 
     setFixedWidth(Config::instance().attendanceSummaryWidth);
@@ -104,7 +135,7 @@ void AttendanceSummaryWidget::refreshUi() {
 }
 
 void AttendanceSummaryWidget::closeEvent(QCloseEvent* event) {
-    hide();
+    smoothHide(this);
     event->ignore();
 }
 
@@ -164,7 +195,7 @@ AttendanceSelectDialog::AttendanceSelectDialog(QWidget* parent) : QDialog(parent
     });
     connect(exportBtn, &QPushButton::clicked, this, &AttendanceSelectDialog::exportSelection);
     connect(saveBtn, &QPushButton::clicked, this, &AttendanceSelectDialog::saveSelection);
-    connect(cancelBtn, &QPushButton::clicked, this, &AttendanceSelectDialog::hide);
+    connect(cancelBtn, &QPushButton::clicked, [this]() { smoothHide(this); });
     layout->addLayout(actions);
 }
 
@@ -224,7 +255,7 @@ void AttendanceSelectDialog::exportSelection() {
 }
 
 void AttendanceSelectDialog::closeEvent(QCloseEvent* event) {
-    hide();
+    smoothHide(this);
     event->ignore();
 }
 
@@ -268,7 +299,7 @@ RandomCallDialog::RandomCallDialog(QWidget* parent) : QDialog(parent) {
         QGuiApplication::clipboard()->setText(m_nameLabel->text());
         m_hintLabel->setText(QString("已复制：%1").arg(m_nameLabel->text()));
     });
-    connect(m_closeButton, &QPushButton::clicked, this, &RandomCallDialog::hide);
+    connect(m_closeButton, &QPushButton::clicked, [this]() { smoothHide(this); });
 
     m_timer = new QTimer(this);
     connect(m_timer, &QTimer::timeout, [this]() {
@@ -352,11 +383,11 @@ void RandomCallDialog::startAnim() {
         m_nameLabel->setText("准备开始");
         m_hintLabel->setText(Config::instance().randomNoRepeat ? "当前模式：无重复点名（每轮自动重置）" : "当前模式：允许重复点名");
     }
-    show();
+    smoothShow(this);
 }
 
 void RandomCallDialog::closeEvent(QCloseEvent* event) {
-    hide();
+    smoothHide(this);
     event->ignore();
 }
 
@@ -423,7 +454,7 @@ ClassTimerDialog::ClassTimerDialog(QWidget* parent) : QDialog(parent) {
         m_startPauseButton->setText("开始");
         updateCountdownText();
     });
-    connect(closeButton, &QPushButton::clicked, this, &ClassTimerDialog::hide);
+    connect(closeButton, &QPushButton::clicked, [this]() { smoothHide(this); });
 
     m_remainingSeconds = m_minutesSpin->value() * 60;
     updateCountdownText();
@@ -436,13 +467,11 @@ void ClassTimerDialog::updateCountdownText() {
 }
 
 void ClassTimerDialog::openTimer() {
-    show();
-    raise();
-    activateWindow();
+    smoothShow(this);
 }
 
 void ClassTimerDialog::closeEvent(QCloseEvent* event) {
-    hide();
+    smoothHide(this);
     event->ignore();
 }
 
@@ -468,7 +497,7 @@ ClassNoteDialog::ClassNoteDialog(QWidget* parent) : QDialog(parent) {
     layout->addLayout(row);
 
     connect(saveBtn, &QPushButton::clicked, this, &ClassNoteDialog::saveNote);
-    connect(closeBtn, &QPushButton::clicked, this, &ClassNoteDialog::hide);
+    connect(closeBtn, &QPushButton::clicked, [this]() { smoothHide(this); });
 }
 
 void ClassNoteDialog::saveNote() {
@@ -480,13 +509,121 @@ void ClassNoteDialog::saveNote() {
 void ClassNoteDialog::openNote() {
     m_editor->setPlainText(Config::instance().classNote);
     m_infoLabel->setText("本地便签（离线存储，不联网）");
-    show();
-    raise();
-    activateWindow();
+    smoothShow(this);
 }
 
 void ClassNoteDialog::closeEvent(QCloseEvent* event) {
-    hide();
+    smoothHide(this);
+    event->ignore();
+}
+
+GroupSplitDialog::GroupSplitDialog(QWidget* parent) : QDialog(parent) {
+    decorateDialog(this, "分组抽签");
+    setFixedSize(540, 430);
+
+    auto* layout = new QVBoxLayout(this);
+    auto* row = new QHBoxLayout;
+    row->addWidget(new QLabel("每组人数"));
+    m_groupSize = new QSpinBox;
+    m_groupSize->setRange(2, 12);
+    row->addWidget(m_groupSize);
+    auto* generateBtn = new QPushButton("重新分组");
+    auto* closeBtn = new QPushButton("关闭");
+    generateBtn->setStyleSheet(buttonStylePrimary());
+    closeBtn->setStyleSheet(buttonStylePrimary());
+    row->addWidget(generateBtn);
+    row->addWidget(closeBtn);
+    layout->addLayout(row);
+
+    m_result = new QTextEdit;
+    m_result->setReadOnly(true);
+    layout->addWidget(m_result, 1);
+
+    connect(generateBtn, &QPushButton::clicked, this, &GroupSplitDialog::generate);
+    connect(closeBtn, &QPushButton::clicked, [this]() { smoothHide(this); });
+}
+
+void GroupSplitDialog::generate() {
+    QStringList list = Config::instance().getStudentList();
+    if (list.isEmpty()) {
+        m_result->setPlainText("暂无学生名单，请先导入。");
+        return;
+    }
+
+    for (int i = list.size() - 1; i > 0; --i) {
+        const int j = QRandomGenerator::global()->bounded(i + 1);
+        list.swapItemsAt(i, j);
+    }
+
+    const int each = qMax(2, m_groupSize->value());
+    QString out;
+    int groupIndex = 1;
+    for (int i = 0; i < list.size(); i += each) {
+        out += QString("第%1组：%2
+").arg(groupIndex++).arg(list.mid(i, each).join("、"));
+    }
+    m_result->setPlainText(out.trimmed());
+}
+
+void GroupSplitDialog::openSplitter() {
+    m_groupSize->setValue(Config::instance().groupSplitSize);
+    generate();
+    smoothShow(this);
+}
+
+void GroupSplitDialog::closeEvent(QCloseEvent* event) {
+    smoothHide(this);
+    event->ignore();
+}
+
+ScoreBoardDialog::ScoreBoardDialog(QWidget* parent) : QDialog(parent) {
+    decorateDialog(this, "课堂计分板");
+    setFixedSize(460, 320);
+
+    auto* layout = new QVBoxLayout(this);
+    m_teamALabel = new QLabel;
+    m_teamBLabel = new QLabel;
+    m_scoreLabel = new QLabel;
+    m_scoreLabel->setAlignment(Qt::AlignCenter);
+    m_scoreLabel->setStyleSheet("font-size:46px;font-weight:900;background:#ffffff;border:1px solid #d8e0eb;border-radius:14px;padding:8px;");
+    layout->addWidget(m_teamALabel);
+    layout->addWidget(m_teamBLabel);
+    layout->addWidget(m_scoreLabel);
+
+    auto* row = new QHBoxLayout;
+    auto* aMinus = new QPushButton("A -1");
+    auto* aPlus = new QPushButton("A +1");
+    auto* bMinus = new QPushButton("B -1");
+    auto* bPlus = new QPushButton("B +1");
+    auto* resetBtn = new QPushButton("重置");
+    auto* closeBtn = new QPushButton("关闭");
+    for (auto* btn : {aMinus, aPlus, bMinus, bPlus, resetBtn, closeBtn}) {
+        btn->setStyleSheet(buttonStylePrimary());
+        row->addWidget(btn);
+    }
+    layout->addLayout(row);
+
+    connect(aMinus, &QPushButton::clicked, [this]() { m_scoreA = qMax(0, m_scoreA - 1); refreshScore(); });
+    connect(aPlus, &QPushButton::clicked, [this]() { ++m_scoreA; refreshScore(); });
+    connect(bMinus, &QPushButton::clicked, [this]() { m_scoreB = qMax(0, m_scoreB - 1); refreshScore(); });
+    connect(bPlus, &QPushButton::clicked, [this]() { ++m_scoreB; refreshScore(); });
+    connect(resetBtn, &QPushButton::clicked, [this]() { m_scoreA = 0; m_scoreB = 0; refreshScore(); });
+    connect(closeBtn, &QPushButton::clicked, [this]() { smoothHide(this); });
+}
+
+void ScoreBoardDialog::refreshScore() {
+    m_teamALabel->setText(QString("%1").arg(Config::instance().scoreTeamAName));
+    m_teamBLabel->setText(QString("%1").arg(Config::instance().scoreTeamBName));
+    m_scoreLabel->setText(QString("%1 : %2").arg(m_scoreA).arg(m_scoreB));
+}
+
+void ScoreBoardDialog::openBoard() {
+    refreshScore();
+    smoothShow(this);
+}
+
+void ScoreBoardDialog::closeEvent(QCloseEvent* event) {
+    smoothHide(this);
     event->ignore();
 }
 
@@ -638,9 +775,11 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     auto* topDisplay = new QTreeWidgetItem(QStringList{"显示与启动"});
     topDisplay->addChild(new QTreeWidgetItem(QStringList{"窗口与显示"}));
     topDisplay->addChild(new QTreeWidgetItem(QStringList{"启动行为"}));
+    topDisplay->addChild(new QTreeWidgetItem(QStringList{"动画与圆角"}));
     auto* topTools = new QTreeWidgetItem(QStringList{"课堂工具"});
     topTools->addChild(new QTreeWidgetItem(QStringList{"点名设置"}));
     topTools->addChild(new QTreeWidgetItem(QStringList{"程序路径"}));
+    topTools->addChild(new QTreeWidgetItem(QStringList{"分组与计分"}));
     auto* topData = new QTreeWidgetItem(QStringList{"数据管理"});
     topData->addChild(new QTreeWidgetItem(QStringList{"名单与按钮"}));
     auto* topSafety = new QTreeWidgetItem(QStringList{"安全与离线"});
@@ -700,14 +839,26 @@ QWidget* SettingsDialog::createPageDisplayStartup() {
     m_compactMode = new QCheckBox("紧凑模式（缩小图标与间距）");
     displayLayout->addWidget(m_compactMode);
 
+    displayLayout->addWidget(new QLabel("主界面宽度"));
+    m_sidebarWidth = new QSlider(Qt::Horizontal);
+    m_sidebarWidth->setRange(84, 128);
+    displayLayout->addWidget(m_sidebarWidth);
+
+    displayLayout->addWidget(new QLabel("过渡动画时长（毫秒）"));
+    m_animationDuration = new QSlider(Qt::Horizontal);
+    m_animationDuration->setRange(120, 600);
+    displayLayout->addWidget(m_animationDuration);
+
     auto* groupStartup = new QGroupBox("启动行为（二级）");
     auto* startupLayout = new QVBoxLayout(groupStartup);
     m_startCollapsed = new QCheckBox("启动时收起到悬浮球");
     m_trayClickToOpen = new QCheckBox("托盘单击时展开侧栏");
     m_showAttendanceSummaryOnStart = new QCheckBox("启动时显示考勤概览");
+    m_collapseHidesToolWindows = new QCheckBox("收起主界面时联动隐藏所有工具窗口");
     startupLayout->addWidget(m_startCollapsed);
     startupLayout->addWidget(m_trayClickToOpen);
     startupLayout->addWidget(m_showAttendanceSummaryOnStart);
+    startupLayout->addWidget(m_collapseHidesToolWindows);
 
     layout->addWidget(groupDisplay);
     layout->addWidget(groupStartup);
@@ -745,8 +896,30 @@ QWidget* SettingsDialog::createPageClassTools() {
     pathLayout->addWidget(m_seewoPathEdit, 1);
     pathLayout->addWidget(choosePath);
 
+    auto* groupFeature = new QGroupBox("分组与计分（二级）");
+    auto* featureLayout = new QVBoxLayout(groupFeature);
+    auto* groupSizeRow = new QHBoxLayout;
+    groupSizeRow->addWidget(new QLabel("分组默认人数（三级）"));
+    m_groupSize = new QSpinBox;
+    m_groupSize->setRange(2, 12);
+    groupSizeRow->addWidget(m_groupSize);
+    featureLayout->addLayout(groupSizeRow);
+
+    auto* teamARow = new QHBoxLayout;
+    teamARow->addWidget(new QLabel("计分队伍A名称（三级）"));
+    m_scoreTeamAName = new QLineEdit;
+    teamARow->addWidget(m_scoreTeamAName);
+    featureLayout->addLayout(teamARow);
+
+    auto* teamBRow = new QHBoxLayout;
+    teamBRow->addWidget(new QLabel("计分队伍B名称（三级）"));
+    m_scoreTeamBName = new QLineEdit;
+    teamBRow->addWidget(m_scoreTeamBName);
+    featureLayout->addLayout(teamBRow);
+
     layout->addWidget(groupRandom);
     layout->addWidget(groupPath);
+    layout->addWidget(groupFeature);
     layout->addStretch();
     return page;
 }
@@ -824,10 +997,16 @@ void SettingsDialog::loadData() {
     m_startCollapsed->setChecked(cfg.startCollapsed);
     m_trayClickToOpen->setChecked(cfg.trayClickToOpen);
     m_showAttendanceSummaryOnStart->setChecked(cfg.showAttendanceSummaryOnStart);
+    m_collapseHidesToolWindows->setChecked(cfg.collapseHidesToolWindows);
     m_compactMode->setChecked(cfg.compactMode);
+    m_sidebarWidth->setValue(cfg.sidebarWidth);
+    m_animationDuration->setValue(cfg.animationDurationMs);
     m_randomNoRepeat->setChecked(cfg.randomNoRepeat);
     m_historyCount->setValue(cfg.randomHistorySize);
     m_allowExternalLinks->setChecked(cfg.allowExternalLinks);
+    m_groupSize->setValue(cfg.groupSplitSize);
+    m_scoreTeamAName->setText(cfg.scoreTeamAName);
+    m_scoreTeamBName->setText(cfg.scoreTeamBName);
     m_seewoPathEdit->setText(cfg.seewoPath);
 
     m_buttonList->clear();
@@ -917,10 +1096,16 @@ void SettingsDialog::saveData() {
     cfg.startCollapsed = m_startCollapsed->isChecked();
     cfg.trayClickToOpen = m_trayClickToOpen->isChecked();
     cfg.showAttendanceSummaryOnStart = m_showAttendanceSummaryOnStart->isChecked();
+    cfg.collapseHidesToolWindows = m_collapseHidesToolWindows->isChecked();
     cfg.compactMode = m_compactMode->isChecked();
+    cfg.sidebarWidth = m_sidebarWidth->value();
+    cfg.animationDurationMs = m_animationDuration->value();
     cfg.randomNoRepeat = m_randomNoRepeat->isChecked();
     cfg.randomHistorySize = m_historyCount->value();
     cfg.allowExternalLinks = m_allowExternalLinks->isChecked();
+    cfg.groupSplitSize = m_groupSize->value();
+    cfg.scoreTeamAName = m_scoreTeamAName->text().trimmed().isEmpty() ? QString("红队") : m_scoreTeamAName->text().trimmed();
+    cfg.scoreTeamBName = m_scoreTeamBName->text().trimmed().isEmpty() ? QString("蓝队") : m_scoreTeamBName->text().trimmed();
     cfg.seewoPath = m_seewoPathEdit->text().trimmed();
 
     QVector<AppButton> buttons;
@@ -936,7 +1121,7 @@ void SettingsDialog::saveData() {
     cfg.setButtons(buttons);
     cfg.save();
     emit configChanged();
-    hide();
+    smoothHide(this);
 }
 
 void SettingsDialog::restoreDefaults() {
@@ -950,6 +1135,6 @@ void SettingsDialog::restoreDefaults() {
 }
 
 void SettingsDialog::closeEvent(QCloseEvent* event) {
-    hide();
+    smoothHide(this);
     event->ignore();
 }

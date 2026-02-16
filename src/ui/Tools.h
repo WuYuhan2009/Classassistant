@@ -12,6 +12,7 @@
 #include <QSlider>
 #include <QSpinBox>
 #include <QStackedWidget>
+#include <QTableWidget>
 #include <QTextEdit>
 #include <QTimer>
 #include <QTreeWidget>
@@ -123,6 +124,40 @@ private:
     void saveNote();
 };
 
+
+class GroupSplitDialog : public QDialog {
+    Q_OBJECT
+public:
+    explicit GroupSplitDialog(QWidget* parent = nullptr);
+    void openSplitter();
+
+protected:
+    void closeEvent(QCloseEvent* event) override;
+
+private:
+    QSpinBox* m_groupSize;
+    QTextEdit* m_result;
+    void generate();
+};
+
+class ScoreBoardDialog : public QDialog {
+    Q_OBJECT
+public:
+    explicit ScoreBoardDialog(QWidget* parent = nullptr);
+    void openBoard();
+
+protected:
+    void closeEvent(QCloseEvent* event) override;
+
+private:
+    QLabel* m_teamALabel;
+    QLabel* m_teamBLabel;
+    QLabel* m_scoreLabel;
+    int m_scoreA = 0;
+    int m_scoreB = 0;
+    void refreshScore();
+};
+
 class AddButtonDialog : public QDialog {
     Q_OBJECT
 public:
@@ -183,6 +218,12 @@ private:
     QSpinBox* m_historyCount;
 
     QCheckBox* m_allowExternalLinks;
+    QSlider* m_animationDuration;
+    QSlider* m_sidebarWidth;
+    QCheckBox* m_collapseHidesToolWindows;
+    QSpinBox* m_groupSize;
+    QLineEdit* m_scoreTeamAName;
+    QLineEdit* m_scoreTeamBName;
     QLineEdit* m_seewoPathEdit;
     QListWidget* m_buttonList;
 

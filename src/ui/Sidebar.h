@@ -14,6 +14,7 @@ public:
     explicit Sidebar(QWidget* parent = nullptr);
     void rebuildUI();
     void openSettings();
+    void hideAllToolWindowsAnimated();
 
 signals:
     void requestHide();
@@ -31,6 +32,8 @@ private:
     RandomCallDialog* m_randomCall;
     ClassTimerDialog* m_classTimer;
     ClassNoteDialog* m_classNote;
+    GroupSplitDialog* m_groupSplit;
+    ScoreBoardDialog* m_scoreBoard;
     SettingsDialog* m_settings;
 
     void handleAction(const QString& action, const QString& target);

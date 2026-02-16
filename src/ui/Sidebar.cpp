@@ -4,13 +4,15 @@
 
 #include <QDesktopServices>
 #include <QIcon>
+#include <QLabel>
 #include <QMessageBox>
 #include <QProcess>
+#include <QPropertyAnimation>
 #include <QPushButton>
 #include <QUrl>
 
 namespace {
-constexpr int kSidebarWidth = 84;
+constexpr int kSidebarMinWidth = 84;
 }
 
 Sidebar::Sidebar(QWidget* parent) : QWidget(parent) {
@@ -25,6 +27,8 @@ Sidebar::Sidebar(QWidget* parent) : QWidget(parent) {
     m_randomCall = new RandomCallDialog();
     m_classTimer = new ClassTimerDialog();
     m_classNote = new ClassNoteDialog();
+    m_groupSplit = new GroupSplitDialog();
+    m_scoreBoard = new ScoreBoardDialog();
     m_settings = new SettingsDialog();
 
     connect(m_settings, &SettingsDialog::configChanged, this, &Sidebar::reloadConfig);
@@ -43,21 +47,24 @@ QPushButton* Sidebar::createIconButton(const QString& text,
                                        const QString& fallbackEmoji) {
     auto* btn = new QPushButton(text);
     const bool compact = Config::instance().compactMode;
-    const int side = compact ? (kSidebarWidth - 24) : (kSidebarWidth - 12);
+    const int width = qMax(kSidebarMinWidth, Config::instance().sidebarWidth);
+    const int side = compact ? (width - 24) : (width - 12);
     btn->setFixedSize(side, side);
     btn->setToolTip(tooltip);
 
     const QIcon icon(Config::instance().resolveIconPath(iconPath));
     if (!icon.isNull()) {
         btn->setIcon(icon);
-        const int iconSide = qMin(compact ? 30 : 40, qMax(20, Config::instance().iconSize));
+        const int iconSide = qMin(compact ? 28 : 40, qMax(20, Config::instance().iconSize));
         btn->setIconSize(QSize(iconSide, iconSide));
         btn->setText("");
     } else if (!fallbackEmoji.isEmpty()) {
         btn->setText(fallbackEmoji);
     }
 
-    btn->setStyleSheet("background: rgba(255,255,255,0.96); border: 1px solid #d6deea; border-radius: 12px; font-size: 20px; padding: 4px;");
+    btn->setStyleSheet("QPushButton{background: rgba(255,255,255,0.98); border: 1px solid #d6deea; border-radius: 16px; font-size: 18px; padding: 4px;}"
+                       "QPushButton:hover{background:#f4f9ff;border-color:#b7cae3;}"
+                       "QPushButton:pressed{background:#eaf2fb;}");
     return btn;
 }
 
@@ -67,9 +74,13 @@ void Sidebar::rebuildUI() {
         delete item;
     }
 
-    m_layout->setSpacing(Config::instance().compactMode ? 4 : 8);
-    setFixedWidth(kSidebarWidth);
-    setStyleSheet("QWidget { background-color: rgba(250, 252, 255, 0.97); border-top-left-radius: 16px; border-bottom-left-radius: 16px; }");
+    m_layout->setSpacing(Config::instance().compactMode ? 5 : 10);
+    setFixedWidth(qMax(kSidebarMinWidth, Config::instance().sidebarWidth));
+    setStyleSheet("QWidget { background-color: rgba(250, 252, 255, 0.98); border-top-left-radius: 20px; border-bottom-left-radius: 20px; }");
+
+    auto* title = new QLabel("班级助手");
+    title->setStyleSheet("font-size:12px;font-weight:700;color:#5a6f88;padding:6px;");
+    m_layout->addWidget(title, 0, Qt::AlignHCenter);
 
     m_layout->addStretch();
     const auto buttons = Config::instance().getButtons();
@@ -95,6 +106,36 @@ void Sidebar::openSettings() {
     m_settings->activateWindow();
 }
 
+void Sidebar::hideAllToolWindowsAnimated() {
+    if (!Config::instance().collapseHidesToolWindows) {
+        return;
+    }
+
+    const int duration = Config::instance().animationDurationMs;
+    const auto hideWidget = [duration](QWidget* w) {
+        if (!w || !w->isVisible()) {
+            return;
+        }
+        auto* anim = new QPropertyAnimation(w, "windowOpacity", w);
+        anim->setDuration(duration);
+        anim->setStartValue(w->windowOpacity());
+        anim->setEndValue(0.0);
+        QObject::connect(anim, &QPropertyAnimation::finished, w, [w]() {
+            w->hide();
+            w->setWindowOpacity(1.0);
+        });
+        anim->start(QAbstractAnimation::DeleteWhenStopped);
+    };
+
+    hideWidget(m_attendanceSelector);
+    hideWidget(m_randomCall);
+    hideWidget(m_classTimer);
+    hideWidget(m_classNote);
+    hideWidget(m_groupSplit);
+    hideWidget(m_scoreBoard);
+    hideWidget(m_settings);
+}
+
 void Sidebar::reloadConfig() {
     Config::instance().load();
     rebuildUI();
@@ -107,6 +148,7 @@ void Sidebar::reloadConfig() {
 }
 
 void Sidebar::closeEvent(QCloseEvent* event) {
+    hideAllToolWindowsAnimated();
     hide();
     event->ignore();
 }
@@ -141,6 +183,10 @@ void Sidebar::handleAction(const QString& action, const QString& target) {
             m_classTimer->openTimer();
         } else if (target == "CLASS_NOTE") {
             m_classNote->openNote();
+        } else if (target == "GROUP_SPLIT") {
+            m_groupSplit->openSplitter();
+        } else if (target == "SCORE_BOARD") {
+            m_scoreBoard->openBoard();
         } else if (target == "SETTINGS") {
             openSettings();
         }

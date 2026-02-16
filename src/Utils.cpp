@@ -16,6 +16,8 @@ QVector<AppButton> defaultButtons() {
         {"随机点名", "icon_random.png", "func", "RANDOM_CALL", true},
         {"课堂计时", "icon_settings.png", "func", "CLASS_TIMER", true},
         {"课堂便签", "icon_settings.png", "func", "CLASS_NOTE", true},
+        {"分组抽签", "icon_settings.png", "func", "GROUP_SPLIT", true},
+        {"课堂计分", "icon_settings.png", "func", "SCORE_BOARD", true},
     };
 }
 
@@ -35,6 +37,12 @@ void applyDefaults(Config& config, QVector<AppButton>& buttons, QStringList& stu
     config.allowExternalLinks = false;
     config.compactMode = false;
     config.randomHistorySize = 5;
+    config.animationDurationMs = 240;
+    config.sidebarWidth = 92;
+    config.groupSplitSize = 4;
+    config.scoreTeamAName = "红队";
+    config.scoreTeamBName = "蓝队";
+    config.collapseHidesToolWindows = true;
     config.firstRunCompleted = false;
     config.classNote = "";
     buttons = defaultButtons();
@@ -82,6 +90,12 @@ void Config::load() {
     allowExternalLinks = root["allowExternalLinks"].toBool(false);
     compactMode = root["compactMode"].toBool(false);
     randomHistorySize = qBound(3, root["randomHistorySize"].toInt(5), 10);
+    animationDurationMs = qBound(120, root["animationDurationMs"].toInt(240), 600);
+    sidebarWidth = qBound(84, root["sidebarWidth"].toInt(92), 128);
+    groupSplitSize = qBound(2, root["groupSplitSize"].toInt(4), 12);
+    scoreTeamAName = root["scoreTeamAName"].toString("红队");
+    scoreTeamBName = root["scoreTeamBName"].toString("蓝队");
+    collapseHidesToolWindows = root["collapseHidesToolWindows"].toBool(true);
     firstRunCompleted = root["firstRunCompleted"].toBool(false);
     classNote = root["classNote"].toString();
 
@@ -140,6 +154,12 @@ void Config::save() {
     root["allowExternalLinks"] = allowExternalLinks;
     root["compactMode"] = compactMode;
     root["randomHistorySize"] = randomHistorySize;
+    root["animationDurationMs"] = animationDurationMs;
+    root["sidebarWidth"] = sidebarWidth;
+    root["groupSplitSize"] = groupSplitSize;
+    root["scoreTeamAName"] = scoreTeamAName;
+    root["scoreTeamBName"] = scoreTeamBName;
+    root["collapseHidesToolWindows"] = collapseHidesToolWindows;
     root["firstRunCompleted"] = firstRunCompleted;
     root["classNote"] = classNote;
     root["fixedSidebarWidth"] = kSidebarWidth;

@@ -1,12 +1,15 @@
 #include <QAction>
 #include <QApplication>
 #include <QCoreApplication>
+#include <QFont>
 #include <QIcon>
 #include <QMenu>
+#include <QParallelAnimationGroup>
+#include <QPropertyAnimation>
+#include <QRect>
 #include <QScreen>
 #include <QStyle>
 #include <QSystemTrayIcon>
-#include <QFont>
 #include <QTimer>
 
 #include "Utils.h"
@@ -15,8 +18,6 @@
 #include "ui/Tools.h"
 
 namespace {
-constexpr int kSidebarWidth = 84;
-
 QIcon loadNamedIcon(const QString& fileName) {
     const QString resolvedPath = Config::instance().resolveIconPath(fileName);
     return QIcon(resolvedPath);
@@ -38,7 +39,7 @@ int main(int argc, char* argv[]) {
     uiFont.setPointSize(10);
     app.setFont(uiFont);
     app.setStyleSheet("QWidget{font-family:'HarmonyOS Sans SC','HarmonyOS Sans','Microsoft YaHei',sans-serif;}"
-                     "QToolTip{background:#ffffff;color:#1f2d3d;border:1px solid #d8e0eb;padding:6px;border-radius:6px;}");
+                      "QToolTip{background:#ffffff;color:#1f2d3d;border:1px solid #d8e0eb;padding:6px;border-radius:8px;}");
 
     if (!Config::instance().firstRunCompleted) {
         FirstRunWizard wizard;
@@ -50,24 +51,81 @@ int main(int argc, char* argv[]) {
 
     auto updatePos = [&]() {
         const QRect screen = app.primaryScreen()->availableGeometry();
-        sidebar->resize(kSidebarWidth, qMin(screen.height() - 20, 760));
-        sidebar->move(screen.right() - kSidebarWidth + 1, screen.center().y() - sidebar->height() / 2);
+        const int sidebarWidth = qMax(84, Config::instance().sidebarWidth);
+        sidebar->resize(sidebarWidth, qMin(screen.height() - 20, 800));
+        sidebar->move(screen.right() - sidebarWidth + 1, screen.center().y() - sidebar->height() / 2);
         ball->setWindowOpacity(Config::instance().floatingOpacity / 100.0);
     };
 
-    auto showSidebar = [&]() {
+    auto animateSidebarIn = [&]() {
         updatePos();
-        ball->hide();
         sidebar->show();
         sidebar->raise();
+
+        const QRect endRect = sidebar->geometry();
+        const QRect startRect(endRect.x() + 26, endRect.y(), endRect.width(), endRect.height());
+        sidebar->setGeometry(startRect);
+        sidebar->setWindowOpacity(0.0);
+
+        auto* group = new QParallelAnimationGroup(sidebar);
+        auto* moveAnim = new QPropertyAnimation(sidebar, "geometry", group);
+        moveAnim->setDuration(Config::instance().animationDurationMs);
+        moveAnim->setStartValue(startRect);
+        moveAnim->setEndValue(endRect);
+        moveAnim->setEasingCurve(QEasingCurve::OutCubic);
+
+        auto* opacityAnim = new QPropertyAnimation(sidebar, "windowOpacity", group);
+        opacityAnim->setDuration(Config::instance().animationDurationMs);
+        opacityAnim->setStartValue(0.0);
+        opacityAnim->setEndValue(1.0);
+        opacityAnim->setEasingCurve(QEasingCurve::OutCubic);
+
+        group->addAnimation(moveAnim);
+        group->addAnimation(opacityAnim);
+        group->start(QAbstractAnimation::DeleteWhenStopped);
+    };
+
+    auto showSidebar = [&]() {
+        ball->hide();
+        animateSidebarIn();
         sidebar->activateWindow();
     };
 
     auto showBall = [&]() {
-        sidebar->hide();
-        ball->moveToBottomRight();
-        ball->show();
-        ball->raise();
+        sidebar->hideAllToolWindowsAnimated();
+
+        const QRect rect = sidebar->geometry();
+        auto* group = new QParallelAnimationGroup(sidebar);
+        auto* moveAnim = new QPropertyAnimation(sidebar, "geometry", group);
+        moveAnim->setDuration(Config::instance().animationDurationMs);
+        moveAnim->setStartValue(rect);
+        moveAnim->setEndValue(QRect(rect.x() + 26, rect.y(), rect.width(), rect.height()));
+        moveAnim->setEasingCurve(QEasingCurve::InCubic);
+
+        auto* opacityAnim = new QPropertyAnimation(sidebar, "windowOpacity", group);
+        opacityAnim->setDuration(Config::instance().animationDurationMs);
+        opacityAnim->setStartValue(sidebar->windowOpacity());
+        opacityAnim->setEndValue(0.0);
+        opacityAnim->setEasingCurve(QEasingCurve::InCubic);
+
+        group->addAnimation(moveAnim);
+        group->addAnimation(opacityAnim);
+
+        QObject::connect(group, &QParallelAnimationGroup::finished, sidebar, [=]() {
+            sidebar->hide();
+            sidebar->setWindowOpacity(1.0);
+            updatePos();
+            ball->moveToBottomRight();
+            ball->show();
+
+            auto* ballAnim = new QPropertyAnimation(ball, "windowOpacity", ball);
+            ballAnim->setDuration(Config::instance().animationDurationMs);
+            ball->setWindowOpacity(0.0);
+            ballAnim->setStartValue(0.0);
+            ballAnim->setEndValue(Config::instance().floatingOpacity / 100.0);
+            ballAnim->start(QAbstractAnimation::DeleteWhenStopped);
+        });
+        group->start(QAbstractAnimation::DeleteWhenStopped);
     };
 
     auto reloadAll = [&]() {
@@ -130,7 +188,8 @@ int main(int argc, char* argv[]) {
 
     updatePos();
     if (Config::instance().startCollapsed) {
-        showBall();
+        ball->moveToBottomRight();
+        ball->show();
     } else {
         showSidebar();
     }
