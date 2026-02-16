@@ -1,9 +1,12 @@
 #include "Tools.h"
 
 #include <QApplication>
+#include <QClipboard>
 #include <QDate>
 #include <QFileDialog>
+#include <QTextStream>
 #include <QHBoxLayout>
+#include <QGuiApplication>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QRandomGenerator>
@@ -18,7 +21,7 @@ QString buttonStyle() {
 }
 
 AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(parent) {
-    setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
+    setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnBottomHint | Qt::Tool);
     setAttribute(Qt::WA_TranslucentBackground);
 
     auto* root = new QVBoxLayout(this);
@@ -94,7 +97,7 @@ AttendanceSelectDialog::AttendanceSelectDialog(QWidget* parent) : QDialog(parent
     setWindowFlags(windowFlags() | Qt::Tool);
 
     auto* layout = new QVBoxLayout(this);
-    auto* tip = new QLabel("请选择今日缺勤人员，点击保存后将同步到底部考勤概览。\n（名单窗口可关闭，考勤概览窗口不会关闭）");
+    auto* tip = new QLabel("请选择今日缺勤人员，点击保存后将同步到考勤概览。\n（名单窗口可关闭，考勤概览窗口不会关闭）");
     tip->setWordWrap(true);
     layout->addWidget(tip);
 
@@ -116,10 +119,14 @@ AttendanceSelectDialog::AttendanceSelectDialog(QWidget* parent) : QDialog(parent
     auto* actions = new QHBoxLayout;
     auto* markAllBtn = new QPushButton("全选缺勤");
     auto* clearAllBtn = new QPushButton("清空勾选");
+    auto* allPresentBtn = new QPushButton("全员到齐");
+    auto* exportBtn = new QPushButton("导出缺勤名单");
     auto* saveBtn = new QPushButton("保存缺勤名单");
     saveBtn->setStyleSheet(buttonStyle());
     markAllBtn->setStyleSheet(buttonStyle());
     clearAllBtn->setStyleSheet(buttonStyle());
+    allPresentBtn->setStyleSheet(buttonStyle());
+    exportBtn->setStyleSheet(buttonStyle());
     auto* cancelBtn = new QPushButton("关闭");
     cancelBtn->setStyleSheet(buttonStyle());
     connect(markAllBtn, &QPushButton::clicked, [this]() {
@@ -133,10 +140,19 @@ AttendanceSelectDialog::AttendanceSelectDialog(QWidget* parent) : QDialog(parent
             m_roster->item(i)->setCheckState(Qt::Unchecked);
         }
     });
+    connect(allPresentBtn, &QPushButton::clicked, [this]() {
+        for (int i = 0; i < m_roster->count(); ++i) {
+            m_roster->item(i)->setCheckState(Qt::Unchecked);
+        }
+        saveSelection();
+    });
+    connect(exportBtn, &QPushButton::clicked, this, &AttendanceSelectDialog::exportSelection);
     connect(saveBtn, &QPushButton::clicked, this, &AttendanceSelectDialog::saveSelection);
     connect(cancelBtn, &QPushButton::clicked, this, &AttendanceSelectDialog::hide);
     actions->addWidget(markAllBtn);
     actions->addWidget(clearAllBtn);
+    actions->addWidget(allPresentBtn);
+    actions->addWidget(exportBtn);
     actions->addWidget(saveBtn);
     actions->addWidget(cancelBtn);
     layout->addLayout(actions);
@@ -167,6 +183,37 @@ void AttendanceSelectDialog::saveSelection() {
     }
     emit saved(absentees);
     hide();
+}
+
+void AttendanceSelectDialog::exportSelection() {
+    QStringList absentees;
+    for (int i = 0; i < m_roster->count(); ++i) {
+        auto* item = m_roster->item(i);
+        if (item->checkState() == Qt::Checked) {
+            absentees.append(item->text());
+        }
+    }
+
+    const QString path = QFileDialog::getSaveFileName(this,
+                                                      "导出缺勤名单",
+                                                      QString("考勤_%1.txt").arg(QDate::currentDate().toString("yyyyMMdd")),
+                                                      "Text File (*.txt)");
+    if (path.isEmpty()) {
+        return;
+    }
+
+    QFile out(path);
+    if (!out.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+        QMessageBox::warning(this, "导出失败", "无法写入导出文件。");
+        return;
+    }
+
+    QTextStream stream(&out);
+    stream.setCodec("UTF-8");
+    stream << "日期：" << QDate::currentDate().toString("yyyy-MM-dd") << "\n";
+    stream << "缺勤人数：" << absentees.size() << "\n";
+    stream << "缺勤名单：" << (absentees.isEmpty() ? "无" : absentees.join("、")) << "\n";
+    QMessageBox::information(this, "导出成功", "缺勤名单已导出。");
 }
 
 void AttendanceSelectDialog::closeEvent(QCloseEvent* event) {
@@ -205,18 +252,31 @@ RandomCallDialog::RandomCallDialog(QWidget* parent) : QDialog(parent) {
     m_hintLabel->setStyleSheet("font-size:14px;font-weight:600;color:#e8eeff;");
     panelLayout->addWidget(m_hintLabel);
 
+    m_historyLabel = new QLabel("最近点名：暂无");
+    m_historyLabel->setWordWrap(true);
+    m_historyLabel->setStyleSheet("font-size:13px;color:#edf2ff;background:rgba(255,255,255,0.12);border-radius:10px;padding:8px;");
+    panelLayout->addWidget(m_historyLabel);
+
     auto* btnRow = new QHBoxLayout;
     m_toggleButton = new QPushButton("开始点名");
+    m_copyButton = new QPushButton("复制结果");
     m_closeButton = new QPushButton("隐藏窗口");
     m_toggleButton->setMinimumHeight(42);
+    m_copyButton->setMinimumHeight(42);
     m_closeButton->setMinimumHeight(42);
     m_toggleButton->setStyleSheet("QPushButton{background:#ffffff;color:#3554d1;border:none;border-radius:12px;font-size:16px;font-weight:800;padding:8px 16px;}QPushButton:hover{background:#eef3ff;}");
+    m_copyButton->setStyleSheet("QPushButton{background:rgba(255,255,255,0.2);color:#ffffff;border:1px solid rgba(255,255,255,0.5);border-radius:12px;font-size:15px;font-weight:700;padding:8px 16px;}QPushButton:hover{background:rgba(255,255,255,0.3);}");
     m_closeButton->setStyleSheet("QPushButton{background:rgba(255,255,255,0.18);color:#ffffff;border:1px solid rgba(255,255,255,0.45);border-radius:12px;font-size:15px;font-weight:700;padding:8px 16px;}QPushButton:hover{background:rgba(255,255,255,0.28);}");
     btnRow->addWidget(m_toggleButton, 1);
+    btnRow->addWidget(m_copyButton, 1);
     btnRow->addWidget(m_closeButton, 1);
     panelLayout->addLayout(btnRow);
 
     connect(m_toggleButton, &QPushButton::clicked, this, &RandomCallDialog::toggleRolling);
+    connect(m_copyButton, &QPushButton::clicked, [this]() {
+        QGuiApplication::clipboard()->setText(m_nameLabel->text());
+        m_hintLabel->setText(QString("已复制：%1").arg(m_nameLabel->text()));
+    });
     connect(m_closeButton, &QPushButton::clicked, this, &RandomCallDialog::hide);
 
     m_timer = new QTimer(this);
@@ -264,6 +324,14 @@ void RandomCallDialog::toggleRolling() {
     m_nameLabel->setStyleSheet("font-size:50px;font-weight:900;color:#f5b301;background:rgba(12,19,40,0.75);border-radius:18px;padding:8px;");
     m_toggleButton->setText("再来一次");
 
+    if (!selected.isEmpty() && selected != "无名单") {
+        m_history.prepend(selected);
+        while (m_history.size() > 5) {
+            m_history.removeLast();
+        }
+        m_historyLabel->setText(QString("最近点名：%1").arg(m_history.join("、")));
+    }
+
     if (Config::instance().randomNoRepeat && !selected.isEmpty() && selected != "无名单") {
         m_remainingList.removeAll(selected);
         if (m_remainingList.isEmpty()) {
@@ -283,6 +351,11 @@ void RandomCallDialog::startAnim() {
     m_running = false;
     m_timer->stop();
     m_toggleButton->setText("开始点名");
+    if (m_history.isEmpty()) {
+        m_historyLabel->setText("最近点名：暂无");
+    } else {
+        m_historyLabel->setText(QString("最近点名：%1").arg(m_history.join("、")));
+    }
     if (m_list.isEmpty()) {
         m_nameLabel->setText("无名单");
         m_hintLabel->setText("请先在设置中导入名单");
@@ -437,6 +510,9 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
 
     auto* layout = new QVBoxLayout(this);
 
+    auto* sectionDisplay = new QLabel("【显示与启动】");
+    sectionDisplay->setStyleSheet("font-weight:800;color:#2f4f7f;");
+    layout->addWidget(sectionDisplay);
     layout->addWidget(new QLabel("悬浮球透明度"));
     m_floatingOpacity = new QSlider(Qt::Horizontal);
     m_floatingOpacity->setRange(35, 100);
@@ -454,10 +530,16 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     layout->addWidget(m_trayClickToOpen);
 
     m_showAttendanceSummaryOnStart = new QCheckBox("启动时显示考勤概览");
+    m_showAttendanceSummaryOnStart->setToolTip("关闭后可通过侧栏中的“班级考勤”再次打开");
     layout->addWidget(m_showAttendanceSummaryOnStart);
 
     m_randomNoRepeat = new QCheckBox("随机点名无重复（点完一轮自动重置）");
+    m_randomNoRepeat->setToolTip("开启后每轮不会重复点到同一名学生");
     layout->addWidget(m_randomNoRepeat);
+
+    auto* sectionTool = new QLabel("【课堂工具】");
+    sectionTool->setStyleSheet("font-weight:800;color:#2f4f7f;");
+    layout->addWidget(sectionTool);
 
     auto* pathLayout = new QHBoxLayout;
     m_seewoPathEdit = new QLineEdit;
@@ -471,6 +553,10 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     pathLayout->addWidget(choosePath);
     layout->addWidget(new QLabel("默认程序路径（希沃）"));
     layout->addLayout(pathLayout);
+
+    auto* sectionData = new QLabel("【数据与按钮管理】");
+    sectionData->setStyleSheet("font-weight:800;color:#2f4f7f;");
+    layout->addWidget(sectionData);
 
     auto* importBtn = new QPushButton("导入班级名单（Excel/CSV/TXT）");
     importBtn->setStyleSheet(buttonStyle());

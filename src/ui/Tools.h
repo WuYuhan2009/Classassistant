@@ -51,6 +51,7 @@ private:
     QListWidget* m_roster;
     QLineEdit* m_searchEdit;
     void saveSelection();
+    void exportSelection();
     void filterRoster(const QString& keyword);
 };
 
@@ -66,11 +67,14 @@ protected:
 private:
     QLabel* m_nameLabel;
     QLabel* m_hintLabel;
+    QLabel* m_historyLabel;
     QPushButton* m_toggleButton;
+    QPushButton* m_copyButton;
     QPushButton* m_closeButton;
     QTimer* m_timer;
     QStringList m_list;
     QStringList m_remainingList;
+    QStringList m_history;
     int m_count = 0;
     bool m_running = false;
 
