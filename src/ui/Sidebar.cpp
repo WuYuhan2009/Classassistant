@@ -120,10 +120,7 @@ void Sidebar::hideAllToolWindowsAnimated() {
         anim->setDuration(duration);
         anim->setStartValue(w->windowOpacity());
         anim->setEndValue(0.0);
-        QObject::connect(anim, &QPropertyAnimation::finished, w, [w]() {
-            w->hide();
-            w->setWindowOpacity(1.0);
-        });
+        QObject::connect(anim, &QPropertyAnimation::finished, w, &QWidget::hide);
         anim->start(QAbstractAnimation::DeleteWhenStopped);
     };
 
@@ -175,19 +172,26 @@ void Sidebar::handleAction(const QString& action, const QString& target) {
         if (target == "ATTENDANCE") {
             m_attendanceSummary->show();
             m_attendanceSummary->raise();
+            m_attendanceSelector->setWindowOpacity(1.0);
             m_attendanceSelector->show();
             m_attendanceSelector->raise();
         } else if (target == "RANDOM_CALL") {
+            m_randomCall->setWindowOpacity(1.0);
             m_randomCall->startAnim();
         } else if (target == "CLASS_TIMER") {
+            m_classTimer->setWindowOpacity(1.0);
             m_classTimer->openTimer();
         } else if (target == "CLASS_NOTE") {
+            m_classNote->setWindowOpacity(1.0);
             m_classNote->openNote();
         } else if (target == "GROUP_SPLIT") {
+            m_groupSplit->setWindowOpacity(1.0);
             m_groupSplit->openSplitter();
         } else if (target == "SCORE_BOARD") {
+            m_scoreBoard->setWindowOpacity(1.0);
             m_scoreBoard->openBoard();
         } else if (target == "SETTINGS") {
+            m_settings->setWindowOpacity(1.0);
             openSettings();
         }
     }

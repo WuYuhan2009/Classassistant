@@ -559,8 +559,7 @@ void GroupSplitDialog::generate() {
     QString out;
     int groupIndex = 1;
     for (int i = 0; i < list.size(); i += each) {
-        out += QString("第%1组：%2
-").arg(groupIndex++).arg(list.mid(i, each).join("、"));
+        out += QString("第%1组：%2\n").arg(groupIndex++).arg(list.mid(i, each).join("、"));
     }
     m_result->setPlainText(out.trimmed());
 }
