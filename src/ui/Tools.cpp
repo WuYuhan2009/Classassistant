@@ -1330,6 +1330,10 @@ void SettingsDialog::saveData() {
     cfg.scoreTeamAName = m_scoreTeamAName->text().trimmed().isEmpty() ? QString("红队") : m_scoreTeamAName->text().trimmed();
     cfg.scoreTeamBName = m_scoreTeamBName->text().trimmed().isEmpty() ? QString("蓝队") : m_scoreTeamBName->text().trimmed();
     cfg.seewoPath = m_seewoPathEdit->text().trimmed();
+    cfg.siliconFlowApiKey = m_apiKeyEdit->text().trimmed();
+    cfg.siliconFlowModel = m_aiModelEdit->text().trimmed().isEmpty() ? QString("Qwen/Qwen3-8B") : m_aiModelEdit->text().trimmed();
+    cfg.siliconFlowEndpoint = m_aiEndpointEdit->text().trimmed().isEmpty() ? QString("https://api.siliconflow.cn/v1/chat/completions")
+                                                                            : m_aiEndpointEdit->text().trimmed();
 
     QVector<AppButton> buttons;
     for (int i = 0; i < m_buttonList->count(); ++i) {
