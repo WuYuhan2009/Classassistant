@@ -108,7 +108,7 @@ void Sidebar::hideAllToolWindowsAnimated() {
     }
 
     const int duration = Config::instance().animationDurationMs;
-    const auto hideWidget = [duration](QWidget* w) {
+    const auto hideWidget = [this, duration](QWidget* w) {
         if (!w || !w->isVisible()) {
             return;
         }
