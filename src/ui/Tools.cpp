@@ -4,6 +4,7 @@
 #include <QClipboard>
 #include <QCoreApplication>
 #include <QDate>
+#include <QDateTime>
 #include <QVersionNumber>
 #include <QDesktopServices>
 #include <QFile>
@@ -33,7 +34,7 @@ const char* kGithubRepoUrl = "https://github.com/WuYuhan2009/Classassistant/";
 const char* kGithubReleasesApiUrl = "https://api.github.com/repos/WuYuhan2009/Classassistant/releases/latest";
 
 QString buttonStylePrimary() {
-    return "QPushButton{background:#ffffff;border:1px solid #d8e0eb;border-radius:10px;font-weight:600;padding:8px 12px;color:#1f2d3d;}"
+    return "QPushButton{background:#ffffff;border:1px solid #d8e0eb;border-radius:12px;font-weight:600;font-size:16px;padding:10px 16px;color:#1f2d3d;min-height:44px;}"
            "QPushButton:hover{background:#f4f8fd;}";
 }
 
@@ -161,6 +162,7 @@ void requestAiCompletion(QWidget* owner,
 AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnBottomHint | Qt::Tool);
     setAttribute(Qt::WA_TranslucentBackground);
+    setAttribute(Qt::WA_AcceptTouchEvents);
 
     auto* root = new QVBoxLayout(this);
     root->setContentsMargins(0, 0, 0, 0);
@@ -168,20 +170,47 @@ AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(pare
     auto* panel = new QWidget;
     panel->setStyleSheet("background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 #ffffff,stop:1 #f5f9ff);border:1px solid #d9e4f2;border-radius:18px;");
     auto* inner = new QVBoxLayout(panel);
-    inner->setSpacing(10);
+    inner->setContentsMargins(14, 12, 14, 12);
+    inner->setSpacing(8);
 
-    m_title = new QLabel("今日考勤概览");
-    m_title->setStyleSheet("font-size:18px;font-weight:800;color:#2a4362;");
+    m_updateTime = new QLabel;
+    m_updateTime->setStyleSheet("font-size:11px;color:#5f7086;");
 
-    m_counts = new QLabel;
-    m_counts->setStyleSheet("font-size:16px;font-weight:800;color:#2f5e90;");
+    auto* countsRow = new QHBoxLayout;
+    countsRow->setSpacing(10);
+    auto* expectedCard = new QWidget;
+    expectedCard->setStyleSheet(cardStyle());
+    auto* expectedLayout = new QVBoxLayout(expectedCard);
+    expectedLayout->setContentsMargins(12, 10, 12, 10);
+    expectedLayout->setSpacing(3);
+    m_expectedLabel = new QLabel("应到人数");
+    m_expectedLabel->setStyleSheet("font-size:11px;color:#5f7086;");
+    m_expectedValue = new QLabel;
+    m_expectedValue->setStyleSheet("font-size:38px;font-weight:850;color:#2f5e90;");
+    expectedLayout->addWidget(m_expectedLabel);
+    expectedLayout->addWidget(m_expectedValue);
+
+    auto* presentCard = new QWidget;
+    presentCard->setStyleSheet(cardStyle());
+    auto* presentLayout = new QVBoxLayout(presentCard);
+    presentLayout->setContentsMargins(12, 10, 12, 10);
+    presentLayout->setSpacing(3);
+    m_presentLabel = new QLabel("实到人数");
+    m_presentLabel->setStyleSheet("font-size:11px;color:#5f7086;");
+    m_presentValue = new QLabel;
+    m_presentValue->setStyleSheet("font-size:38px;font-weight:850;color:#1e8a5a;");
+    presentLayout->addWidget(m_presentLabel);
+    presentLayout->addWidget(m_presentValue);
+
+    countsRow->addWidget(expectedCard, 1);
+    countsRow->addWidget(presentCard, 1);
 
     m_absentList = new QLabel;
     m_absentList->setWordWrap(true);
-    m_absentList->setStyleSheet("font-size:14px;background:#ffffff;border:1px solid #dbe6f3;border-radius:12px;padding:10px;");
+    m_absentList->setStyleSheet("font-size:12px;background:#ffffff;border:1px solid #dbe6f3;border-radius:10px;padding:8px;color:#304864;");
 
-    inner->addWidget(m_title);
-    inner->addWidget(m_counts);
+    inner->addWidget(m_updateTime);
+    inner->addLayout(countsRow);
     inner->addWidget(m_absentList);
     root->addWidget(panel);
 
@@ -213,9 +242,10 @@ void AttendanceSummaryWidget::refreshUi() {
     const int absent = m_absentees.size();
     const int present = qMax(0, total - absent);
 
-    m_counts->setText(QString("应到：%1   实到：%2   缺勤：%3").arg(total).arg(present).arg(absent));
-    m_title->setText(QString("今日考勤概览  ·  %1").arg(QTime::currentTime().toString("HH:mm")));
-    m_absentList->setText(QString("缺勤人员：%1").arg(m_absentees.isEmpty() ? "无" : m_absentees.join("、")));
+    m_updateTime->setText(QString("更新时间：%1").arg(QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss")));
+    m_expectedValue->setText(QString::number(total));
+    m_presentValue->setText(QString::number(present));
+    m_absentList->setText(QString("请假名单：%1").arg(m_absentees.isEmpty() ? "无" : m_absentees.join("、")));
 
     setFixedWidth(Config::instance().attendanceSummaryWidth);
     adjustSize();
@@ -225,7 +255,6 @@ void AttendanceSummaryWidget::refreshUi() {
 }
 
 void AttendanceSummaryWidget::closeEvent(QCloseEvent* event) {
-    smoothHide(this);
     event->ignore();
 }
 

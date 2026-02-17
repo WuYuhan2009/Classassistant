@@ -28,6 +28,8 @@ int main(int argc, char* argv[]) {
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 #endif
+    QCoreApplication::setAttribute(Qt::AA_SynthesizeMouseForUnhandledTouchEvents);
+    QCoreApplication::setAttribute(Qt::AA_SynthesizeTouchForUnhandledMouseEvents);
 
     QApplication app(argc, argv);
     app.setQuitOnLastWindowClosed(false);
@@ -40,6 +42,7 @@ int main(int argc, char* argv[]) {
     uiFont.setPointSize(10);
     app.setFont(uiFont);
     app.setStyleSheet("QWidget{font-family:'HarmonyOS Sans SC','HarmonyOS Sans','Microsoft YaHei',sans-serif;}"
+                      "QAbstractButton{min-height:42px;padding:8px 12px;font-size:15px;}"
                       "QToolTip{background:#ffffff;color:#1f2d3d;border:1px solid #d8e0eb;padding:6px;border-radius:8px;}");
 
     if (!Config::instance().firstRunCompleted) {
