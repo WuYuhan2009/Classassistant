@@ -203,6 +203,7 @@ protected:
     void closeEvent(QCloseEvent* event) override;
 
 private:
+    QCheckBox* m_agreeTerms;
     QSlider* m_floatingOpacity;
     QSlider* m_summaryWidth;
     QCheckBox* m_startCollapsed;
@@ -232,8 +233,6 @@ protected:
 private:
     QTreeWidget* m_menuTree;
     QStackedWidget* m_stacked;
-
-    QCheckBox* m_agreeTerms;
     QSlider* m_floatingOpacity;
     QSlider* m_summaryWidth;
     QCheckBox* m_startCollapsed;
