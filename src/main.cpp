@@ -140,9 +140,9 @@ int main(int argc, char* argv[]) {
     QObject::connect(sidebar, &Sidebar::requestHide, showBall);
 
     auto* tray = new QSystemTrayIcon(&app);
-    QIcon trayIcon = loadNamedIcon("icon_settings.png");
+    QIcon trayIcon = loadNamedIcon("icon_tray.png");
     if (trayIcon.isNull()) {
-        trayIcon = loadNamedIcon("icon_tray.png");
+        trayIcon = loadNamedIcon("icon_settings.png");
     }
     if (trayIcon.isNull()) {
         trayIcon = QIcon::fromTheme("applications-education");

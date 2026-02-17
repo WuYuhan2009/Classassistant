@@ -14,16 +14,44 @@ QVector<AppButton> buildDefaultButtons() {
         {"希沃白板", "icon_seewo.png", "exe", "SEEWO", true},
         {"班级考勤", "icon_attendance.png", "func", "ATTENDANCE", true},
         {"随机点名", "icon_random.png", "func", "RANDOM_CALL", true},
-        {"课堂计时", "icon_settings.png", "func", "CLASS_TIMER", true},
-        {"课堂便签", "icon_settings.png", "func", "CLASS_NOTE", true},
-        {"分组抽签", "icon_settings.png", "func", "GROUP_SPLIT", true},
-        {"课堂计分", "icon_settings.png", "func", "SCORE_BOARD", true},
+        {"课堂计时", "icon_timer.png", "func", "CLASS_TIMER", true},
+        {"课堂便签", "icon_note.png", "func", "CLASS_NOTE", true},
+        {"分组抽签", "icon_group.png", "func", "GROUP_SPLIT", true},
+        {"课堂计分", "icon_score.png", "func", "SCORE_BOARD", true},
         {"AI助手", "icon_ai.png", "func", "AI_ASSISTANT", true},
     };
 }
 
 QStringList defaultStudents() {
     return QStringList{QStringLiteral("张三"), QStringLiteral("李四"), QStringLiteral("王五"), QStringLiteral("赵六"), QStringLiteral("示例学生")};
+}
+
+QString canonicalIconForTarget(const QString& target) {
+    if (target == "SEEWO") return "icon_seewo.png";
+    if (target == "ATTENDANCE") return "icon_attendance.png";
+    if (target == "RANDOM_CALL") return "icon_random.png";
+    if (target == "CLASS_TIMER") return "icon_timer.png";
+    if (target == "CLASS_NOTE") return "icon_note.png";
+    if (target == "GROUP_SPLIT") return "icon_group.png";
+    if (target == "SCORE_BOARD") return "icon_score.png";
+    if (target == "AI_ASSISTANT") return "icon_ai.png";
+    if (target == "SETTINGS") return "icon_settings.png";
+    return QString();
+}
+
+void normalizeSystemButtonIcons(QVector<AppButton>& buttons) {
+    for (auto& b : buttons) {
+        if (!b.isSystem) {
+            continue;
+        }
+        const QString canonical = canonicalIconForTarget(b.target);
+        if (canonical.isEmpty()) {
+            continue;
+        }
+        if (b.iconPath.trimmed().isEmpty() || b.iconPath == "icon_settings.png" || b.iconPath.startsWith(":/assets/icon_settings")) {
+            b.iconPath = canonical;
+        }
+    }
 }
 
 void applyDefaults(Config& config, QVector<AppButton>& buttons, QStringList& students) {
@@ -47,6 +75,7 @@ void applyDefaults(Config& config, QVector<AppButton>& buttons, QStringList& stu
     config.firstRunCompleted = false;
     config.classNote = "";
     buttons = buildDefaultButtons();
+    normalizeSystemButtonIcons(buttons);
     students = defaultStudents();
 }
 
@@ -137,6 +166,8 @@ void Config::load() {
                           target,
                           o["isSystem"].toBool(false)});
     }
+
+    normalizeSystemButtonIcons(m_buttons);
 
     if (seewoPath.isEmpty()) {
         seewoPath = "C:/Program Files (x86)/Seewo/EasiNote5/swenlauncher/swenlauncher.exe";
