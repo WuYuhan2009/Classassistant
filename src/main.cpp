@@ -28,6 +28,8 @@ int main(int argc, char* argv[]) {
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 #endif
+    QCoreApplication::setAttribute(Qt::AA_SynthesizeMouseForUnhandledTouchEvents);
+    QCoreApplication::setAttribute(Qt::AA_SynthesizeTouchForUnhandledMouseEvents);
 
     QApplication app(argc, argv);
     app.setQuitOnLastWindowClosed(false);
@@ -40,6 +42,7 @@ int main(int argc, char* argv[]) {
     uiFont.setPointSize(10);
     app.setFont(uiFont);
     app.setStyleSheet("QWidget{font-family:'HarmonyOS Sans SC','HarmonyOS Sans','Microsoft YaHei',sans-serif;}"
+                      "QAbstractButton{min-height:40px;padding:7px 10px;font-size:14px;}"
                       "QToolTip{background:#ffffff;color:#1f2d3d;border:1px solid #d8e0eb;padding:6px;border-radius:8px;}");
 
     if (!Config::instance().firstRunCompleted) {
@@ -155,14 +158,38 @@ int main(int argc, char* argv[]) {
     tray->setToolTip("班级小助手");
 
     auto* menu = new QMenu();
-    auto* actionOpenSettings = menu->addAction("打开设置");
+    menu->setAttribute(Qt::WA_AcceptTouchEvents);
+    menu->setStyleSheet("QMenu{background:#f8fbff;border:1px solid #cfdcec;border-radius:12px;padding:8px;}"
+                        "QMenu::item{font-size:14px;color:#1f3248;padding:10px 14px;border-radius:8px;margin:3px 2px;min-height:34px;}"
+                        "QMenu::item:selected{background:#e8f2ff;color:#16457d;}"
+                        "QMenu::separator{height:1px;background:#d6e2f1;margin:8px 4px;}");
+
     auto* actionShowSidebar = menu->addAction("展开侧边栏");
+    auto* actionShowBall = menu->addAction("收起为悬浮球");
+    menu->addSeparator();
+    auto* actionAttendance = menu->addAction("快速打开：考勤");
+    auto* actionRandomCall = menu->addAction("快速打开：随机点名");
+    auto* actionClassTimer = menu->addAction("快速打开：课堂计时");
+    auto* actionClassNote = menu->addAction("快速打开：课堂便签");
+    auto* actionGroupSplit = menu->addAction("快速打开：分组抽签");
+    auto* actionScoreBoard = menu->addAction("快速打开：课堂计分板");
+    auto* actionAiAssistant = menu->addAction("快速打开：AI 助手");
+    menu->addSeparator();
+    auto* actionOpenSettings = menu->addAction("打开设置");
     auto* actionReloadConfig = menu->addAction("重载配置");
     menu->addSeparator();
     auto* actionQuit = menu->addAction("退出程序");
 
     QObject::connect(actionOpenSettings, &QAction::triggered, [sidebar]() { sidebar->openSettings(); });
     QObject::connect(actionShowSidebar, &QAction::triggered, showSidebar);
+    QObject::connect(actionShowBall, &QAction::triggered, showBall);
+    QObject::connect(actionAttendance, &QAction::triggered, [sidebar]() { sidebar->triggerTool("ATTENDANCE"); });
+    QObject::connect(actionRandomCall, &QAction::triggered, [sidebar]() { sidebar->triggerTool("RANDOM_CALL"); });
+    QObject::connect(actionClassTimer, &QAction::triggered, [sidebar]() { sidebar->triggerTool("CLASS_TIMER"); });
+    QObject::connect(actionClassNote, &QAction::triggered, [sidebar]() { sidebar->triggerTool("CLASS_NOTE"); });
+    QObject::connect(actionGroupSplit, &QAction::triggered, [sidebar]() { sidebar->triggerTool("GROUP_SPLIT"); });
+    QObject::connect(actionScoreBoard, &QAction::triggered, [sidebar]() { sidebar->triggerTool("SCORE_BOARD"); });
+    QObject::connect(actionAiAssistant, &QAction::triggered, [sidebar]() { sidebar->triggerTool("AI_ASSISTANT"); });
     QObject::connect(actionReloadConfig, &QAction::triggered, reloadAll);
     QObject::connect(actionQuit, &QAction::triggered, [&]() { app.quit(); });
 

@@ -35,8 +35,11 @@ protected:
 private:
     QString m_lastResetDate;
     QStringList m_absentees;
-    QLabel* m_title;
-    QLabel* m_counts;
+    QLabel* m_updateTime;
+    QLabel* m_expectedLabel;
+    QLabel* m_expectedValue;
+    QLabel* m_presentLabel;
+    QLabel* m_presentValue;
     QLabel* m_absentList;
 
     void syncDaily();

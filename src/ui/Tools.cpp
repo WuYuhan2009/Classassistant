@@ -4,10 +4,12 @@
 #include <QClipboard>
 #include <QCoreApplication>
 #include <QDate>
+#include <QDateTime>
 #include <QVersionNumber>
 #include <QDesktopServices>
 #include <QFile>
 #include <QFileDialog>
+#include <QFrame>
 #include <QStandardPaths>
 #include <QHBoxLayout>
 #include <QJsonDocument>
@@ -17,6 +19,7 @@
 #include <QNetworkRequest>
 #include <QUrl>
 #include <QGuiApplication>
+#include <QGridLayout>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QPropertyAnimation>
@@ -33,7 +36,7 @@ const char* kGithubRepoUrl = "https://github.com/WuYuhan2009/Classassistant/";
 const char* kGithubReleasesApiUrl = "https://api.github.com/repos/WuYuhan2009/Classassistant/releases/latest";
 
 QString buttonStylePrimary() {
-    return "QPushButton{background:#ffffff;border:1px solid #d8e0eb;border-radius:10px;font-weight:600;padding:8px 12px;color:#1f2d3d;}"
+    return "QPushButton{background:#ffffff;border:1px solid #d8e0eb;border-radius:12px;font-weight:600;font-size:14px;padding:8px 12px;color:#1f2d3d;min-height:42px;}"
            "QPushButton:hover{background:#f4f8fd;}";
 }
 
@@ -43,7 +46,8 @@ QString cardStyle() {
 
 void decorateDialog(QDialog* dlg, const QString& title) {
     dlg->setWindowTitle(title);
-    dlg->setWindowFlags((dlg->windowFlags() | Qt::Tool) & ~Qt::WindowContextHelpButtonHint);
+    dlg->setWindowFlags((dlg->windowFlags() | Qt::Tool | Qt::FramelessWindowHint) & ~Qt::WindowContextHelpButtonHint);
+    dlg->setAttribute(Qt::WA_AcceptTouchEvents);
     dlg->setStyleSheet("QDialog{background:#f5f8fc;} QLabel{color:#223042;} "
                        "QLineEdit,QTextEdit,QListWidget,QTreeWidget,QComboBox,QSpinBox,QTableWidget{"
                        "background:#ffffff;border:1px solid #d8e0eb;border-radius:10px;padding:6px;}"
@@ -57,7 +61,30 @@ void decorateDialog(QDialog* dlg, const QString& title) {
                        "QScrollBar:vertical{background:transparent;width:10px;margin:2px;}"
                        "QScrollBar::handle:vertical{background:#c8d8ec;min-height:20px;border-radius:5px;}"
                        "QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{height:0;}"
-                       "QPushButton{border-radius:12px;}");
+                       "QPushButton{border-radius:12px;}"
+                       "QFrame#DialogTitleBar{background:#ffffff;border:1px solid #d8e0eb;border-radius:12px;}"
+                       "QLabel#DialogTitleText{font-size:15px;font-weight:800;color:#1f3b5d;}"
+                       "QPushButton#DialogCloseBtn{font-size:16px;min-width:42px;min-height:42px;padding:0 8px;}");
+}
+
+QWidget* createDialogTitleBar(QDialog* dlg, const QString& title) {
+    auto* bar = new QFrame(dlg);
+    bar->setObjectName("DialogTitleBar");
+    bar->setFixedHeight(48);
+    auto* row = new QHBoxLayout(bar);
+    row->setContentsMargins(10, 4, 8, 4);
+    row->setSpacing(8);
+
+    auto* titleLabel = new QLabel(title, bar);
+    titleLabel->setObjectName("DialogTitleText");
+    auto* closeBtn = new QPushButton("×", bar);
+    closeBtn->setObjectName("DialogCloseBtn");
+    closeBtn->setStyleSheet(buttonStylePrimary());
+    QObject::connect(closeBtn, &QPushButton::clicked, dlg, &QDialog::close);
+
+    row->addWidget(titleLabel, 1);
+    row->addWidget(closeBtn, 0, Qt::AlignRight);
+    return bar;
 }
 }
 
@@ -161,6 +188,7 @@ void requestAiCompletion(QWidget* owner,
 AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnBottomHint | Qt::Tool);
     setAttribute(Qt::WA_TranslucentBackground);
+    setAttribute(Qt::WA_AcceptTouchEvents);
 
     auto* root = new QVBoxLayout(this);
     root->setContentsMargins(0, 0, 0, 0);
@@ -168,20 +196,47 @@ AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(pare
     auto* panel = new QWidget;
     panel->setStyleSheet("background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 #ffffff,stop:1 #f5f9ff);border:1px solid #d9e4f2;border-radius:18px;");
     auto* inner = new QVBoxLayout(panel);
-    inner->setSpacing(10);
+    inner->setContentsMargins(14, 12, 14, 12);
+    inner->setSpacing(8);
 
-    m_title = new QLabel("今日考勤概览");
-    m_title->setStyleSheet("font-size:18px;font-weight:800;color:#2a4362;");
+    m_updateTime = new QLabel;
+    m_updateTime->setStyleSheet("font-size:11px;color:#5f7086;");
 
-    m_counts = new QLabel;
-    m_counts->setStyleSheet("font-size:16px;font-weight:800;color:#2f5e90;");
+    auto* countsRow = new QHBoxLayout;
+    countsRow->setSpacing(10);
+    auto* expectedCard = new QWidget;
+    expectedCard->setStyleSheet(cardStyle());
+    auto* expectedLayout = new QVBoxLayout(expectedCard);
+    expectedLayout->setContentsMargins(12, 10, 12, 10);
+    expectedLayout->setSpacing(3);
+    m_expectedLabel = new QLabel("应到人数");
+    m_expectedLabel->setStyleSheet("font-size:11px;color:#5f7086;");
+    m_expectedValue = new QLabel;
+    m_expectedValue->setStyleSheet("font-size:38px;font-weight:850;color:#2f5e90;");
+    expectedLayout->addWidget(m_expectedLabel);
+    expectedLayout->addWidget(m_expectedValue);
+
+    auto* presentCard = new QWidget;
+    presentCard->setStyleSheet(cardStyle());
+    auto* presentLayout = new QVBoxLayout(presentCard);
+    presentLayout->setContentsMargins(12, 10, 12, 10);
+    presentLayout->setSpacing(3);
+    m_presentLabel = new QLabel("实到人数");
+    m_presentLabel->setStyleSheet("font-size:11px;color:#5f7086;");
+    m_presentValue = new QLabel;
+    m_presentValue->setStyleSheet("font-size:38px;font-weight:850;color:#1e8a5a;");
+    presentLayout->addWidget(m_presentLabel);
+    presentLayout->addWidget(m_presentValue);
+
+    countsRow->addWidget(expectedCard, 1);
+    countsRow->addWidget(presentCard, 1);
 
     m_absentList = new QLabel;
     m_absentList->setWordWrap(true);
-    m_absentList->setStyleSheet("font-size:14px;background:#ffffff;border:1px solid #dbe6f3;border-radius:12px;padding:10px;");
+    m_absentList->setStyleSheet("font-size:12px;background:#ffffff;border:1px solid #dbe6f3;border-radius:10px;padding:8px;color:#304864;");
 
-    inner->addWidget(m_title);
-    inner->addWidget(m_counts);
+    inner->addWidget(m_updateTime);
+    inner->addLayout(countsRow);
     inner->addWidget(m_absentList);
     root->addWidget(panel);
 
@@ -213,9 +268,10 @@ void AttendanceSummaryWidget::refreshUi() {
     const int absent = m_absentees.size();
     const int present = qMax(0, total - absent);
 
-    m_counts->setText(QString("应到：%1   实到：%2   缺勤：%3").arg(total).arg(present).arg(absent));
-    m_title->setText(QString("今日考勤概览  ·  %1").arg(QTime::currentTime().toString("HH:mm")));
-    m_absentList->setText(QString("缺勤人员：%1").arg(m_absentees.isEmpty() ? "无" : m_absentees.join("、")));
+    m_updateTime->setText(QString("更新时间：%1").arg(QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss")));
+    m_expectedValue->setText(QString::number(total));
+    m_presentValue->setText(QString::number(present));
+    m_absentList->setText(QString("请假名单：%1").arg(m_absentees.isEmpty() ? "无" : m_absentees.join("、")));
 
     setFixedWidth(Config::instance().attendanceSummaryWidth);
     adjustSize();
@@ -225,15 +281,16 @@ void AttendanceSummaryWidget::refreshUi() {
 }
 
 void AttendanceSummaryWidget::closeEvent(QCloseEvent* event) {
-    smoothHide(this);
     event->ignore();
 }
 
 AttendanceSelectDialog::AttendanceSelectDialog(QWidget* parent) : QDialog(parent) {
-    decorateDialog(this, "考勤选择（勾选缺勤学生）");
+    const QString dialogTitle = "考勤选择（勾选缺勤学生）";
+    decorateDialog(this, dialogTitle);
     setFixedSize(560, 560);
 
     auto* layout = new QVBoxLayout(this);
+    layout->addWidget(createDialogTitleBar(this, dialogTitle));
     auto* tip = new QLabel("请选择今日缺勤人员。支持搜索、导出与一键全员到齐。");
     tip->setWordWrap(true);
     layout->addWidget(tip);
@@ -252,7 +309,9 @@ AttendanceSelectDialog::AttendanceSelectDialog(QWidget* parent) : QDialog(parent
     }
     layout->addWidget(m_roster, 1);
 
-    auto* actions = new QHBoxLayout;
+    auto* actions = new QGridLayout;
+    actions->setHorizontalSpacing(8);
+    actions->setVerticalSpacing(8);
     auto* markAllBtn = new QPushButton("全选缺勤");
     auto* clearAllBtn = new QPushButton("清空勾选");
     auto* allPresentBtn = new QPushButton("全员到齐");
@@ -262,8 +321,15 @@ AttendanceSelectDialog::AttendanceSelectDialog(QWidget* parent) : QDialog(parent
     auto* cancelBtn = new QPushButton("关闭");
     for (auto* btn : {markAllBtn, clearAllBtn, allPresentBtn, exportBtn, aiSummaryBtn, saveBtn, cancelBtn}) {
         btn->setStyleSheet(buttonStylePrimary());
-        actions->addWidget(btn);
+        btn->setMinimumWidth(110);
     }
+    actions->addWidget(markAllBtn, 0, 0);
+    actions->addWidget(clearAllBtn, 0, 1);
+    actions->addWidget(allPresentBtn, 0, 2);
+    actions->addWidget(exportBtn, 1, 0);
+    actions->addWidget(aiSummaryBtn, 1, 1);
+    actions->addWidget(saveBtn, 1, 2);
+    actions->addWidget(cancelBtn, 2, 2);
 
     connect(markAllBtn, &QPushButton::clicked, [this]() {
         for (int i = 0; i < m_roster->count(); ++i) {
@@ -368,10 +434,12 @@ void AttendanceSelectDialog::closeEvent(QCloseEvent* event) {
 }
 
 RandomCallDialog::RandomCallDialog(QWidget* parent) : QDialog(parent) {
-    decorateDialog(this, "随机点名");
+    const QString dialogTitle = "随机点名";
+    decorateDialog(this, dialogTitle);
     setFixedSize(620, 380);
 
     auto* layout = new QVBoxLayout(this);
+    layout->addWidget(createDialogTitleBar(this, dialogTitle));
     auto* title = new QLabel("随机点名");
     title->setStyleSheet("font-size:22px;font-weight:800;");
     layout->addWidget(title, 0, Qt::AlignHCenter);
@@ -514,10 +582,12 @@ void RandomCallDialog::closeEvent(QCloseEvent* event) {
 }
 
 ClassTimerDialog::ClassTimerDialog(QWidget* parent) : QDialog(parent) {
-    decorateDialog(this, "课堂计时器");
+    const QString dialogTitle = "课堂计时器";
+    decorateDialog(this, dialogTitle);
     setFixedSize(420, 280);
 
     auto* layout = new QVBoxLayout(this);
+    layout->addWidget(createDialogTitleBar(this, dialogTitle));
     m_countdownLabel = new QLabel("00:00");
     m_countdownLabel->setAlignment(Qt::AlignCenter);
     m_countdownLabel->setStyleSheet("font-size:54px;font-weight:900;background:#ffffff;border:1px solid #d8e0eb;border-radius:14px;padding:12px;");
@@ -610,10 +680,12 @@ void ClassTimerDialog::closeEvent(QCloseEvent* event) {
 }
 
 ClassNoteDialog::ClassNoteDialog(QWidget* parent) : QDialog(parent) {
-    decorateDialog(this, "课堂便签");
+    const QString dialogTitle = "课堂便签";
+    decorateDialog(this, dialogTitle);
     setFixedSize(480, 360);
 
     auto* layout = new QVBoxLayout(this);
+    layout->addWidget(createDialogTitleBar(this, dialogTitle));
     m_infoLabel = new QLabel("本地便签（离线存储，不联网）");
     layout->addWidget(m_infoLabel);
 
@@ -690,10 +762,12 @@ void ClassNoteDialog::closeEvent(QCloseEvent* event) {
 }
 
 GroupSplitDialog::GroupSplitDialog(QWidget* parent) : QDialog(parent) {
-    decorateDialog(this, "分组抽签");
+    const QString dialogTitle = "分组抽签";
+    decorateDialog(this, dialogTitle);
     setFixedSize(540, 430);
 
     auto* layout = new QVBoxLayout(this);
+    layout->addWidget(createDialogTitleBar(this, dialogTitle));
     auto* row = new QHBoxLayout;
     row->addWidget(new QLabel("每组人数"));
     m_groupSize = new QSpinBox;
@@ -764,10 +838,12 @@ void GroupSplitDialog::closeEvent(QCloseEvent* event) {
 }
 
 ScoreBoardDialog::ScoreBoardDialog(QWidget* parent) : QDialog(parent) {
-    decorateDialog(this, "课堂计分板");
+    const QString dialogTitle = "课堂计分板";
+    decorateDialog(this, dialogTitle);
     setFixedSize(460, 320);
 
     auto* layout = new QVBoxLayout(this);
+    layout->addWidget(createDialogTitleBar(this, dialogTitle));
     m_teamALabel = new QLabel;
     m_teamBLabel = new QLabel;
     m_scoreLabel = new QLabel;
@@ -831,10 +907,12 @@ void ScoreBoardDialog::closeEvent(QCloseEvent* event) {
 
 
 AIAssistantDialog::AIAssistantDialog(QWidget* parent) : QDialog(parent) {
-    decorateDialog(this, "AI 助手");
+    const QString dialogTitle = "AI 助手";
+    decorateDialog(this, dialogTitle);
     setFixedSize(760, 620);
 
     auto* layout = new QVBoxLayout(this);
+    layout->addWidget(createDialogTitleBar(this, dialogTitle));
 
     auto* header = new QWidget;
     header->setStyleSheet("background:#ffffff;border:1px solid #dfe5ee;border-radius:14px;");
@@ -1000,10 +1078,12 @@ void AIAssistantDialog::closeEvent(QCloseEvent* event) {
 }
 
 AddButtonDialog::AddButtonDialog(QWidget* parent) : QDialog(parent) {
-    decorateDialog(this, "添加自定义按钮");
+    const QString dialogTitle = "添加自定义按钮";
+    decorateDialog(this, dialogTitle);
     setFixedSize(440, 280);
 
     auto* layout = new QVBoxLayout(this);
+    layout->addWidget(createDialogTitleBar(this, dialogTitle));
 
     m_nameEdit = new QLineEdit;
     m_nameEdit->setPlaceholderText("按钮名称");
@@ -1060,10 +1140,12 @@ AppButton AddButtonDialog::resultButton() const {
 }
 
 FirstRunWizard::FirstRunWizard(QWidget* parent) : QDialog(parent) {
-    decorateDialog(this, "欢迎使用 ClassAssistant");
+    const QString dialogTitle = "欢迎使用 ClassAssistant";
+    decorateDialog(this, dialogTitle);
     setFixedSize(700, 620);
 
     auto* layout = new QVBoxLayout(this);
+    layout->addWidget(createDialogTitleBar(this, dialogTitle));
     auto* intro = new QLabel("首次启动向导：分步完成协议、基础设置与 AI 设置。未填写 API Key 也可正常使用（离线建议模式）。");
     intro->setWordWrap(true);
     layout->addWidget(intro);
@@ -1229,10 +1311,12 @@ void FirstRunWizard::closeEvent(QCloseEvent* event) {
 }
 
 SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
-    decorateDialog(this, "ClassAssistant 设置");
+    const QString dialogTitle = "ClassAssistant 设置";
+    decorateDialog(this, dialogTitle);
     setFixedSize(940, 660);
 
     auto* root = new QVBoxLayout(this);
+    root->addWidget(createDialogTitleBar(this, dialogTitle));
     root->setContentsMargins(12, 12, 12, 12);
     root->setSpacing(10);
 

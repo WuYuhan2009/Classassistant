@@ -15,6 +15,7 @@ public:
     void rebuildUI();
     void openSettings();
     void hideAllToolWindowsAnimated();
+    void triggerTool(const QString& target);
 
 signals:
     void requestHide();

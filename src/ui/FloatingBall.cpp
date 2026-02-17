@@ -8,13 +8,58 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QScreen>
+#include <QTouchEvent>
 
 FloatingBall::FloatingBall(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
     setAttribute(Qt::WA_TranslucentBackground);
+    setAttribute(Qt::WA_AcceptTouchEvents);
     setFixedSize(70, 70);
     setWindowOpacity(Config::instance().floatingOpacity / 100.0);
     moveToBottomRight();
+}
+
+bool FloatingBall::event(QEvent* event) {
+    if (event->type() == QEvent::TouchBegin
+        || event->type() == QEvent::TouchUpdate
+        || event->type() == QEvent::TouchEnd) {
+        auto* touchEvent = static_cast<QTouchEvent*>(event);
+        if (touchEvent->touchPoints().isEmpty()) {
+            return QWidget::event(event);
+        }
+
+        const auto& point = touchEvent->touchPoints().first();
+        if (event->type() == QEvent::TouchBegin) {
+            m_touchStartPos = point.screenPos().toPoint();
+            m_dragPos = m_touchStartPos - frameGeometry().topLeft();
+            m_isDragging = false;
+            event->accept();
+            return true;
+        }
+
+        if (event->type() == QEvent::TouchUpdate) {
+            const QPoint touchPos = point.screenPos().toPoint();
+            if ((touchPos - m_touchStartPos).manhattanLength() > 8) {
+                m_isDragging = true;
+            }
+            move(touchPos - m_dragPos);
+            event->accept();
+            return true;
+        }
+
+        if (!m_isDragging) {
+            emit clicked();
+        } else {
+            const QRect screen = QApplication::primaryScreen()->availableGeometry();
+            const int x = screen.right() - width() - 8;
+            const int currentY = this->y();
+            const int boundedY = qBound(screen.top() + 8, currentY, screen.bottom() - height() - 8);
+            move(x, boundedY);
+        }
+        event->accept();
+        return true;
+    }
+    return QWidget::event(event);
 }
 
 void FloatingBall::moveToBottomRight() {
