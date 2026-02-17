@@ -26,6 +26,8 @@
 #include <QRandomGenerator>
 #include <QSet>
 #include <QScreen>
+#include <QScrollArea>
+#include <QSizePolicy>
 #include <QTextStream>
 #include <QTime>
 #include <QVBoxLayout>
@@ -36,7 +38,7 @@ const char* kGithubRepoUrl = "https://github.com/WuYuhan2009/Classassistant/";
 const char* kGithubReleasesApiUrl = "https://api.github.com/repos/WuYuhan2009/Classassistant/releases/latest";
 
 QString buttonStylePrimary() {
-    return "QPushButton{background:#ffffff;border:1px solid #d8e0eb;border-radius:12px;font-weight:600;font-size:14px;padding:8px 12px;color:#1f2d3d;min-height:42px;}"
+    return "QPushButton{background:#ffffff;border:1px solid #d8e0eb;border-radius:14px;font-weight:600;font-size:14px;padding:8px 12px;color:#1f2d3d;min-height:40px;}"
            "QPushButton:hover{background:#f4f8fd;}";
 }
 
@@ -50,36 +52,36 @@ void decorateDialog(QDialog* dlg, const QString& title) {
     dlg->setAttribute(Qt::WA_AcceptTouchEvents);
     dlg->setStyleSheet("QDialog{background:#f5f8fc;} QLabel{color:#223042;} "
                        "QLineEdit,QTextEdit,QListWidget,QTreeWidget,QComboBox,QSpinBox,QTableWidget{"
-                       "background:#ffffff;border:1px solid #d8e0eb;border-radius:10px;padding:6px;}"
-                       "QTreeWidget::item{height:28px;border-radius:8px;}"
+                       "background:#ffffff;border:1px solid #d8e0eb;border-radius:14px;padding:6px;}"
+                       "QTreeWidget::item{height:30px;border-radius:10px;}"
                        "QTreeWidget::item:selected{background:#e9f2ff;color:#1f4f8f;}"
                        "QCheckBox{spacing:8px;} "
                        "QSlider::groove:horizontal{height:6px;background:#dbe4ef;border-radius:3px;}"
                        "QSlider::handle:horizontal{width:16px;margin:-5px 0;background:#ffffff;border:1px solid #9cb2ce;border-radius:8px;}"
-                       "QGroupBox{font-weight:700;border:1px solid #dfe5ee;border-radius:12px;margin-top:10px;padding-top:12px;background:#ffffff;}"
+                       "QGroupBox{font-weight:700;border:1px solid #dfe5ee;border-radius:14px;margin-top:10px;padding-top:12px;background:#ffffff;}"
                        "QGroupBox::title{subcontrol-origin:margin;left:10px;padding:0 6px;}"
                        "QScrollBar:vertical{background:transparent;width:10px;margin:2px;}"
                        "QScrollBar::handle:vertical{background:#c8d8ec;min-height:20px;border-radius:5px;}"
                        "QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{height:0;}"
-                       "QPushButton{border-radius:12px;}"
-                       "QFrame#DialogTitleBar{background:#ffffff;border:1px solid #d8e0eb;border-radius:12px;}"
+                       "QPushButton{border-radius:14px;}"
+                       "QFrame#DialogTitleBar{background:#ffffff;border:1px solid #d8e0eb;border-radius:14px;}"
                        "QLabel#DialogTitleText{font-size:15px;font-weight:800;color:#1f3b5d;}"
-                       "QPushButton#DialogCloseBtn{font-size:16px;min-width:42px;min-height:42px;padding:0 8px;}");
+                       "QPushButton#DialogCloseBtn{font-size:15px;min-width:30px;max-width:30px;min-height:30px;max-height:30px;padding:0;border-radius:10px;}");
 }
 
 QWidget* createDialogTitleBar(QDialog* dlg, const QString& title) {
     auto* bar = new QFrame(dlg);
     bar->setObjectName("DialogTitleBar");
-    bar->setFixedHeight(48);
+    bar->setFixedHeight(44);
     auto* row = new QHBoxLayout(bar);
-    row->setContentsMargins(10, 4, 8, 4);
+    row->setContentsMargins(10, 5, 8, 5);
     row->setSpacing(8);
 
     auto* titleLabel = new QLabel(title, bar);
     titleLabel->setObjectName("DialogTitleText");
     auto* closeBtn = new QPushButton("×", bar);
     closeBtn->setObjectName("DialogCloseBtn");
-    closeBtn->setStyleSheet(buttonStylePrimary());
+    closeBtn->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     QObject::connect(closeBtn, &QPushButton::clicked, dlg, &QDialog::close);
 
     row->addWidget(titleLabel, 1);
@@ -1348,11 +1350,18 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     m_menuTree->expandAll();
 
     m_stacked = new QStackedWidget;
-    m_stacked->addWidget(createPageDisplayStartup());
-    m_stacked->addWidget(createPageClassTools());
-    m_stacked->addWidget(createPageDataManagement());
-    m_stacked->addWidget(createPageSafety());
-    m_stacked->addWidget(createPageAbout());
+    const auto wrapScrollable = [](QWidget* page) -> QWidget* {
+        auto* scroll = new QScrollArea;
+        scroll->setWidgetResizable(true);
+        scroll->setFrameShape(QFrame::NoFrame);
+        scroll->setWidget(page);
+        return scroll;
+    };
+    m_stacked->addWidget(wrapScrollable(createPageDisplayStartup()));
+    m_stacked->addWidget(wrapScrollable(createPageClassTools()));
+    m_stacked->addWidget(wrapScrollable(createPageDataManagement()));
+    m_stacked->addWidget(wrapScrollable(createPageSafety()));
+    m_stacked->addWidget(wrapScrollable(createPageAbout()));
 
     content->addWidget(m_menuTree);
     content->addWidget(m_stacked, 1);
@@ -1512,7 +1521,9 @@ QWidget* SettingsDialog::createPageDataManagement() {
     m_buttonList = new QListWidget;
     layout->addWidget(m_buttonList, 1);
 
-    auto* btnOps = new QHBoxLayout;
+    auto* btnOps = new QGridLayout;
+    btnOps->setHorizontalSpacing(8);
+    btnOps->setVerticalSpacing(8);
     auto* btnAdd = new QPushButton("添加按钮");
     auto* btnRemove = new QPushButton("删除按钮");
     auto* btnUp = new QPushButton("上移");
@@ -1520,8 +1531,13 @@ QWidget* SettingsDialog::createPageDataManagement() {
     auto* btnRestore = new QPushButton("恢复缺失默认按钮");
     for (auto* btn : {btnAdd, btnRemove, btnUp, btnDown, btnRestore}) {
         btn->setStyleSheet(buttonStylePrimary());
-        btnOps->addWidget(btn);
+        btn->setMinimumWidth(120);
     }
+    btnOps->addWidget(btnAdd, 0, 0);
+    btnOps->addWidget(btnRemove, 0, 1);
+    btnOps->addWidget(btnUp, 0, 2);
+    btnOps->addWidget(btnDown, 1, 0);
+    btnOps->addWidget(btnRestore, 1, 1, 1, 2);
     connect(btnAdd, &QPushButton::clicked, this, &SettingsDialog::addButton);
     connect(btnRemove, &QPushButton::clicked, this, &SettingsDialog::removeButton);
     connect(btnUp, &QPushButton::clicked, this, &SettingsDialog::moveUp);

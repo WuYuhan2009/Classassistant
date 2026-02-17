@@ -42,7 +42,7 @@ int main(int argc, char* argv[]) {
     uiFont.setPointSize(10);
     app.setFont(uiFont);
     app.setStyleSheet("QWidget{font-family:'HarmonyOS Sans SC','HarmonyOS Sans','Microsoft YaHei',sans-serif;}"
-                      "QAbstractButton{min-height:40px;padding:7px 10px;font-size:14px;}"
+                      "QAbstractButton{min-height:40px;padding:7px 10px;font-size:14px;border-radius:14px;}"
                       "QToolTip{background:#ffffff;color:#1f2d3d;border:1px solid #d8e0eb;padding:6px;border-radius:8px;}");
 
     if (!Config::instance().firstRunCompleted) {
@@ -159,8 +159,8 @@ int main(int argc, char* argv[]) {
 
     auto* menu = new QMenu();
     menu->setAttribute(Qt::WA_AcceptTouchEvents);
-    menu->setStyleSheet("QMenu{background:#f8fbff;border:1px solid #cfdcec;border-radius:12px;padding:8px;}"
-                        "QMenu::item{font-size:14px;color:#1f3248;padding:10px 14px;border-radius:8px;margin:3px 2px;min-height:34px;}"
+    menu->setStyleSheet("QMenu{background:#f8fbff;border:1px solid #cfdcec;border-radius:14px;padding:8px;}"
+                        "QMenu::item{font-size:14px;color:#1f3248;padding:10px 14px;border-radius:12px;margin:3px 2px;min-height:34px;}"
                         "QMenu::item:selected{background:#e8f2ff;color:#16457d;}"
                         "QMenu::separator{height:1px;background:#d6e2f1;margin:8px 4px;}");
 
