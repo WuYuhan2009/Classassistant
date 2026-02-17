@@ -6,6 +6,7 @@
 #include <QDate>
 #include <QFile>
 #include <QFileDialog>
+#include <QStandardPaths>
 #include <QHBoxLayout>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -23,6 +24,7 @@
 #include <QTextStream>
 #include <QTime>
 #include <QVBoxLayout>
+#include <functional>
 
 namespace {
 QString buttonStylePrimary() {
@@ -80,6 +82,75 @@ void smoothHide(QWidget* w) {
         w->setWindowOpacity(1.0);
     });
     anim->start(QAbstractAnimation::DeleteWhenStopped);
+}
+
+QString offlineAiFallback(const QString& prompt) {
+    const QString p = prompt.trimmed();
+    if (p.contains("分组")) {
+        return "离线建议：每组可设置记录员、发言人、计时员；先组内讨论3分钟，再进行1分钟汇报。";
+    }
+    if (p.contains("便签") || p.contains("总结")) {
+        return "离线建议：本节课建议先回顾目标，再总结亮点与改进点，最后布置1个可执行的小任务。";
+    }
+    if (p.contains("计分") || p.contains("点评")) {
+        return "离线点评：双方都很投入，建议下一轮增加协作分与表达分，鼓励更多同学参与。";
+    }
+    return "离线模式：未配置 API Key。你仍可使用本地建议；填写 Key 后可获取在线 AI 回复。";
+}
+
+void requestAiCompletion(QWidget* owner,
+                         const QString& systemPrompt,
+                         const QString& userPrompt,
+                         const QJsonArray& history,
+                         const std::function<void(const QString&, bool)>& done) {
+    const Config& cfg = Config::instance();
+    if (cfg.siliconFlowApiKey.trimmed().isEmpty()) {
+        done(offlineAiFallback(userPrompt), false);
+        return;
+    }
+
+    auto* manager = new QNetworkAccessManager(owner);
+    QNetworkRequest request(QUrl(cfg.siliconFlowEndpoint));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    request.setRawHeader("Authorization", QString("Bearer %1").arg(cfg.siliconFlowApiKey).toUtf8());
+
+    QJsonArray messages;
+    messages.append(QJsonObject{{"role", "system"}, {"content", systemPrompt}});
+    for (const QJsonValue& item : history) {
+        messages.append(item);
+    }
+    messages.append(QJsonObject{{"role", "user"}, {"content", userPrompt}});
+
+    const QJsonObject payload{{"model", cfg.siliconFlowModel},
+                              {"messages", messages},
+                              {"temperature", 0.6},
+                              {"stream", false}};
+
+    QNetworkReply* reply = manager->post(request, QJsonDocument(payload).toJson(QJsonDocument::Compact));
+    QObject::connect(reply, &QNetworkReply::finished, owner, [reply, manager, done]() {
+        const QByteArray body = reply->readAll();
+        if (reply->error() != QNetworkReply::NoError) {
+            done(QString("在线请求失败：%1\n%2").arg(reply->errorString(), offlineAiFallback(QString::fromUtf8(body))), false);
+            reply->deleteLater();
+            manager->deleteLater();
+            return;
+        }
+
+        QString text;
+        const QJsonDocument doc = QJsonDocument::fromJson(body);
+        if (doc.isObject()) {
+            const QJsonArray choices = doc.object().value("choices").toArray();
+            if (!choices.isEmpty()) {
+                text = choices.first().toObject().value("message").toObject().value("content").toString().trimmed();
+            }
+        }
+        if (text.isEmpty()) {
+            text = offlineAiFallback(QString::fromUtf8(body));
+        }
+        done(text, true);
+        reply->deleteLater();
+        manager->deleteLater();
+    });
 }
 
 AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(parent) {
@@ -501,14 +572,52 @@ ClassNoteDialog::ClassNoteDialog(QWidget* parent) : QDialog(parent) {
     layout->addWidget(m_editor, 1);
 
     auto* row = new QHBoxLayout;
+    auto* aiPolishBtn = new QPushButton("AI润色");
+    auto* aiSummaryBtn = new QPushButton("AI生成小结");
     auto* saveBtn = new QPushButton("保存便签");
     auto* closeBtn = new QPushButton("关闭");
-    saveBtn->setStyleSheet(buttonStylePrimary());
-    closeBtn->setStyleSheet(buttonStylePrimary());
+    for (auto* btn : {aiPolishBtn, aiSummaryBtn, saveBtn, closeBtn}) {
+        btn->setStyleSheet(buttonStylePrimary());
+    }
+    row->addWidget(aiPolishBtn);
+    row->addWidget(aiSummaryBtn);
     row->addStretch();
     row->addWidget(saveBtn);
     row->addWidget(closeBtn);
     layout->addLayout(row);
+
+    connect(aiPolishBtn, &QPushButton::clicked, [this]() {
+        const QString source = m_editor->toPlainText().trimmed();
+        if (source.isEmpty()) {
+            m_infoLabel->setText("请先输入便签内容再进行 AI 润色。");
+            return;
+        }
+        m_infoLabel->setText("AI 润色中...");
+        requestAiCompletion(this,
+                            "你是课堂教学助理，请将用户文本润色为更清晰简洁的课堂便签。",
+                            source,
+                            QJsonArray(),
+                            [this](const QString& out, bool online) {
+                                m_editor->setPlainText(out);
+                                m_infoLabel->setText(online ? "AI润色完成（在线）" : "AI润色完成（离线建议）");
+                            });
+    });
+
+    connect(aiSummaryBtn, &QPushButton::clicked, [this]() {
+        m_infoLabel->setText("AI 生成课堂小结中...");
+        requestAiCompletion(this,
+                            "你是班级课堂助手，请生成简洁、可执行的课堂小结，包含亮点与改进建议。",
+                            m_editor->toPlainText(),
+                            QJsonArray(),
+                            [this](const QString& out, bool online) {
+                                if (!m_editor->toPlainText().trimmed().isEmpty()) {
+                                    m_editor->append("\n\n--- AI课堂小结 ---\n" + out);
+                                } else {
+                                    m_editor->setPlainText(out);
+                                }
+                                m_infoLabel->setText(online ? "AI小结已生成（在线）" : "AI小结已生成（离线建议）");
+                            });
+    });
 
     connect(saveBtn, &QPushButton::clicked, this, &ClassNoteDialog::saveNote);
     connect(closeBtn, &QPushButton::clicked, [this]() { smoothHide(this); });
@@ -542,10 +651,13 @@ GroupSplitDialog::GroupSplitDialog(QWidget* parent) : QDialog(parent) {
     m_groupSize->setRange(2, 12);
     row->addWidget(m_groupSize);
     auto* generateBtn = new QPushButton("重新分组");
+    auto* aiTaskBtn = new QPushButton("AI生成组内任务");
     auto* closeBtn = new QPushButton("关闭");
     generateBtn->setStyleSheet(buttonStylePrimary());
+    aiTaskBtn->setStyleSheet(buttonStylePrimary());
     closeBtn->setStyleSheet(buttonStylePrimary());
     row->addWidget(generateBtn);
+    row->addWidget(aiTaskBtn);
     row->addWidget(closeBtn);
     layout->addLayout(row);
 
@@ -554,6 +666,19 @@ GroupSplitDialog::GroupSplitDialog(QWidget* parent) : QDialog(parent) {
     layout->addWidget(m_result, 1);
 
     connect(generateBtn, &QPushButton::clicked, this, &GroupSplitDialog::generate);
+    connect(aiTaskBtn, &QPushButton::clicked, [this]() {
+        const QString groups = m_result->toPlainText().trimmed();
+        if (groups.isEmpty()) {
+            return;
+        }
+        requestAiCompletion(this,
+                            "你是课堂活动设计助手。根据分组结果，为每组生成一句具体可执行的任务。",
+                            groups,
+                            QJsonArray(),
+                            [this](const QString& out, bool online) {
+                                m_result->append("\n\n--- AI组内任务" + QString(online ? "（在线）" : "（离线）") + " ---\n" + out);
+                            });
+    });
     connect(closeBtn, &QPushButton::clicked, [this]() { smoothHide(this); });
 }
 
@@ -609,8 +734,9 @@ ScoreBoardDialog::ScoreBoardDialog(QWidget* parent) : QDialog(parent) {
     auto* bMinus = new QPushButton("B -1");
     auto* bPlus = new QPushButton("B +1");
     auto* resetBtn = new QPushButton("重置");
+    auto* aiCommentBtn = new QPushButton("AI点评");
     auto* closeBtn = new QPushButton("关闭");
-    for (auto* btn : {aMinus, aPlus, bMinus, bPlus, resetBtn, closeBtn}) {
+    for (auto* btn : {aMinus, aPlus, bMinus, bPlus, resetBtn, aiCommentBtn, closeBtn}) {
         btn->setStyleSheet(buttonStylePrimary());
         row->addWidget(btn);
     }
@@ -621,6 +747,20 @@ ScoreBoardDialog::ScoreBoardDialog(QWidget* parent) : QDialog(parent) {
     connect(bMinus, &QPushButton::clicked, [this]() { m_scoreB = qMax(0, m_scoreB - 1); refreshScore(); });
     connect(bPlus, &QPushButton::clicked, [this]() { ++m_scoreB; refreshScore(); });
     connect(resetBtn, &QPushButton::clicked, [this]() { m_scoreA = 0; m_scoreB = 0; refreshScore(); });
+    connect(aiCommentBtn, &QPushButton::clicked, [this]() {
+        const QString prompt = QString("当前比分：%1 %2 : %3 %4，请给出一句鼓励点评和下一轮建议")
+                                   .arg(Config::instance().scoreTeamAName)
+                                   .arg(m_scoreA)
+                                   .arg(m_scoreB)
+                                   .arg(Config::instance().scoreTeamBName);
+        requestAiCompletion(this,
+                            "你是课堂比赛点评助手，语言积极简短。",
+                            prompt,
+                            QJsonArray(),
+                            [this](const QString& out, bool online) {
+                                QMessageBox::information(this, online ? "AI点评" : "离线点评", out);
+                            });
+    });
     connect(closeBtn, &QPushButton::clicked, [this]() { smoothHide(this); });
 }
 
@@ -643,17 +783,45 @@ void ScoreBoardDialog::closeEvent(QCloseEvent* event) {
 
 AIAssistantDialog::AIAssistantDialog(QWidget* parent) : QDialog(parent) {
     decorateDialog(this, "AI 助手");
-    setFixedSize(700, 560);
+    setFixedSize(760, 620);
 
     auto* layout = new QVBoxLayout(this);
+
+    auto* header = new QWidget;
+    header->setStyleSheet("background:#ffffff;border:1px solid #dfe5ee;border-radius:14px;");
+    auto* headerLayout = new QHBoxLayout(header);
     auto* title = new QLabel("班级 AI 助手");
     title->setStyleSheet("font-size:22px;font-weight:800;color:#1f4f8f;");
-    layout->addWidget(title);
+    auto* subtitle = new QLabel("在线硅基流动 + 离线建议双模式");
+    subtitle->setStyleSheet("color:#6a7f96;");
+    auto* titleCol = new QVBoxLayout;
+    titleCol->addWidget(title);
+    titleCol->addWidget(subtitle);
+    headerLayout->addLayout(titleCol);
+    headerLayout->addStretch();
 
-    m_statusLabel = new QLabel("请输入问题后发送（需先在设置中填写硅基流动 API Key）。");
+    m_copyButton = new QPushButton("复制对话");
+    m_saveButton = new QPushButton("导出对话");
+    for (auto* btn : {m_copyButton, m_saveButton}) {
+        btn->setStyleSheet(buttonStylePrimary());
+        headerLayout->addWidget(btn);
+    }
+    layout->addWidget(header);
+
+    m_statusLabel = new QLabel("提示：未填写 API Key 时会自动使用离线建议，不影响正常使用。");
     m_statusLabel->setWordWrap(true);
     m_statusLabel->setStyleSheet("color:#4a647f;");
     layout->addWidget(m_statusLabel);
+
+    auto* quickRow = new QHBoxLayout;
+    auto* quickRuleBtn = new QPushButton("纪律话术");
+    auto* quickActivityBtn = new QPushButton("课堂活动");
+    auto* clearBtn = new QPushButton("清空对话");
+    for (auto* btn : {quickRuleBtn, quickActivityBtn, clearBtn}) {
+        btn->setStyleSheet(buttonStylePrimary());
+        quickRow->addWidget(btn);
+    }
+    layout->addLayout(quickRow);
 
     m_historyView = new QTextEdit;
     m_historyView->setReadOnly(true);
@@ -673,11 +841,8 @@ AIAssistantDialog::AIAssistantDialog(QWidget* parent) : QDialog(parent) {
     inputLayout->addWidget(m_inputEdit);
 
     auto* actions = new QHBoxLayout;
-    auto* clearBtn = new QPushButton("清空对话");
     m_sendButton = new QPushButton("发送");
-    clearBtn->setStyleSheet(buttonStylePrimary());
     m_sendButton->setStyleSheet(buttonStylePrimary());
-    actions->addWidget(clearBtn);
     actions->addStretch();
     actions->addWidget(m_sendButton);
     inputLayout->addLayout(actions);
@@ -688,6 +853,40 @@ AIAssistantDialog::AIAssistantDialog(QWidget* parent) : QDialog(parent) {
         m_historyView->clear();
         m_statusLabel->setText("已清空对话。请输入新问题。");
     });
+    connect(m_copyButton, &QPushButton::clicked, [this]() {
+        QGuiApplication::clipboard()->setText(m_historyView->toPlainText());
+        m_statusLabel->setText("对话已复制。");
+    });
+    connect(m_saveButton, &QPushButton::clicked, [this]() {
+        const QString dir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+        const QString path = QFileDialog::getSaveFileName(this, "导出对话", dir + "/classassistant_ai_chat.txt", "Text (*.txt)");
+        if (path.isEmpty()) {
+            return;
+        }
+        QFile file(path);
+        if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QMessageBox::warning(this, "导出失败", "无法写入文件，请检查权限。");
+            return;
+        }
+        QTextStream out(&file);
+        out << m_historyView->toPlainText();
+        file.close();
+        m_statusLabel->setText("对话已导出到：" + path);
+    });
+
+    connect(quickRuleBtn, &QPushButton::clicked, [this]() {
+        m_inputEdit->setPlainText("请生成3条简洁有力的课堂纪律提醒话术，每条不超过25字。");
+        sendMessage();
+    });
+    connect(quickActivityBtn, &QPushButton::clicked, [this]() {
+        m_inputEdit->setPlainText("请设计一个8分钟课堂互动活动，包含步骤、时间分配和教师提示语。");
+        sendMessage();
+    });
+
+    connect(m_inputEdit, &QTextEdit::textChanged, [this]() {
+        m_sendButton->setEnabled(!m_inputEdit->toPlainText().trimmed().isEmpty());
+    });
+    m_sendButton->setEnabled(false);
     connect(m_sendButton, &QPushButton::clicked, this, &AIAssistantDialog::sendMessage);
 }
 
@@ -711,71 +910,27 @@ void AIAssistantDialog::sendMessage() {
         return;
     }
 
-    const Config& cfg = Config::instance();
-    if (cfg.siliconFlowApiKey.trimmed().isEmpty()) {
-        QMessageBox::warning(this, "缺少 API Key", "请先在设置 → 安全与离线 中填写硅基流动 API Key。\n填写后保存即可直接使用。");
-        return;
-    }
-
     appendMessageBubble("user", userText);
-    m_messages.append(QJsonObject{{"role", "user"}, {"content", userText}});
     m_inputEdit->clear();
     m_sendButton->setEnabled(false);
     m_statusLabel->setText("AI 正在思考中...");
 
-    auto* manager = new QNetworkAccessManager(this);
-    QNetworkRequest request(QUrl(cfg.siliconFlowEndpoint));
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    request.setRawHeader("Authorization", QString("Bearer %1").arg(cfg.siliconFlowApiKey).toUtf8());
-
-    QJsonArray messages;
-    messages.append(QJsonObject{{"role", "system"}, {"content", "你是班级课堂助手，请给出简洁、可执行的建议。"}});
-    for (const QJsonValue& v : m_messages) {
-        messages.append(v);
-    }
-
-    const QJsonObject payload{{"model", cfg.siliconFlowModel},
-                              {"messages", messages},
-                              {"temperature", 0.6},
-                              {"stream", false}};
-
-    QNetworkReply* reply = manager->post(request, QJsonDocument(payload).toJson(QJsonDocument::Compact));
-    connect(reply, &QNetworkReply::finished, this, [this, reply, manager]() {
-        m_sendButton->setEnabled(true);
-        const QByteArray body = reply->readAll();
-        if (reply->error() != QNetworkReply::NoError) {
-            m_statusLabel->setText(QString("请求失败：%1").arg(reply->errorString()));
-            appendMessageBubble("assistant", QString("请求失败：%1\n请检查网络、API Key、模型名。\n返回内容：%2")
-                                                .arg(reply->errorString(), QString::fromUtf8(body)));
-            reply->deleteLater();
-            manager->deleteLater();
-            return;
-        }
-
-        const QJsonDocument doc = QJsonDocument::fromJson(body);
-        QString aiText;
-        if (doc.isObject()) {
-            const QJsonArray choices = doc.object().value("choices").toArray();
-            if (!choices.isEmpty()) {
-                aiText = choices.first().toObject().value("message").toObject().value("content").toString().trimmed();
-            }
-        }
-
-        if (aiText.isEmpty()) {
-            aiText = "接口返回为空，请稍后重试。";
-        }
-        appendMessageBubble("assistant", aiText);
-        m_messages.append(QJsonObject{{"role", "assistant"}, {"content", aiText}});
-        m_statusLabel->setText("已收到 AI 回复。可以继续提问。");
-
-        reply->deleteLater();
-        manager->deleteLater();
-    });
+    requestAiCompletion(this,
+                        "你是班级课堂助手，请给出简洁、可执行的建议。",
+                        userText,
+                        m_messages,
+                        [this, userText](const QString& aiText, bool online) {
+                            appendMessageBubble("assistant", aiText);
+                            m_messages.append(QJsonObject{{"role", "user"}, {"content", userText}});
+                            m_messages.append(QJsonObject{{"role", "assistant"}, {"content", aiText}});
+                            m_statusLabel->setText(online ? "已收到在线 AI 回复。" : "当前为离线建议模式（可在设置中填写 API Key 切换在线）。");
+                            m_sendButton->setEnabled(true);
+                        });
 }
 
 void AIAssistantDialog::openAssistant() {
     if (m_messages.isEmpty()) {
-        appendMessageBubble("assistant", "你好，我可以帮你生成课堂话术、课堂活动设计、班级管理提醒等内容。");
+        appendMessageBubble("assistant", "你好，我可以帮你生成课堂话术、活动流程、分组任务、课堂小结和计分点评。未配置 API Key 也可使用离线建议。");
     }
     smoothShow(this);
 }
@@ -847,12 +1002,26 @@ AppButton AddButtonDialog::resultButton() const {
 
 FirstRunWizard::FirstRunWizard(QWidget* parent) : QDialog(parent) {
     decorateDialog(this, "欢迎使用 ClassAssistant");
-    setFixedSize(560, 460);
+    setFixedSize(680, 620);
 
     auto* layout = new QVBoxLayout(this);
-    auto* intro = new QLabel("首次启动向导：完成基础设置（后续可在设置中修改）。");
+    auto* intro = new QLabel("首次启动向导（现代简约版）：请先同意协议，再完成基础与 AI 设置。\n未填写 API Key 也可正常使用（离线建议模式）。");
     intro->setWordWrap(true);
     layout->addWidget(intro);
+
+    auto* agreementBox = new QGroupBox("第一步：用户协议");
+    auto* agreementLayout = new QVBoxLayout(agreementBox);
+    auto* agreementText = new QTextEdit;
+    agreementText->setReadOnly(true);
+    agreementText->setMinimumHeight(120);
+    agreementText->setPlainText("1) 本工具用于课堂辅助，不替代教师判断。\n"
+                                "2) AI 功能可离线使用；如配置 API，请遵循学校数据规范。\n"
+                                "3) 请避免输入学生敏感隐私信息。\n"
+                                "4) 所有设置均可在‘设置’中修改或恢复默认。\n");
+    m_agreeTerms = new QCheckBox("我已阅读并同意用户协议");
+    agreementLayout->addWidget(agreementText);
+    agreementLayout->addWidget(m_agreeTerms);
+    layout->addWidget(agreementBox);
 
     layout->addWidget(new QLabel("悬浮球透明度"));
     m_floatingOpacity = new QSlider(Qt::Horizontal);
@@ -899,6 +1068,29 @@ FirstRunWizard::FirstRunWizard(QWidget* parent) : QDialog(parent) {
     layout->addWidget(m_seewoPathEdit);
     layout->addWidget(browse);
 
+    auto* aiBox = new QGroupBox("AI 初始化（可选）");
+    auto* aiLayout = new QVBoxLayout(aiBox);
+
+    auto* keyRow = new QHBoxLayout;
+    keyRow->addWidget(new QLabel("API Key"));
+    m_aiApiKeyEdit = new QLineEdit(Config::instance().siliconFlowApiKey);
+    m_aiApiKeyEdit->setEchoMode(QLineEdit::Password);
+    keyRow->addWidget(m_aiApiKeyEdit, 1);
+    aiLayout->addLayout(keyRow);
+
+    auto* modelRow = new QHBoxLayout;
+    modelRow->addWidget(new QLabel("模型"));
+    m_aiModelEdit = new QLineEdit(Config::instance().siliconFlowModel);
+    modelRow->addWidget(m_aiModelEdit, 1);
+    aiLayout->addLayout(modelRow);
+
+    auto* endpointRow = new QHBoxLayout;
+    endpointRow->addWidget(new QLabel("接口地址"));
+    m_aiEndpointEdit = new QLineEdit(Config::instance().siliconFlowEndpoint);
+    endpointRow->addWidget(m_aiEndpointEdit, 1);
+    aiLayout->addLayout(endpointRow);
+    layout->addWidget(aiBox);
+
     auto* done = new QPushButton("完成初始化");
     done->setStyleSheet(buttonStylePrimary());
     connect(done, &QPushButton::clicked, this, &FirstRunWizard::finishSetup);
@@ -907,6 +1099,12 @@ FirstRunWizard::FirstRunWizard(QWidget* parent) : QDialog(parent) {
 }
 
 void FirstRunWizard::finishSetup() {
+    if (!m_agreeTerms->isChecked()) {
+        QMessageBox::warning(this, "提示", "请先勾选同意用户协议。",
+                             QMessageBox::Ok);
+        return;
+    }
+
     auto& cfg = Config::instance();
     cfg.floatingOpacity = m_floatingOpacity->value();
     cfg.attendanceSummaryWidth = m_summaryWidth->value();
@@ -916,6 +1114,10 @@ void FirstRunWizard::finishSetup() {
     cfg.randomNoRepeat = m_randomNoRepeat->isChecked();
     cfg.allowExternalLinks = m_allowExternalLinks->isChecked();
     cfg.seewoPath = m_seewoPathEdit->text().trimmed();
+    cfg.siliconFlowApiKey = m_aiApiKeyEdit->text().trimmed();
+    cfg.siliconFlowModel = m_aiModelEdit->text().trimmed().isEmpty() ? QString("Qwen/Qwen3-8B") : m_aiModelEdit->text().trimmed();
+    cfg.siliconFlowEndpoint = m_aiEndpointEdit->text().trimmed().isEmpty() ? QString("https://api.siliconflow.cn/v1/chat/completions")
+                                                                            : m_aiEndpointEdit->text().trimmed();
     cfg.firstRunCompleted = true;
     cfg.save();
     accept();

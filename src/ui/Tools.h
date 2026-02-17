@@ -172,6 +172,8 @@ private:
     QTextEdit* m_historyView;
     QTextEdit* m_inputEdit;
     QPushButton* m_sendButton;
+    QPushButton* m_copyButton;
+    QPushButton* m_saveButton;
     QLabel* m_statusLabel;
     QJsonArray m_messages;
 
@@ -209,6 +211,9 @@ private:
     QCheckBox* m_randomNoRepeat;
     QCheckBox* m_allowExternalLinks;
     QLineEdit* m_seewoPathEdit;
+    QLineEdit* m_aiApiKeyEdit;
+    QLineEdit* m_aiModelEdit;
+    QLineEdit* m_aiEndpointEdit;
 
     void finishSetup();
 };
@@ -228,6 +233,7 @@ private:
     QTreeWidget* m_menuTree;
     QStackedWidget* m_stacked;
 
+    QCheckBox* m_agreeTerms;
     QSlider* m_floatingOpacity;
     QSlider* m_summaryWidth;
     QCheckBox* m_startCollapsed;
