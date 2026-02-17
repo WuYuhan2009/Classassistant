@@ -62,7 +62,7 @@ QPushButton* Sidebar::createIconButton(const QString& text,
         btn->setText(fallbackEmoji);
     }
 
-    btn->setStyleSheet("QPushButton{background: rgba(255,255,255,0.98); border: 1px solid #d6deea; border-radius: 16px; font-size: 18px; padding: 4px;}"
+    btn->setStyleSheet("QPushButton{background: rgba(255,255,255,0.98); border: 1px solid #d6deea; border-radius: 16px; font-size: 20px; padding: 6px;}"
                        "QPushButton:hover{background:#f4f9ff;border-color:#b7cae3;}"
                        "QPushButton:pressed{background:#eaf2fb;}");
     return btn;
