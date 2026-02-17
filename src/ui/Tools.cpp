@@ -7,7 +7,6 @@
 #include <QDateTime>
 #include <QVersionNumber>
 #include <QDesktopServices>
-#include <QGraphicsDropShadowEffect>
 #include <QFile>
 #include <QFileDialog>
 #include <QFrame>
@@ -53,12 +52,7 @@ void decorateDialog(QDialog* dlg, const QString& title) {
     dlg->setWindowTitle(title);
     dlg->setWindowFlags((dlg->windowFlags() | Qt::Tool | Qt::FramelessWindowHint) & ~Qt::WindowContextHelpButtonHint);
     dlg->setAttribute(Qt::WA_AcceptTouchEvents);
-    dlg->setAttribute(Qt::WA_TranslucentBackground);
-    auto* shadow = new QGraphicsDropShadowEffect(dlg);
-    shadow->setBlurRadius(28);
-    shadow->setOffset(0, 8);
-    shadow->setColor(QColor(20, 40, 70, 70));
-    dlg->setGraphicsEffect(shadow);
+    dlg->setAttribute(Qt::WA_StyledBackground, true);
     dlg->setStyleSheet("QDialog{background:#f5f8fc;border:1px solid #d8e0eb;border-radius:16px;} QLabel{color:#223042;} "
                        "QLineEdit,QTextEdit,QListWidget,QTreeWidget,QComboBox,QSpinBox,QTableWidget{"
                        "background:#ffffff;border:1px solid #d8e0eb;border-radius:14px;padding:6px;}"
