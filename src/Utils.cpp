@@ -18,7 +18,7 @@ QVector<AppButton> buildDefaultButtons() {
         {"课堂便签", "icon_settings.png", "func", "CLASS_NOTE", true},
         {"分组抽签", "icon_settings.png", "func", "GROUP_SPLIT", true},
         {"课堂计分", "icon_settings.png", "func", "SCORE_BOARD", true},
-        {"AI助手", "icon_settings.png", "func", "AI_ASSISTANT", true},
+        {"AI助手", "icon_ai.png", "func", "AI_ASSISTANT", true},
     };
 }
 

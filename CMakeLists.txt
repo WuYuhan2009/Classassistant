@@ -16,6 +16,11 @@ if(DEFINED CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_TRY_COMPILE_CONFIGURATION Debug CACHE STRING "" FORCE)
 endif()
 
+# 某些 Qt Creator + Ninja + MSVC 组合下，try_compile 阶段会出现
+# PDB 竞争（fatal error C1041）。在 project() 前强制 try_compile 使用
+# 静态库并固定 Debug，减少并行与PDB文件争用问题。
+set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY CACHE STRING "" FORCE)
+
 project(ClassAssistant VERSION 1.0.0 LANGUAGES CXX)
 
 # ==============================
@@ -40,6 +45,15 @@ endif()
 if(MSVC)
     add_definitions(-D_WIN32_WINNT=0x0601)
     add_definitions(-DWINVER=0x0601)
+
+    # 避免 /Zi 共享 PDB 在某些环境触发 C1041；使用 /Z7 嵌入调试信息更稳定。
+    # 该设置同样有助于 Qt Creator 触发的 try_compile 检测阶段。
+    if(POLICY CMP0141)
+        cmake_policy(SET CMP0141 NEW)
+        set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT
+            "$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>"
+            CACHE STRING "" FORCE)
+    endif()
 endif()
 
 # ==============================

@@ -207,6 +207,7 @@ ClassAssistant 适用于班级电脑、教师办公机、多媒体教学设备�
 - `icon_note.png`：课堂便签
 - `icon_group.png`：分组抽签
 - `icon_score.png`：课堂计分
+- `icon_ai.png`：AI 助手
 
 ### 命名规则建议
 
@@ -267,15 +268,33 @@ build.bat clean release
 - 关闭设置窗口后再次打开核对是否仍在。
 - Key 前后不要有空格。
 
-### 2）不填 API Key 能不能用？
+### 2）Qt Creator + CMake + MSVC 报 `C1041` 或 “No CMake configuration for build type Debug found” 怎么办？
+
+常见原因是 **try_compile 阶段 PDB 竞争** 或 Qt Creator 传入的配置类型异常。
+
+已在项目 CMake 中做了以下兼容处理：
+
+- 自动补齐 `Debug` 到 `CMAKE_CONFIGURATION_TYPES`
+- 固定 `CMAKE_TRY_COMPILE_CONFIGURATION=Debug`
+- 设置 `CMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY`
+- 在 MSVC 下使用嵌入调试信息（等价于 `/Z7` 思路）减少 PDB 冲突
+
+如果你本机仍遇到同类问题，建议：
+
+1. 清空构建目录后重新配置；
+2. 关闭可能占用 `.pdb` 的杀毒/索引软件；
+3. 确认 Qt Kit 与 MSVC 工具链版本对应；
+4. 优先在路径较短、无特殊字符目录构建。
+
+### 3）不填 API Key 能不能用？
 
 可以。AI 会进入离线建议模式，不影响课堂基础流程。
 
-### 3）误删默认按钮怎么恢复？
+### 4）误删默认按钮怎么恢复？
 
 进入“设置 -> 数据管理”，点击“恢复缺失默认按钮”。
 
-### 4）为什么打不开 URL？
+### 5）为什么打不开 URL？
 
 默认离线优先，URL 开关默认关闭。可在“安全与离线”手动开启。
 
