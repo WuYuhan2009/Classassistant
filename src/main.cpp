@@ -31,6 +31,7 @@ int main(int argc, char* argv[]) {
 
     QApplication app(argc, argv);
     app.setQuitOnLastWindowClosed(false);
+    app.setApplicationVersion("1.0.0");
 
     QFont uiFont("HarmonyOS Sans SC");
     if (!uiFont.exactMatch()) {

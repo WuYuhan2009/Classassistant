@@ -4,6 +4,8 @@
 #include <QClipboard>
 #include <QCoreApplication>
 #include <QDate>
+#include <QVersionNumber>
+#include <QDesktopServices>
 #include <QFile>
 #include <QFileDialog>
 #include <QStandardPaths>
@@ -27,6 +29,9 @@
 #include <functional>
 
 namespace {
+const char* kGithubRepoUrl = "https://github.com/Classassistant/Classassistant";
+const char* kGithubReleasesApiUrl = "https://api.github.com/repos/Classassistant/Classassistant/releases/latest";
+
 QString buttonStylePrimary() {
     return "QPushButton{background:#ffffff;border:1px solid #d8e0eb;border-radius:10px;font-weight:600;padding:8px 12px;color:#1f2d3d;}"
            "QPushButton:hover{background:#f4f8fd;}";
@@ -252,9 +257,10 @@ AttendanceSelectDialog::AttendanceSelectDialog(QWidget* parent) : QDialog(parent
     auto* clearAllBtn = new QPushButton("清空勾选");
     auto* allPresentBtn = new QPushButton("全员到齐");
     auto* exportBtn = new QPushButton("导出缺勤");
+    auto* aiSummaryBtn = new QPushButton("AI缺勤分析");
     auto* saveBtn = new QPushButton("保存");
     auto* cancelBtn = new QPushButton("关闭");
-    for (auto* btn : {markAllBtn, clearAllBtn, allPresentBtn, exportBtn, saveBtn, cancelBtn}) {
+    for (auto* btn : {markAllBtn, clearAllBtn, allPresentBtn, exportBtn, aiSummaryBtn, saveBtn, cancelBtn}) {
         btn->setStyleSheet(buttonStylePrimary());
         actions->addWidget(btn);
     }
@@ -279,6 +285,23 @@ AttendanceSelectDialog::AttendanceSelectDialog(QWidget* parent) : QDialog(parent
         saveSelection();
     });
     connect(exportBtn, &QPushButton::clicked, this, &AttendanceSelectDialog::exportSelection);
+    connect(aiSummaryBtn, &QPushButton::clicked, [this]() {
+        QStringList absentees;
+        for (int i = 0; i < m_roster->count(); ++i) {
+            if (m_roster->item(i)->checkState() == Qt::Checked) {
+                absentees.append(m_roster->item(i)->text());
+            }
+        }
+        const QString prompt = QString("今日缺勤名单：%1。请给出课堂组织建议和补偿作业建议。")
+                                   .arg(absentees.isEmpty() ? "无" : absentees.join("、"));
+        requestAiCompletion(this,
+                            "你是班主任课堂管理助手，输出简洁可执行建议。",
+                            prompt,
+                            QJsonArray(),
+                            [this](const QString& out, bool online) {
+                                QMessageBox::information(this, online ? "AI缺勤分析" : "离线缺勤建议", out);
+                            });
+    });
     connect(saveBtn, &QPushButton::clicked, this, &AttendanceSelectDialog::saveSelection);
     connect(cancelBtn, &QPushButton::clicked, [this]() { smoothHide(this); });
     layout->addLayout(actions);
@@ -371,8 +394,9 @@ RandomCallDialog::RandomCallDialog(QWidget* parent) : QDialog(parent) {
     auto* row = new QHBoxLayout;
     m_toggleButton = new QPushButton("开始点名");
     m_copyButton = new QPushButton("复制结果");
+    auto* aiCommentBtn = new QPushButton("AI点评该学生");
     m_closeButton = new QPushButton("隐藏窗口");
-    for (auto* btn : {m_toggleButton, m_copyButton, m_closeButton}) {
+    for (auto* btn : {m_toggleButton, m_copyButton, aiCommentBtn, m_closeButton}) {
         btn->setMinimumHeight(42);
         btn->setStyleSheet(buttonStylePrimary());
         row->addWidget(btn, 1);
@@ -383,6 +407,19 @@ RandomCallDialog::RandomCallDialog(QWidget* parent) : QDialog(parent) {
     connect(m_copyButton, &QPushButton::clicked, [this]() {
         QGuiApplication::clipboard()->setText(m_nameLabel->text());
         m_hintLabel->setText(QString("已复制：%1").arg(m_nameLabel->text()));
+    });
+    connect(aiCommentBtn, &QPushButton::clicked, [this]() {
+        const QString name = m_nameLabel->text().trimmed();
+        if (name.isEmpty() || name == "无名单" || name == "准备开始") {
+            return;
+        }
+        requestAiCompletion(this,
+                            "你是教师课堂互动助手。",
+                            QString("请围绕学生 %1 给一句课堂鼓励话术和一个提问建议。").arg(name),
+                            QJsonArray(),
+                            [this](const QString& out, bool online) {
+                                m_hintLabel->setText((online ? "AI建议：" : "离线建议：") + out);
+                            });
     });
     connect(m_closeButton, &QPushButton::clicked, [this]() { smoothHide(this); });
 
@@ -497,8 +534,9 @@ ClassTimerDialog::ClassTimerDialog(QWidget* parent) : QDialog(parent) {
     auto* btnRow = new QHBoxLayout;
     m_startPauseButton = new QPushButton("开始");
     m_resetButton = new QPushButton("重置");
+    auto* aiPlanBtn = new QPushButton("AI生成节奏建议");
     auto* closeButton = new QPushButton("关闭");
-    for (auto* btn : {m_startPauseButton, m_resetButton, closeButton}) {
+    for (auto* btn : {m_startPauseButton, m_resetButton, aiPlanBtn, closeButton}) {
         btn->setStyleSheet(buttonStylePrimary());
         btnRow->addWidget(btn);
     }
@@ -538,6 +576,17 @@ ClassTimerDialog::ClassTimerDialog(QWidget* parent) : QDialog(parent) {
         m_remainingSeconds = m_minutesSpin->value() * 60;
         m_startPauseButton->setText("开始");
         updateCountdownText();
+    });
+    connect(aiPlanBtn, &QPushButton::clicked, [this]() {
+        const QString prompt = QString("课程总时长约 %1 分钟，请给出导入、讲解、练习、总结四段时间建议。")
+                                   .arg(m_minutesSpin->value());
+        requestAiCompletion(this,
+                            "你是课堂节奏规划助手，输出条理清晰。",
+                            prompt,
+                            QJsonArray(),
+                            [this](const QString& out, bool online) {
+                                QMessageBox::information(this, online ? "AI节奏建议" : "离线节奏建议", out);
+                            });
     });
     connect(closeButton, &QPushButton::clicked, [this]() { smoothHide(this); });
 
@@ -1002,62 +1051,67 @@ AppButton AddButtonDialog::resultButton() const {
 
 FirstRunWizard::FirstRunWizard(QWidget* parent) : QDialog(parent) {
     decorateDialog(this, "欢迎使用 ClassAssistant");
-    setFixedSize(680, 620);
+    setFixedSize(700, 620);
 
     auto* layout = new QVBoxLayout(this);
-    auto* intro = new QLabel("首次启动向导（现代简约版）：请先同意协议，再完成基础与 AI 设置。\n未填写 API Key 也可正常使用（离线建议模式）。");
+    auto* intro = new QLabel("首次启动向导：分步完成协议、基础设置与 AI 设置。未填写 API Key 也可正常使用（离线建议模式）。");
     intro->setWordWrap(true);
     layout->addWidget(intro);
 
+    m_pages = new QStackedWidget;
+
+    auto* pageAgreement = new QWidget;
+    auto* agreementLayout = new QVBoxLayout(pageAgreement);
     auto* agreementBox = new QGroupBox("第一步：用户协议");
-    auto* agreementLayout = new QVBoxLayout(agreementBox);
+    auto* agreementBoxLayout = new QVBoxLayout(agreementBox);
     auto* agreementText = new QTextEdit;
     agreementText->setReadOnly(true);
-    agreementText->setMinimumHeight(120);
     agreementText->setPlainText("1) 本工具用于课堂辅助，不替代教师判断。\n"
                                 "2) AI 功能可离线使用；如配置 API，请遵循学校数据规范。\n"
                                 "3) 请避免输入学生敏感隐私信息。\n"
                                 "4) 所有设置均可在‘设置’中修改或恢复默认。\n");
     m_agreeTerms = new QCheckBox("我已阅读并同意用户协议");
-    agreementLayout->addWidget(agreementText);
-    agreementLayout->addWidget(m_agreeTerms);
-    layout->addWidget(agreementBox);
+    agreementBoxLayout->addWidget(agreementText);
+    agreementBoxLayout->addWidget(m_agreeTerms);
+    agreementLayout->addWidget(agreementBox);
+    agreementLayout->addStretch();
 
-    layout->addWidget(new QLabel("悬浮球透明度"));
+    auto* pageBasics = new QWidget;
+    auto* basicsLayout = new QVBoxLayout(pageBasics);
+    auto* displayBox = new QGroupBox("第二步：基础显示与启动");
+    auto* displayLayout = new QVBoxLayout(displayBox);
+    displayLayout->addWidget(new QLabel("悬浮球透明度"));
     m_floatingOpacity = new QSlider(Qt::Horizontal);
     m_floatingOpacity->setRange(35, 100);
     m_floatingOpacity->setValue(Config::instance().floatingOpacity);
-    layout->addWidget(m_floatingOpacity);
+    displayLayout->addWidget(m_floatingOpacity);
 
-    layout->addWidget(new QLabel("考勤概览宽度"));
+    displayLayout->addWidget(new QLabel("考勤概览宽度"));
     m_summaryWidth = new QSlider(Qt::Horizontal);
     m_summaryWidth->setRange(300, 520);
     m_summaryWidth->setValue(Config::instance().attendanceSummaryWidth);
-    layout->addWidget(m_summaryWidth);
+    displayLayout->addWidget(m_summaryWidth);
 
     m_startCollapsed = new QCheckBox("启动后默认收起到右下角悬浮球");
     m_startCollapsed->setChecked(Config::instance().startCollapsed);
-    layout->addWidget(m_startCollapsed);
-
     m_trayClickToOpen = new QCheckBox("托盘单击时展开侧栏");
     m_trayClickToOpen->setChecked(Config::instance().trayClickToOpen);
-    layout->addWidget(m_trayClickToOpen);
-
     m_showAttendanceSummaryOnStart = new QCheckBox("启动时显示考勤概览窗口");
     m_showAttendanceSummaryOnStart->setChecked(Config::instance().showAttendanceSummaryOnStart);
-    layout->addWidget(m_showAttendanceSummaryOnStart);
-
     m_randomNoRepeat = new QCheckBox("随机点名无重复（点完一轮自动重置）");
     m_randomNoRepeat->setChecked(Config::instance().randomNoRepeat);
-    layout->addWidget(m_randomNoRepeat);
-
     m_allowExternalLinks = new QCheckBox("允许打开网络链接（默认关闭）");
     m_allowExternalLinks->setChecked(Config::instance().allowExternalLinks);
-    layout->addWidget(m_allowExternalLinks);
+    displayLayout->addWidget(m_startCollapsed);
+    displayLayout->addWidget(m_trayClickToOpen);
+    displayLayout->addWidget(m_showAttendanceSummaryOnStart);
+    displayLayout->addWidget(m_randomNoRepeat);
+    displayLayout->addWidget(m_allowExternalLinks);
 
-    layout->addWidget(new QLabel("默认程序路径（希沃）"));
+    auto* pathRow = new QHBoxLayout;
+    pathRow->addWidget(new QLabel("希沃程序路径"));
     m_seewoPathEdit = new QLineEdit(Config::instance().seewoPath);
-    auto* browse = new QPushButton("选择程序路径");
+    auto* browse = new QPushButton("选择路径");
     browse->setStyleSheet(buttonStylePrimary());
     connect(browse, &QPushButton::clicked, [this]() {
         const QString p = QFileDialog::getOpenFileName(this, "选择程序", "", "Executable (*.exe);;All Files (*)");
@@ -1065,10 +1119,15 @@ FirstRunWizard::FirstRunWizard(QWidget* parent) : QDialog(parent) {
             m_seewoPathEdit->setText(p);
         }
     });
-    layout->addWidget(m_seewoPathEdit);
-    layout->addWidget(browse);
+    pathRow->addWidget(m_seewoPathEdit, 1);
+    pathRow->addWidget(browse);
+    displayLayout->addLayout(pathRow);
+    basicsLayout->addWidget(displayBox);
+    basicsLayout->addStretch();
 
-    auto* aiBox = new QGroupBox("AI 初始化（可选）");
+    auto* pageAi = new QWidget;
+    auto* aiRootLayout = new QVBoxLayout(pageAi);
+    auto* aiBox = new QGroupBox("第三步：AI 初始化（可选）");
     auto* aiLayout = new QVBoxLayout(aiBox);
 
     auto* keyRow = new QHBoxLayout;
@@ -1081,6 +1140,7 @@ FirstRunWizard::FirstRunWizard(QWidget* parent) : QDialog(parent) {
     auto* modelRow = new QHBoxLayout;
     modelRow->addWidget(new QLabel("模型"));
     m_aiModelEdit = new QLineEdit(Config::instance().siliconFlowModel);
+    m_aiModelEdit->setPlaceholderText("deepseek-ai/DeepSeek-V3.2");
     modelRow->addWidget(m_aiModelEdit, 1);
     aiLayout->addLayout(modelRow);
 
@@ -1089,13 +1149,44 @@ FirstRunWizard::FirstRunWizard(QWidget* parent) : QDialog(parent) {
     m_aiEndpointEdit = new QLineEdit(Config::instance().siliconFlowEndpoint);
     endpointRow->addWidget(m_aiEndpointEdit, 1);
     aiLayout->addLayout(endpointRow);
-    layout->addWidget(aiBox);
 
-    auto* done = new QPushButton("完成初始化");
-    done->setStyleSheet(buttonStylePrimary());
-    connect(done, &QPushButton::clicked, this, &FirstRunWizard::finishSetup);
-    layout->addStretch();
-    layout->addWidget(done);
+    aiLayout->addWidget(new QLabel("提示：不填写 API Key 时，AI 仍会提供离线建议。"));
+    aiRootLayout->addWidget(aiBox);
+    aiRootLayout->addStretch();
+
+    m_pages->addWidget(pageAgreement);
+    m_pages->addWidget(pageBasics);
+    m_pages->addWidget(pageAi);
+    layout->addWidget(m_pages, 1);
+
+    auto* nav = new QHBoxLayout;
+    m_prevBtn = new QPushButton("上一步");
+    m_nextBtn = new QPushButton("下一步");
+    m_finishBtn = new QPushButton("完成初始化");
+    for (auto* btn : {m_prevBtn, m_nextBtn, m_finishBtn}) {
+        btn->setStyleSheet(buttonStylePrimary());
+        nav->addWidget(btn);
+    }
+    layout->addLayout(nav);
+
+    connect(m_prevBtn, &QPushButton::clicked, [this]() {
+        m_pages->setCurrentIndex(qMax(0, m_pages->currentIndex() - 1));
+        syncWizardNav();
+    });
+    connect(m_nextBtn, &QPushButton::clicked, [this]() {
+        m_pages->setCurrentIndex(qMin(m_pages->count() - 1, m_pages->currentIndex() + 1));
+        syncWizardNav();
+    });
+    connect(m_finishBtn, &QPushButton::clicked, this, &FirstRunWizard::finishSetup);
+
+    syncWizardNav();
+}
+
+void FirstRunWizard::syncWizardNav() {
+    const int idx = m_pages->currentIndex();
+    m_prevBtn->setEnabled(idx > 0);
+    m_nextBtn->setVisible(idx < m_pages->count() - 1);
+    m_finishBtn->setVisible(idx == m_pages->count() - 1);
 }
 
 void FirstRunWizard::finishSetup() {
@@ -1115,7 +1206,7 @@ void FirstRunWizard::finishSetup() {
     cfg.allowExternalLinks = m_allowExternalLinks->isChecked();
     cfg.seewoPath = m_seewoPathEdit->text().trimmed();
     cfg.siliconFlowApiKey = m_aiApiKeyEdit->text().trimmed();
-    cfg.siliconFlowModel = m_aiModelEdit->text().trimmed().isEmpty() ? QString("Qwen/Qwen3-8B") : m_aiModelEdit->text().trimmed();
+    cfg.siliconFlowModel = m_aiModelEdit->text().trimmed().isEmpty() ? QString("deepseek-ai/DeepSeek-V3.2") : m_aiModelEdit->text().trimmed();
     cfg.siliconFlowEndpoint = m_aiEndpointEdit->text().trimmed().isEmpty() ? QString("https://api.siliconflow.cn/v1/chat/completions")
                                                                             : m_aiEndpointEdit->text().trimmed();
     cfg.firstRunCompleted = true;
@@ -1152,11 +1243,14 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     topData->addChild(new QTreeWidgetItem(QStringList{"名单与按钮"}));
     auto* topSafety = new QTreeWidgetItem(QStringList{"安全与离线"});
     topSafety->addChild(new QTreeWidgetItem(QStringList{"联网控制"}));
+    auto* topAbout = new QTreeWidgetItem(QStringList{"关于"});
+    topAbout->addChild(new QTreeWidgetItem(QStringList{"关于与更新"}));
 
     m_menuTree->addTopLevelItem(topDisplay);
     m_menuTree->addTopLevelItem(topTools);
     m_menuTree->addTopLevelItem(topData);
     m_menuTree->addTopLevelItem(topSafety);
+    m_menuTree->addTopLevelItem(topAbout);
     m_menuTree->expandAll();
 
     m_stacked = new QStackedWidget;
@@ -1164,6 +1258,7 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     m_stacked->addWidget(createPageClassTools());
     m_stacked->addWidget(createPageDataManagement());
     m_stacked->addWidget(createPageSafety());
+    m_stacked->addWidget(createPageAbout());
 
     content->addWidget(m_menuTree);
     content->addWidget(m_stacked, 1);
@@ -1195,8 +1290,10 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
             m_stacked->setCurrentIndex(1);
         } else if (label == "数据管理" || label == "名单与按钮") {
             m_stacked->setCurrentIndex(2);
-        } else {
+        } else if (label == "安全与离线" || label == "联网控制") {
             m_stacked->setCurrentIndex(3);
+        } else {
+            m_stacked->setCurrentIndex(4);
         }
     });
 
@@ -1368,7 +1465,7 @@ QWidget* SettingsDialog::createPageSafety() {
     auto* modelRow = new QHBoxLayout;
     modelRow->addWidget(new QLabel("模型"));
     m_aiModelEdit = new QLineEdit;
-    m_aiModelEdit->setPlaceholderText("Qwen/Qwen3-8B");
+    m_aiModelEdit->setPlaceholderText("deepseek-ai/DeepSeek-V3.2");
     modelRow->addWidget(m_aiModelEdit, 1);
     aiLayout->addLayout(modelRow);
 
@@ -1387,6 +1484,82 @@ QWidget* SettingsDialog::createPageSafety() {
     layout->addWidget(tip2);
     layout->addStretch();
     return page;
+}
+
+QWidget* SettingsDialog::createPageAbout() {
+    auto* page = new QWidget;
+    auto* layout = new QVBoxLayout(page);
+
+    auto* aboutBox = new QGroupBox("关于 ClassAssistant");
+    auto* aboutLayout = new QVBoxLayout(aboutBox);
+    auto* desc = new QLabel("ClassAssistant 是一个面向班级课堂的轻量助手，支持离线优先与 AI 驱动增强。");
+    desc->setWordWrap(true);
+    aboutLayout->addWidget(desc);
+
+    auto* repoBtn = new QPushButton("打开 GitHub 仓库");
+    repoBtn->setStyleSheet(buttonStylePrimary());
+    connect(repoBtn, &QPushButton::clicked, this, &SettingsDialog::openGithubRepo);
+    aboutLayout->addWidget(repoBtn);
+
+    auto* updateBtn = new QPushButton("检查更新（GitHub Releases）");
+    updateBtn->setStyleSheet(buttonStylePrimary());
+    connect(updateBtn, &QPushButton::clicked, this, &SettingsDialog::checkForUpdates);
+    aboutLayout->addWidget(updateBtn);
+
+    m_updateInfoLabel = new QLabel("当前版本：" + QCoreApplication::applicationVersion());
+    m_updateInfoLabel->setWordWrap(true);
+    aboutLayout->addWidget(m_updateInfoLabel);
+
+    layout->addWidget(aboutBox);
+    layout->addStretch();
+    return page;
+}
+
+void SettingsDialog::openGithubRepo() {
+    if (!QDesktopServices::openUrl(QUrl(QString::fromUtf8(kGithubRepoUrl)))) {
+        QMessageBox::warning(this, "打开失败", "无法打开仓库链接，请手动复制 README 中的链接访问。");
+    }
+}
+
+void SettingsDialog::checkForUpdates() {
+    m_updateInfoLabel->setText("正在检查更新...");
+
+    auto* manager = new QNetworkAccessManager(this);
+    QNetworkRequest req(QUrl(QString::fromUtf8(kGithubReleasesApiUrl)));
+    req.setRawHeader("Accept", "application/vnd.github+json");
+    req.setRawHeader("User-Agent", "ClassAssistant");
+
+    QNetworkReply* reply = manager->get(req);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, manager]() {
+        const QByteArray body = reply->readAll();
+        if (reply->error() != QNetworkReply::NoError) {
+            m_updateInfoLabel->setText("检查失败：" + reply->errorString());
+            reply->deleteLater();
+            manager->deleteLater();
+            return;
+        }
+
+        const QJsonDocument doc = QJsonDocument::fromJson(body);
+        const QJsonObject obj = doc.object();
+        const QString tag = obj.value("tag_name").toString().trimmed();
+        const QString url = obj.value("html_url").toString().trimmed();
+
+        const QString localVer = QCoreApplication::applicationVersion().trimmed();
+        const QVersionNumber remote = QVersionNumber::fromString(tag.startsWith('v') ? tag.mid(1) : tag);
+        const QVersionNumber local = QVersionNumber::fromString(localVer.startsWith('v') ? localVer.mid(1) : localVer);
+
+        if (!remote.isNull() && !local.isNull() && QVersionNumber::compare(remote, local) > 0) {
+            m_updateInfoLabel->setText(QString("发现新版本：%1（当前 %2）").arg(tag, localVer));
+            if (QMessageBox::question(this, "发现更新", QString("发现新版本 %1，是否前往下载？").arg(tag)) == QMessageBox::Yes) {
+                QDesktopServices::openUrl(QUrl(url));
+            }
+        } else {
+            m_updateInfoLabel->setText(QString("当前已是最新版本（%1）").arg(localVer));
+        }
+
+        reply->deleteLater();
+        manager->deleteLater();
+    });
 }
 
 void SettingsDialog::loadData() {
@@ -1533,7 +1706,7 @@ void SettingsDialog::saveData() {
     cfg.scoreTeamBName = m_scoreTeamBName->text().trimmed().isEmpty() ? QString("蓝队") : m_scoreTeamBName->text().trimmed();
     cfg.seewoPath = m_seewoPathEdit->text().trimmed();
     cfg.siliconFlowApiKey = m_apiKeyEdit->text().trimmed();
-    cfg.siliconFlowModel = m_aiModelEdit->text().trimmed().isEmpty() ? QString("Qwen/Qwen3-8B") : m_aiModelEdit->text().trimmed();
+    cfg.siliconFlowModel = m_aiModelEdit->text().trimmed().isEmpty() ? QString("deepseek-ai/DeepSeek-V3.2") : m_aiModelEdit->text().trimmed();
     cfg.siliconFlowEndpoint = m_aiEndpointEdit->text().trimmed().isEmpty() ? QString("https://api.siliconflow.cn/v1/chat/completions")
                                                                             : m_aiEndpointEdit->text().trimmed();
 

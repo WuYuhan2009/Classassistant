@@ -117,7 +117,7 @@ ClassAssistant 适用于班级电脑、教师办公机、多媒体教学设备�
 ### 第三步：AI 初始化（可选）
 
 - API Key
-- 模型（默认 `Qwen/Qwen3-8B`）
+- 模型（默认 `deepseek-ai/DeepSeek-V3.2`）
 - 接口地址（默认 `https://api.siliconflow.cn/v1/chat/completions`）
 
 > 说明：AI 参数可以留空，系统将自动使用离线建议模式，不影响使用。
@@ -301,3 +301,12 @@ build.bat clean release
 ---
 
 如果你用于学校机房批量部署，建议先统一打包 `assets/icons` 与默认配置，再分发可执行文件。
+
+
+## 关于与更新
+
+- 设置页新增 **关于与更新** 页面，可一键打开 GitHub 仓库。
+- 新增“检查更新”功能：调用仓库 Releases API 获取最新版本并与本地版本比较。
+- 默认仓库链接：`https://github.com/Classassistant/Classassistant`，如你 fork 了仓库，可在 `src/ui/Tools.cpp` 中修改常量：
+  - `kGithubRepoUrl`
+  - `kGithubReleasesApiUrl`

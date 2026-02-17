@@ -13,6 +13,7 @@
 #include <QSlider>
 #include <QSpinBox>
 #include <QStackedWidget>
+#include <QToolButton>
 #include <QTableWidget>
 #include <QTextEdit>
 #include <QTimer>
@@ -215,8 +216,13 @@ private:
     QLineEdit* m_aiApiKeyEdit;
     QLineEdit* m_aiModelEdit;
     QLineEdit* m_aiEndpointEdit;
+    QStackedWidget* m_pages;
+    QPushButton* m_prevBtn;
+    QPushButton* m_nextBtn;
+    QPushButton* m_finishBtn;
 
     void finishSetup();
+    void syncWizardNav();
 };
 
 class SettingsDialog : public QDialog {
@@ -255,6 +261,7 @@ private:
     QLineEdit* m_apiKeyEdit;
     QLineEdit* m_aiModelEdit;
     QLineEdit* m_aiEndpointEdit;
+    QLabel* m_updateInfoLabel;
 
     void loadData();
     void saveData();
@@ -269,4 +276,7 @@ private:
     QWidget* createPageClassTools();
     QWidget* createPageDataManagement();
     QWidget* createPageSafety();
+    QWidget* createPageAbout();
+    void checkForUpdates();
+    void openGithubRepo();
 };

@@ -104,7 +104,7 @@ void Config::load() {
     firstRunCompleted = root["firstRunCompleted"].toBool(false);
     classNote = root["classNote"].toString();
     siliconFlowApiKey = root["siliconFlowApiKey"].toString().trimmed();
-    siliconFlowModel = root["siliconFlowModel"].toString("Qwen/Qwen3-8B").trimmed();
+    siliconFlowModel = root["siliconFlowModel"].toString("deepseek-ai/DeepSeek-V3.2").trimmed();
     siliconFlowEndpoint = root["siliconFlowEndpoint"].toString("https://api.siliconflow.cn/v1/chat/completions").trimmed();
 
     m_students.clear();
@@ -148,7 +148,7 @@ void Config::load() {
         m_buttons = buildDefaultButtons();
     }
     if (siliconFlowModel.isEmpty()) {
-        siliconFlowModel = "Qwen/Qwen3-8B";
+        siliconFlowModel = "deepseek-ai/DeepSeek-V3.2";
     }
     if (siliconFlowEndpoint.isEmpty()) {
         siliconFlowEndpoint = "https://api.siliconflow.cn/v1/chat/completions";
