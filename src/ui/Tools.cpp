@@ -7,6 +7,7 @@
 #include <QDateTime>
 #include <QVersionNumber>
 #include <QDesktopServices>
+#include <QGraphicsDropShadowEffect>
 #include <QFile>
 #include <QFileDialog>
 #include <QFrame>
@@ -21,6 +22,7 @@
 #include <QGuiApplication>
 #include <QGridLayout>
 #include <QMessageBox>
+#include <QMouseEvent>
 #include <QPushButton>
 #include <QPropertyAnimation>
 #include <QRandomGenerator>
@@ -29,6 +31,7 @@
 #include <QScrollArea>
 #include <QSizePolicy>
 #include <QTextStream>
+#include <QTouchEvent>
 #include <QTime>
 #include <QVBoxLayout>
 #include <functional>
@@ -50,7 +53,13 @@ void decorateDialog(QDialog* dlg, const QString& title) {
     dlg->setWindowTitle(title);
     dlg->setWindowFlags((dlg->windowFlags() | Qt::Tool | Qt::FramelessWindowHint) & ~Qt::WindowContextHelpButtonHint);
     dlg->setAttribute(Qt::WA_AcceptTouchEvents);
-    dlg->setStyleSheet("QDialog{background:#f5f8fc;} QLabel{color:#223042;} "
+    dlg->setAttribute(Qt::WA_TranslucentBackground);
+    auto* shadow = new QGraphicsDropShadowEffect(dlg);
+    shadow->setBlurRadius(28);
+    shadow->setOffset(0, 8);
+    shadow->setColor(QColor(20, 40, 70, 70));
+    dlg->setGraphicsEffect(shadow);
+    dlg->setStyleSheet("QDialog{background:#f5f8fc;border:1px solid #d8e0eb;border-radius:16px;} QLabel{color:#223042;} "
                        "QLineEdit,QTextEdit,QListWidget,QTreeWidget,QComboBox,QSpinBox,QTableWidget{"
                        "background:#ffffff;border:1px solid #d8e0eb;border-radius:14px;padding:6px;}"
                        "QTreeWidget::item{height:30px;border-radius:10px;}"
@@ -69,6 +78,77 @@ void decorateDialog(QDialog* dlg, const QString& title) {
                        "QPushButton#DialogCloseBtn{font-size:15px;min-width:30px;max-width:30px;min-height:30px;max-height:30px;padding:0;border-radius:10px;}");
 }
 
+class DialogDragFilter : public QObject {
+public:
+    explicit DialogDragFilter(QDialog* dialog) : QObject(dialog), m_dialog(dialog) {}
+
+protected:
+    bool eventFilter(QObject* watched, QEvent* event) override {
+        Q_UNUSED(watched);
+        if (!m_dialog) {
+            return false;
+        }
+
+        switch (event->type()) {
+        case QEvent::MouseButtonPress: {
+            auto* e = static_cast<QMouseEvent*>(event);
+            if (e->button() == Qt::LeftButton) {
+                m_dragging = true;
+                m_dragOffset = e->globalPos() - m_dialog->frameGeometry().topLeft();
+                return true;
+            }
+            break;
+        }
+        case QEvent::MouseMove: {
+            auto* e = static_cast<QMouseEvent*>(event);
+            if (m_dragging && (e->buttons() & Qt::LeftButton)) {
+                m_dialog->move(e->globalPos() - m_dragOffset);
+                return true;
+            }
+            break;
+        }
+        case QEvent::MouseButtonRelease: {
+            auto* e = static_cast<QMouseEvent*>(event);
+            if (e->button() == Qt::LeftButton) {
+                m_dragging = false;
+                return true;
+            }
+            break;
+        }
+        case QEvent::TouchBegin: {
+            auto* e = static_cast<QTouchEvent*>(event);
+            if (!e->touchPoints().isEmpty()) {
+                const QPoint p = e->touchPoints().first().screenPos().toPoint();
+                m_dragging = true;
+                m_dragOffset = p - m_dialog->frameGeometry().topLeft();
+                return true;
+            }
+            break;
+        }
+        case QEvent::TouchUpdate: {
+            auto* e = static_cast<QTouchEvent*>(event);
+            if (m_dragging && !e->touchPoints().isEmpty()) {
+                const QPoint p = e->touchPoints().first().screenPos().toPoint();
+                m_dialog->move(p - m_dragOffset);
+                return true;
+            }
+            break;
+        }
+        case QEvent::TouchEnd:
+            m_dragging = false;
+            return true;
+        default:
+            break;
+        }
+        return false;
+    }
+
+private:
+    QDialog* m_dialog = nullptr;
+    bool m_dragging = false;
+    QPoint m_dragOffset;
+};
+
 QWidget* createDialogTitleBar(QDialog* dlg, const QString& title) {
     auto* bar = new QFrame(dlg);
     bar->setObjectName("DialogTitleBar");
@@ -85,7 +165,11 @@ QWidget* createDialogTitleBar(QDialog* dlg, const QString& title) {
     QObject::connect(closeBtn, &QPushButton::clicked, dlg, &QDialog::close);
 
     row->addWidget(titleLabel, 1);
-    row->addWidget(closeBtn, 0, Qt::AlignRight);
+    row->addWidget(closeBtn, 0, Qt::AlignRight | Qt::AlignVCenter);
+
+    auto* dragFilter = new DialogDragFilter(dlg);
+    bar->installEventFilter(dragFilter);
+    titleLabel->installEventFilter(dragFilter);
     return bar;
 }
 }

@@ -1,6 +1,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QCoreApplication>
+#include <QCursor>
 #include <QFont>
 #include <QIcon>
 #include <QMenu>
@@ -159,6 +160,8 @@ int main(int argc, char* argv[]) {
 
     auto* menu = new QMenu();
     menu->setAttribute(Qt::WA_AcceptTouchEvents);
+    menu->setWindowFlag(Qt::FramelessWindowHint);
+    menu->setAttribute(Qt::WA_TranslucentBackground);
     menu->setStyleSheet("QMenu{background:#f8fbff;border:1px solid #cfdcec;border-radius:14px;padding:8px;}"
                         "QMenu::item{font-size:14px;color:#1f3248;padding:10px 14px;border-radius:12px;margin:3px 2px;min-height:34px;}"
                         "QMenu::item:selected{background:#e8f2ff;color:#16457d;}"
@@ -193,7 +196,6 @@ int main(int argc, char* argv[]) {
     QObject::connect(actionReloadConfig, &QAction::triggered, reloadAll);
     QObject::connect(actionQuit, &QAction::triggered, [&]() { app.quit(); });
 
-    tray->setContextMenu(menu);
     auto ensureTrayShown = [tray]() {
         if (!QSystemTrayIcon::isSystemTrayAvailable()) {
             return;
@@ -209,6 +211,10 @@ int main(int argc, char* argv[]) {
     QTimer::singleShot(1200, tray, ensureTrayShown);
 
     QObject::connect(tray, &QSystemTrayIcon::activated, [&](QSystemTrayIcon::ActivationReason reason) {
+        if (reason == QSystemTrayIcon::Context) {
+            menu->popup(QCursor::pos());
+            return;
+        }
         if ((reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::DoubleClick)
             && Config::instance().trayClickToOpen) {
             showSidebar();
