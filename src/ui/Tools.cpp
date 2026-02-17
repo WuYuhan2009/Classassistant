@@ -29,8 +29,8 @@
 #include <functional>
 
 namespace {
-const char* kGithubRepoUrl = "https://github.com/Classassistant/Classassistant";
-const char* kGithubReleasesApiUrl = "https://api.github.com/repos/Classassistant/Classassistant/releases/latest";
+const char* kGithubRepoUrl = "https://github.com/WuYuhan2009/Classassistant/";
+const char* kGithubReleasesApiUrl = "https://api.github.com/repos/WuYuhan2009/Classassistant/releases/latest";
 
 QString buttonStylePrimary() {
     return "QPushButton{background:#ffffff;border:1px solid #d8e0eb;border-radius:10px;font-weight:600;padding:8px 12px;color:#1f2d3d;}"
@@ -865,8 +865,10 @@ AIAssistantDialog::AIAssistantDialog(QWidget* parent) : QDialog(parent) {
     auto* quickRow = new QHBoxLayout;
     auto* quickRuleBtn = new QPushButton("纪律话术");
     auto* quickActivityBtn = new QPushButton("课堂活动");
+    auto* quickQuizBtn = new QPushButton("随堂测验");
+    auto* quickBoardBtn = new QPushButton("板书提纲");
     auto* clearBtn = new QPushButton("清空对话");
-    for (auto* btn : {quickRuleBtn, quickActivityBtn, clearBtn}) {
+    for (auto* btn : {quickRuleBtn, quickActivityBtn, quickQuizBtn, quickBoardBtn, clearBtn}) {
         btn->setStyleSheet(buttonStylePrimary());
         quickRow->addWidget(btn);
     }
@@ -930,6 +932,14 @@ AIAssistantDialog::AIAssistantDialog(QWidget* parent) : QDialog(parent) {
     connect(quickActivityBtn, &QPushButton::clicked, [this]() {
         m_inputEdit->setPlainText("请设计一个8分钟课堂互动活动，包含步骤、时间分配和教师提示语。");
         sendMessage();
+    });
+    connect(quickQuizBtn, &QPushButton::clicked, [this]() {
+        m_inputEdit->setPlainText("请基于‘本节知识点’生成5道随堂小测（含答案），题型2道选择+2道填空+1道简答。\n知识点：");
+        m_inputEdit->setFocus();
+    });
+    connect(quickBoardBtn, &QPushButton::clicked, [this]() {
+        m_inputEdit->setPlainText("请为本节课生成板书提纲：包含标题、3个核心要点、1个课堂互动问题和课后作业提示。\n课程主题：");
+        m_inputEdit->setFocus();
     });
 
     connect(m_inputEdit, &QTextEdit::textChanged, [this]() {

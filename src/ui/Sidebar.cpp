@@ -48,20 +48,21 @@ QPushButton* Sidebar::createIconButton(const QString& text,
     auto* btn = new QPushButton(text);
     const bool compact = Config::instance().compactMode;
     const int width = qMax(kSidebarMinWidth, Config::instance().sidebarWidth);
-    btn->setFixedSize(width - 12, compact ? 46 : 54);
+    const int side = compact ? (width - 24) : (width - 12);
+    btn->setFixedSize(side, side);
     btn->setToolTip(tooltip);
-    btn->setText(text);
 
     const QIcon icon(Config::instance().resolveIconPath(iconPath));
     if (!icon.isNull()) {
         btn->setIcon(icon);
-        const int iconSide = qMin(compact ? 18 : 22, qMax(16, Config::instance().iconSize / 2));
+        const int iconSide = qMin(compact ? 28 : 40, qMax(20, Config::instance().iconSize));
         btn->setIconSize(QSize(iconSide, iconSide));
+        btn->setText("");
     } else if (!fallbackEmoji.isEmpty()) {
-        btn->setText(fallbackEmoji + " " + text);
+        btn->setText(fallbackEmoji);
     }
 
-    btn->setStyleSheet("QPushButton{background: rgba(255,255,255,0.98); border: 1px solid #d6deea; border-radius: 14px; font-size: 13px; font-weight:600; text-align:left; padding: 6px 8px;}"
+    btn->setStyleSheet("QPushButton{background: rgba(255,255,255,0.98); border: 1px solid #d6deea; border-radius: 16px; font-size: 18px; padding: 4px;}"
                        "QPushButton:hover{background:#f4f9ff;border-color:#b7cae3;}"
                        "QPushButton:pressed{background:#eaf2fb;}");
     return btn;
@@ -80,16 +81,16 @@ void Sidebar::rebuildUI() {
     m_layout->addStretch();
     const auto buttons = Config::instance().getButtons();
     for (const auto& b : buttons) {
-        auto* btn = createIconButton(b.name, b.iconPath, b.name, "🔘");
+        auto* btn = createIconButton(b.name.left(2), b.iconPath, b.name, "🔘");
         connect(btn, &QPushButton::clicked, [this, b]() { handleAction(b.action, b.target); });
         m_layout->addWidget(btn, 0, Qt::AlignHCenter);
     }
 
-    auto* settingsBtn = createIconButton("设置", "icon_settings.png", "设置", "⚙️");
+    auto* settingsBtn = createIconButton("设", "icon_settings.png", "设置", "⚙️");
     connect(settingsBtn, &QPushButton::clicked, this, &Sidebar::openSettings);
     m_layout->addWidget(settingsBtn, 0, Qt::AlignHCenter);
 
-    auto* collapseBtn = createIconButton("收起", "icon_collapse.png", "收起", "⏷");
+    auto* collapseBtn = createIconButton("收", "icon_collapse.png", "收起", "⏷");
     connect(collapseBtn, &QPushButton::clicked, this, &Sidebar::requestHide);
     m_layout->addWidget(collapseBtn, 0, Qt::AlignHCenter);
     m_layout->addStretch();

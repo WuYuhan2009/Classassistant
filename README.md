@@ -307,6 +307,6 @@ build.bat clean release
 
 - 设置页新增 **关于与更新** 页面，可一键打开 GitHub 仓库。
 - 新增“检查更新”功能：调用仓库 Releases API 获取最新版本并与本地版本比较。
-- 默认仓库链接：`https://github.com/Classassistant/Classassistant`，如你 fork 了仓库，可在 `src/ui/Tools.cpp` 中修改常量：
+- 默认仓库链接：`https://github.com/WuYuhan2009/Classassistant/`，如你 fork 了仓库，可在 `src/ui/Tools.cpp` 中修改常量：
   - `kGithubRepoUrl`
   - `kGithubReleasesApiUrl`
