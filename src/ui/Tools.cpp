@@ -40,12 +40,20 @@ const char* kGithubRepoUrl = "https://github.com/WuYuhan2009/Classassistant/";
 const char* kGithubReleasesApiUrl = "https://api.github.com/repos/WuYuhan2009/Classassistant/releases/latest";
 
 QString buttonStylePrimary() {
-    return "QPushButton{background:#ffffff;border:1px solid #d8e0eb;border-radius:14px;font-weight:600;font-size:14px;padding:8px 12px;color:#1f2d3d;min-height:40px;}"
-           "QPushButton:hover{background:#f4f8fd;}";
+    return "QPushButton{background:#6750a4;border:1px solid #6750a4;border-radius:20px;font-weight:700;font-size:14px;padding:8px 14px;color:#ffffff;min-height:40px;}"
+           "QPushButton:hover{background:#7a63b8;border-color:#7a63b8;}"
+           "QPushButton:pressed{background:#57438f;border-color:#57438f;}"
+           "QPushButton:disabled{background:#cac4d0;border-color:#cac4d0;color:#938f99;}";
+}
+
+QString buttonStyleTonal() {
+    return "QPushButton{background:#e8def8;border:1px solid #e8def8;border-radius:20px;font-weight:700;font-size:14px;padding:8px 14px;color:#1d192b;min-height:40px;}"
+           "QPushButton:hover{background:#dfd3f2;border-color:#dfd3f2;}"
+           "QPushButton:pressed{background:#d0c3e6;border-color:#d0c3e6;}";
 }
 
 QString cardStyle() {
-    return "background:#ffffff;border:1px solid #dfe5ee;border-radius:14px;";
+    return "background:#fef7ff;border:1px solid #e7e0ec;border-radius:20px;";
 }
 
 void decorateDialog(QDialog* dlg, const QString& title) {
@@ -53,23 +61,27 @@ void decorateDialog(QDialog* dlg, const QString& title) {
     dlg->setWindowFlags((dlg->windowFlags() | Qt::Tool | Qt::FramelessWindowHint) & ~Qt::WindowContextHelpButtonHint);
     dlg->setAttribute(Qt::WA_AcceptTouchEvents);
     dlg->setAttribute(Qt::WA_StyledBackground, true);
-    dlg->setStyleSheet("QDialog{background:#f5f8fc;border:1px solid #d8e0eb;border-radius:16px;} QLabel{color:#223042;} "
+    dlg->setStyleSheet("QDialog{background:#fef7ff;border:1px solid #e7e0ec;border-radius:28px;} QLabel{color:#1d1b20;} "
                        "QLineEdit,QTextEdit,QListWidget,QTreeWidget,QComboBox,QSpinBox,QTableWidget{"
-                       "background:#ffffff;border:1px solid #d8e0eb;border-radius:14px;padding:6px;}"
+                       "background:#fffbfe;border:1px solid #79747e;border-radius:14px;padding:8px;}"
+                       "QLineEdit:focus,QTextEdit:focus,QListWidget:focus,QTreeWidget:focus,QComboBox:focus,QSpinBox:focus,QTableWidget:focus{border:2px solid #6750a4;}"
                        "QTreeWidget::item{height:30px;border-radius:10px;}"
-                       "QTreeWidget::item:selected{background:#e9f2ff;color:#1f4f8f;}"
+                       "QTreeWidget::item:selected{background:#ece6f0;color:#4a4458;}"
                        "QCheckBox{spacing:8px;} "
-                       "QSlider::groove:horizontal{height:6px;background:#dbe4ef;border-radius:3px;}"
-                       "QSlider::handle:horizontal{width:16px;margin:-5px 0;background:#ffffff;border:1px solid #9cb2ce;border-radius:8px;}"
-                       "QGroupBox{font-weight:700;border:1px solid #dfe5ee;border-radius:14px;margin-top:10px;padding-top:12px;background:#ffffff;}"
-                       "QGroupBox::title{subcontrol-origin:margin;left:10px;padding:0 6px;}"
+                       "QSlider::groove:horizontal{height:6px;background:#cac4d0;border-radius:3px;}"
+                       "QSlider::sub-page:horizontal{background:#6750a4;border-radius:3px;}"
+                       "QSlider::handle:horizontal{width:18px;margin:-6px 0;background:#6750a4;border:1px solid #6750a4;border-radius:9px;}"
+                       "QGroupBox{font-weight:700;border:1px solid #e7e0ec;border-radius:16px;margin-top:10px;padding-top:12px;background:#fffbfe;}"
+                       "QGroupBox::title{subcontrol-origin:margin;left:10px;padding:0 6px;color:#4a4458;}"
                        "QScrollBar:vertical{background:transparent;width:10px;margin:2px;}"
-                       "QScrollBar::handle:vertical{background:#c8d8ec;min-height:20px;border-radius:5px;}"
+                       "QScrollBar::handle:vertical{background:#cac4d0;min-height:20px;border-radius:5px;}"
                        "QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{height:0;}"
-                       "QPushButton{border-radius:14px;}"
-                       "QFrame#DialogTitleBar{background:#ffffff;border:1px solid #d8e0eb;border-radius:14px;}"
-                       "QLabel#DialogTitleText{font-size:15px;font-weight:800;color:#1f3b5d;}"
-                       "QPushButton#DialogCloseBtn{font-size:15px;min-width:30px;max-width:30px;min-height:30px;max-height:30px;padding:0;border-radius:10px;}");
+                       "QPushButton{border-radius:20px;}"
+                       "QFrame#DialogTitleBar{background:#fffbfe;border:1px solid #e7e0ec;border-radius:18px;}"
+                       "QLabel#DialogTitleText{font-size:16px;font-weight:800;color:#4a4458;}"
+                       "QLabel#DialogSubTitle{font-size:12px;color:#79747e;}"
+                       "QPushButton#DialogCloseBtn{font-size:15px;min-width:32px;max-width:32px;min-height:32px;max-height:32px;padding:0;border-radius:12px;background:#ece6f0;border:1px solid #e7e0ec;color:#4a4458;}"
+                       "QPushButton#DialogCloseBtn:hover{background:#e0d8ec;}");
 }
 
 class DialogDragFilter : public QObject {
@@ -153,12 +165,19 @@ QWidget* createDialogTitleBar(QDialog* dlg, const QString& title) {
 
     auto* titleLabel = new QLabel(title, bar);
     titleLabel->setObjectName("DialogTitleText");
+    auto* subTitle = new QLabel("Material You · Classroom", bar);
+    subTitle->setObjectName("DialogSubTitle");
     auto* closeBtn = new QPushButton("×", bar);
     closeBtn->setObjectName("DialogCloseBtn");
     closeBtn->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     QObject::connect(closeBtn, &QPushButton::clicked, dlg, &QDialog::close);
 
-    row->addWidget(titleLabel, 1);
+    auto* titleWrap = new QVBoxLayout;
+    titleWrap->setContentsMargins(0, 0, 0, 0);
+    titleWrap->setSpacing(0);
+    titleWrap->addWidget(titleLabel);
+    titleWrap->addWidget(subTitle);
+    row->addLayout(titleWrap, 1);
     row->addWidget(closeBtn, 0, Qt::AlignRight | Qt::AlignVCenter);
 
     auto* dragFilter = new DialogDragFilter(dlg);
@@ -399,10 +418,14 @@ AttendanceSelectDialog::AttendanceSelectDialog(QWidget* parent) : QDialog(parent
     auto* aiSummaryBtn = new QPushButton("AI缺勤分析");
     auto* saveBtn = new QPushButton("保存");
     auto* cancelBtn = new QPushButton("关闭");
-    for (auto* btn : {markAllBtn, clearAllBtn, allPresentBtn, exportBtn, aiSummaryBtn, saveBtn, cancelBtn}) {
-        btn->setStyleSheet(buttonStylePrimary());
+    for (auto* btn : {markAllBtn, clearAllBtn, allPresentBtn, exportBtn, aiSummaryBtn}) {
+        btn->setStyleSheet(buttonStyleTonal());
         btn->setMinimumWidth(110);
     }
+    saveBtn->setStyleSheet(buttonStylePrimary());
+    cancelBtn->setStyleSheet(buttonStyleTonal());
+    saveBtn->setMinimumWidth(110);
+    cancelBtn->setMinimumWidth(110);
     actions->addWidget(markAllBtn, 0, 0);
     actions->addWidget(clearAllBtn, 0, 1);
     actions->addWidget(allPresentBtn, 0, 2);
