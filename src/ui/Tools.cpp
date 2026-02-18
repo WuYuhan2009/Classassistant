@@ -1,5 +1,7 @@
 #include "Tools.h"
 
+#include "FluentTheme.h"
+
 #include <QApplication>
 #include <QClipboard>
 #include <QCoreApplication>
@@ -8,7 +10,6 @@
 #include <QVersionNumber>
 #include <QDesktopServices>
 #include <QFile>
-#include <QFileDialog>
 #include <QFrame>
 #include <QStandardPaths>
 #include <QHBoxLayout>
@@ -40,36 +41,15 @@ const char* kGithubRepoUrl = "https://github.com/WuYuhan2009/Classassistant/";
 const char* kGithubReleasesApiUrl = "https://api.github.com/repos/WuYuhan2009/Classassistant/releases/latest";
 
 QString buttonStylePrimary() {
-    return "QPushButton{background:#ffffff;border:1px solid #d8e0eb;border-radius:14px;font-weight:600;font-size:14px;padding:8px 12px;color:#1f2d3d;min-height:40px;}"
-           "QPushButton:hover{background:#f4f8fd;}";
+    return FluentTheme::dialogPrimaryButtonStyle();
 }
 
 QString cardStyle() {
-    return "background:#ffffff;border:1px solid #dfe5ee;border-radius:14px;";
+    return FluentTheme::dialogCardStyle();
 }
 
 void decorateDialog(QDialog* dlg, const QString& title) {
-    dlg->setWindowTitle(title);
-    dlg->setWindowFlags((dlg->windowFlags() | Qt::Tool | Qt::FramelessWindowHint) & ~Qt::WindowContextHelpButtonHint);
-    dlg->setAttribute(Qt::WA_AcceptTouchEvents);
-    dlg->setAttribute(Qt::WA_StyledBackground, true);
-    dlg->setStyleSheet("QDialog{background:#f5f8fc;border:1px solid #d8e0eb;border-radius:16px;} QLabel{color:#223042;} "
-                       "QLineEdit,QTextEdit,QListWidget,QTreeWidget,QComboBox,QSpinBox,QTableWidget{"
-                       "background:#ffffff;border:1px solid #d8e0eb;border-radius:14px;padding:6px;}"
-                       "QTreeWidget::item{height:30px;border-radius:10px;}"
-                       "QTreeWidget::item:selected{background:#e9f2ff;color:#1f4f8f;}"
-                       "QCheckBox{spacing:8px;} "
-                       "QSlider::groove:horizontal{height:6px;background:#dbe4ef;border-radius:3px;}"
-                       "QSlider::handle:horizontal{width:16px;margin:-5px 0;background:#ffffff;border:1px solid #9cb2ce;border-radius:8px;}"
-                       "QGroupBox{font-weight:700;border:1px solid #dfe5ee;border-radius:14px;margin-top:10px;padding-top:12px;background:#ffffff;}"
-                       "QGroupBox::title{subcontrol-origin:margin;left:10px;padding:0 6px;}"
-                       "QScrollBar:vertical{background:transparent;width:10px;margin:2px;}"
-                       "QScrollBar::handle:vertical{background:#c8d8ec;min-height:20px;border-radius:5px;}"
-                       "QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{height:0;}"
-                       "QPushButton{border-radius:14px;}"
-                       "QFrame#DialogTitleBar{background:#ffffff;border:1px solid #d8e0eb;border-radius:14px;}"
-                       "QLabel#DialogTitleText{font-size:15px;font-weight:800;color:#1f3b5d;}"
-                       "QPushButton#DialogCloseBtn{font-size:15px;min-width:30px;max-width:30px;min-height:30px;max-height:30px;padding:0;border-radius:10px;}");
+    FluentTheme::decorateDialog(dlg, title);
 }
 
 class DialogDragFilter : public QObject {
@@ -274,13 +254,13 @@ AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(pare
     root->setContentsMargins(0, 0, 0, 0);
 
     auto* panel = new QWidget;
-    panel->setStyleSheet("background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 #ffffff,stop:1 #f5f9ff);border:1px solid #d9e4f2;border-radius:18px;");
+    panel->setStyleSheet("background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 #ffffff,stop:1 #f3f8ff);border:1px solid #d3dfef;border-radius:22px;");
     auto* inner = new QVBoxLayout(panel);
     inner->setContentsMargins(14, 12, 14, 12);
     inner->setSpacing(8);
 
     m_updateTime = new QLabel;
-    m_updateTime->setStyleSheet("font-size:11px;color:#5f7086;");
+    m_updateTime->setStyleSheet("font-size:11px;color:#5f7086;background:rgba(255,255,255,0.72);border:1px solid #dfe9f5;border-radius:10px;padding:6px 8px;");
 
     auto* countsRow = new QHBoxLayout;
     countsRow->setSpacing(10);
@@ -313,7 +293,7 @@ AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(pare
 
     m_absentList = new QLabel;
     m_absentList->setWordWrap(true);
-    m_absentList->setStyleSheet("font-size:12px;background:#ffffff;border:1px solid #dbe6f3;border-radius:10px;padding:8px;color:#304864;");
+    m_absentList->setStyleSheet("font-size:12px;background:#ffffff;border:1px solid #d3dfef;border-radius:14px;padding:10px 12px;color:#304864;line-height:1.5;");
 
     inner->addWidget(m_updateTime);
     inner->addLayout(countsRow);
@@ -487,7 +467,7 @@ void AttendanceSelectDialog::exportSelection() {
         }
     }
 
-    const QString path = QFileDialog::getSaveFileName(this, "导出缺勤名单",
+    const QString path = FluentTheme::getStyledSaveFileName(this, "导出缺勤名单",
                                                       QString("考勤_%1.txt").arg(QDate::currentDate().toString("yyyyMMdd")),
                                                       "Text File (*.txt)");
     if (path.isEmpty()) {
@@ -1068,7 +1048,7 @@ AIAssistantDialog::AIAssistantDialog(QWidget* parent) : QDialog(parent) {
     });
     connect(m_saveButton, &QPushButton::clicked, [this]() {
         const QString dir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
-        const QString path = QFileDialog::getSaveFileName(this, "导出对话", dir + "/classassistant_ai_chat.txt", "Text (*.txt)");
+        const QString path = FluentTheme::getStyledSaveFileName(this, "导出对话", dir + "/classassistant_ai_chat.txt", "Text (*.txt)");
         if (path.isEmpty()) {
             return;
         }
@@ -1174,7 +1154,7 @@ AddButtonDialog::AddButtonDialog(QWidget* parent) : QDialog(parent) {
     auto* iconBtn = new QPushButton("选择图标");
     iconBtn->setStyleSheet(buttonStylePrimary());
     connect(iconBtn, &QPushButton::clicked, [this]() {
-        const QString p = QFileDialog::getOpenFileName(this, "选择图标", "", "Images (*.png *.jpg *.ico *.svg)");
+        const QString p = FluentTheme::getStyledOpenFileName(this, "选择图标", "", "Images (*.png *.jpg *.ico *.svg)");
         if (!p.isEmpty()) {
             m_iconEdit->setText(p);
         }
@@ -1286,7 +1266,7 @@ FirstRunWizard::FirstRunWizard(QWidget* parent) : QDialog(parent) {
     auto* browse = new QPushButton("选择路径");
     browse->setStyleSheet(buttonStylePrimary());
     connect(browse, &QPushButton::clicked, [this]() {
-        const QString p = QFileDialog::getOpenFileName(this, "选择程序", "", "Executable (*.exe);;All Files (*)");
+        const QString p = FluentTheme::getStyledOpenFileName(this, "选择程序", "", "Executable (*.exe);;All Files (*)");
         if (!p.isEmpty()) {
             m_seewoPathEdit->setText(p);
         }
@@ -1550,7 +1530,7 @@ QWidget* SettingsDialog::createPageClassTools() {
     auto* choosePath = new QPushButton("选择路径");
     choosePath->setStyleSheet(buttonStylePrimary());
     connect(choosePath, &QPushButton::clicked, [this]() {
-        const QString p = QFileDialog::getOpenFileName(this, "选择可执行文件", "", "Executable (*.exe);;All Files (*)");
+        const QString p = FluentTheme::getStyledOpenFileName(this, "选择可执行文件", "", "Executable (*.exe);;All Files (*)");
         if (!p.isEmpty()) {
             m_seewoPathEdit->setText(p);
         }
@@ -1785,7 +1765,7 @@ void SettingsDialog::loadData() {
 }
 
 void SettingsDialog::importStudents() {
-    const QString path = QFileDialog::getOpenFileName(this, "选择名单", "", "Roster Files (*.xlsx *.xls *.csv *.txt)");
+    const QString path = FluentTheme::getStyledOpenFileName(this, "选择名单", "", "Roster Files (*.xlsx *.xls *.csv *.txt)");
     if (path.isEmpty()) {
         return;
     }

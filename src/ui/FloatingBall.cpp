@@ -1,6 +1,7 @@
 #include "FloatingBall.h"
 
 #include "../Utils.h"
+#include "FluentTheme.h"
 
 #include <QApplication>
 #include <QCloseEvent>
@@ -16,6 +17,7 @@ FloatingBall::FloatingBall(QWidget* parent) : QWidget(parent) {
     setAttribute(Qt::WA_AcceptTouchEvents);
     setFixedSize(70, 70);
     setWindowOpacity(Config::instance().floatingOpacity / 100.0);
+    FluentTheme::applyWinUIWindowShadow(this);
     moveToBottomRight();
 }
 
@@ -72,8 +74,11 @@ void FloatingBall::paintEvent(QPaintEvent* event) {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
 
-    p.setBrush(QColor(255, 255, 255, 244));
-    p.setPen(QPen(QColor(206, 218, 233, 220), 2));
+    QRadialGradient g(QPointF(26, 22), 44);
+    g.setColorAt(0.0, QColor(255, 255, 255, 252));
+    g.setColorAt(1.0, QColor(232, 241, 255, 238));
+    p.setBrush(g);
+    p.setPen(QPen(QColor(166, 190, 220, 220), 2));
     p.drawEllipse(3, 3, 64, 64);
 
     const QString expandIconPath = Config::instance().resolveIconPath("icon_expand.png");

@@ -76,6 +76,8 @@ set(PROJECT_SOURCES
     src/ui/Sidebar.cpp
     src/ui/FloatingBall.h
     src/ui/FloatingBall.cpp
+    src/ui/FluentTheme.h
+    src/ui/FluentTheme.cpp
     src/ui/Tools.h
     src/ui/Tools.cpp
     resources.qrc

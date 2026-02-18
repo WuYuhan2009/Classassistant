@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QCloseEvent>
+#include <QList>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -39,6 +40,12 @@ private:
     SettingsDialog* m_settings;
 
     void handleAction(const QString& action, const QString& target);
+    void handleFunctionAction(const QString& target);
+    void launchExecutableTarget(const QString& target);
+    void launchUrlTarget(const QString& target);
+    QList<QWidget*> managedToolWindows() const;
+    void showManagedWindow(QWidget* window);
+
     QPushButton* createIconButton(const QString& text,
                                   const QString& iconPath,
                                   const QString& tooltip,
