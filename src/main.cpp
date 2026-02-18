@@ -23,6 +23,23 @@ QIcon loadNamedIcon(const QString& fileName) {
     const QString resolvedPath = Config::instance().resolveIconPath(fileName);
     return QIcon(resolvedPath);
 }
+
+QString buildMaterialStyleSheet() {
+    return "QWidget{font-family:'HarmonyOS Sans SC','HarmonyOS Sans','Microsoft YaHei',sans-serif;color:#1d1b20;background:transparent;}"
+           "QAbstractButton{min-height:40px;padding:8px 12px;font-size:14px;border-radius:20px;border:1px solid #7a757f;background:#fffbfe;color:#1d1b20;}"
+           "QAbstractButton:hover{background:#f5f0fa;}"
+           "QAbstractButton:pressed{background:#ece6f0;}"
+           "QLineEdit,QTextEdit,QPlainTextEdit,QListWidget,QTreeWidget,QComboBox,QSpinBox,QTableWidget{"
+           "background:#fffbfe;border:1px solid #79747e;border-radius:12px;padding:8px;selection-background-color:#e8def8;selection-color:#1d192b;}"
+           "QToolTip{background:#313033;color:#f4eff4;border:1px solid #49454f;padding:8px;border-radius:8px;}"
+           "QScrollBar:vertical{width:10px;background:transparent;margin:2px;}"
+           "QScrollBar::handle:vertical{background:#cac4d0;min-height:20px;border-radius:5px;}"
+           "QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{height:0;}"
+           "QMenu{background:#fef7ff;border:1px solid #e7e0ec;border-radius:16px;padding:8px;}"
+           "QMenu::item{font-size:14px;color:#1d1b20;padding:10px 14px;border-radius:12px;margin:2px 4px;min-height:34px;}"
+           "QMenu::item:selected{background:#ece6f0;color:#4a4458;}"
+           "QMenu::separator{height:1px;background:#e7e0ec;margin:8px 6px;}";
+}
 }
 
 int main(int argc, char* argv[]) {
@@ -42,9 +59,7 @@ int main(int argc, char* argv[]) {
     }
     uiFont.setPointSize(10);
     app.setFont(uiFont);
-    app.setStyleSheet("QWidget{font-family:'HarmonyOS Sans SC','HarmonyOS Sans','Microsoft YaHei',sans-serif;}"
-                      "QAbstractButton{min-height:40px;padding:7px 10px;font-size:14px;border-radius:14px;}"
-                      "QToolTip{background:#ffffff;color:#1f2d3d;border:1px solid #d8e0eb;padding:6px;border-radius:8px;}");
+    app.setStyleSheet(buildMaterialStyleSheet());
 
     if (!Config::instance().firstRunCompleted) {
         FirstRunWizard wizard;
@@ -162,10 +177,10 @@ int main(int argc, char* argv[]) {
     menu->setAttribute(Qt::WA_AcceptTouchEvents);
     menu->setWindowFlag(Qt::FramelessWindowHint);
     menu->setAttribute(Qt::WA_TranslucentBackground);
-    menu->setStyleSheet("QMenu{background:#f8fbff;border:1px solid #cfdcec;border-radius:14px;padding:8px;}"
-                        "QMenu::item{font-size:14px;color:#1f3248;padding:10px 14px;border-radius:12px;margin:3px 2px;min-height:34px;}"
-                        "QMenu::item:selected{background:#e8f2ff;color:#16457d;}"
-                        "QMenu::separator{height:1px;background:#d6e2f1;margin:8px 4px;}");
+    menu->setStyleSheet("QMenu{background:#fef7ff;border:1px solid #e7e0ec;border-radius:16px;padding:8px;}"
+                        "QMenu::item{font-size:14px;color:#1d1b20;padding:10px 14px;border-radius:12px;margin:2px 4px;min-height:34px;}"
+                        "QMenu::item:selected{background:#ece6f0;color:#4a4458;}"
+                        "QMenu::separator{height:1px;background:#e7e0ec;margin:8px 6px;}");
 
     auto* actionShowSidebar = menu->addAction("展开侧边栏");
     auto* actionShowBall = menu->addAction("收起为悬浮球");

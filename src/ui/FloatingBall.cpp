@@ -52,8 +52,7 @@ bool FloatingBall::event(QEvent* event) {
         } else {
             const QRect screen = QApplication::primaryScreen()->availableGeometry();
             const int x = screen.right() - width() - 8;
-            const int currentY = this->y();
-            const int boundedY = qBound(screen.top() + 8, currentY, screen.bottom() - height() - 8);
+            const int boundedY = qBound(screen.top() + 8, y(), screen.bottom() - height() - 8);
             move(x, boundedY);
         }
         event->accept();
@@ -72,19 +71,26 @@ void FloatingBall::paintEvent(QPaintEvent* event) {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
 
-    p.setBrush(QColor(255, 255, 255, 244));
-    p.setPen(QPen(QColor(206, 218, 233, 220), 2));
-    p.drawEllipse(3, 3, 64, 64);
+    p.setPen(Qt::NoPen);
+    p.setBrush(QColor(60, 56, 66, 38));
+    p.drawEllipse(6, 10, 58, 58);
+
+    QLinearGradient fill(6, 6, 62, 62);
+    fill.setColorAt(0.0, QColor(103, 80, 164, 245));
+    fill.setColorAt(1.0, QColor(125, 82, 96, 245));
+    p.setBrush(fill);
+    p.setPen(QPen(QColor(231, 224, 236, 236), 2));
+    p.drawEllipse(4, 4, 62, 62);
 
     const QString expandIconPath = Config::instance().resolveIconPath("icon_expand.png");
     QIcon icon(expandIconPath);
     if (!icon.isNull()) {
-        icon.paint(&p, QRect(15, 15, 40, 40));
+        icon.paint(&p, QRect(17, 17, 36, 36));
     } else {
-        p.setPen(QColor(70, 92, 120));
+        p.setPen(QColor(255, 251, 254));
         QFont f = font();
         f.setBold(true);
-        f.setPointSize(11);
+        f.setPointSize(10);
         p.setFont(f);
         p.drawText(rect(), Qt::AlignCenter, "展开");
     }
@@ -112,8 +118,7 @@ void FloatingBall::mouseReleaseEvent(QMouseEvent* e) {
     if (e->button() == Qt::LeftButton && m_isDragging) {
         const QRect screen = QApplication::primaryScreen()->availableGeometry();
         const int x = screen.right() - width() - 8;
-        const int currentY = this->y();
-        const int boundedY = qBound(screen.top() + 8, currentY, screen.bottom() - height() - 8);
+        const int boundedY = qBound(screen.top() + 8, y(), screen.bottom() - height() - 8);
         move(x, boundedY);
     }
 }

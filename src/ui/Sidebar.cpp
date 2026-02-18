@@ -9,9 +9,12 @@
 #include <QPropertyAnimation>
 #include <QPushButton>
 #include <QUrl>
+#include <functional>
 
 namespace {
 constexpr int kSidebarMinWidth = 84;
+constexpr int kSidebarMarginCompact = 16;
+constexpr int kSidebarMarginDefault = 24;
 }
 
 Sidebar::Sidebar(QWidget* parent) : QWidget(parent) {
@@ -48,7 +51,7 @@ QPushButton* Sidebar::createIconButton(const QString& text,
     auto* btn = new QPushButton(text);
     const bool compact = Config::instance().compactMode;
     const int width = qMax(kSidebarMinWidth, Config::instance().sidebarWidth);
-    const int side = compact ? (width - 24) : (width - 12);
+    const int side = compact ? (width - kSidebarMarginCompact) : (width - kSidebarMarginDefault);
     btn->setFixedSize(side, side);
     btn->setToolTip(tooltip);
 
@@ -62,9 +65,10 @@ QPushButton* Sidebar::createIconButton(const QString& text,
         btn->setText(fallbackEmoji);
     }
 
-    btn->setStyleSheet("QPushButton{background: rgba(255,255,255,0.98); border: 1px solid #d6deea; border-radius: 14px; font-size: 20px; padding: 6px;}"
-                       "QPushButton:hover{background:#f4f9ff;border-color:#b7cae3;}"
-                       "QPushButton:pressed{background:#eaf2fb;}");
+    btn->setStyleSheet("QPushButton{background:#fffbfe;border:1px solid #79747e;border-radius:22px;font-size:20px;padding:6px;color:#1d1b20;}"
+                       "QPushButton:hover{background:#f5f0fa;border-color:#625b71;}"
+                       "QPushButton:pressed{background:#ece6f0;}"
+                       "QPushButton:focus{border:2px solid #6750a4;}");
     return btn;
 }
 
@@ -74,9 +78,9 @@ void Sidebar::rebuildUI() {
         delete item;
     }
 
-    m_layout->setSpacing(Config::instance().compactMode ? 5 : 10);
+    m_layout->setSpacing(Config::instance().compactMode ? 6 : 10);
     setFixedWidth(qMax(kSidebarMinWidth, Config::instance().sidebarWidth));
-    setStyleSheet("QWidget { background-color: rgba(250, 252, 255, 0.98); border-top-left-radius: 20px; border-bottom-left-radius: 20px; }");
+    setStyleSheet("QWidget { background-color: rgba(254, 247, 255, 0.98); border:1px solid #e7e0ec; border-top-left-radius: 28px; border-bottom-left-radius: 28px; }");
 
     m_layout->addStretch();
     const auto buttons = Config::instance().getButtons();
@@ -152,6 +156,14 @@ void Sidebar::closeEvent(QCloseEvent* event) {
 }
 
 void Sidebar::handleAction(const QString& action, const QString& target) {
+    const auto showToolDialog = [](QWidget* dialog, const std::function<void()>& opener) {
+        if (!dialog) {
+            return;
+        }
+        dialog->setWindowOpacity(1.0);
+        opener();
+    };
+
     if (action == "exe") {
         const QString path = (target == "SEEWO") ? Config::instance().seewoPath : target;
         if (path.trimmed().isEmpty()) {
@@ -173,30 +185,24 @@ void Sidebar::handleAction(const QString& action, const QString& target) {
         if (target == "ATTENDANCE") {
             m_attendanceSummary->show();
             m_attendanceSummary->raise();
-            m_attendanceSelector->setWindowOpacity(1.0);
-            m_attendanceSelector->show();
-            m_attendanceSelector->raise();
+            showToolDialog(m_attendanceSelector, [this]() {
+                m_attendanceSelector->show();
+                m_attendanceSelector->raise();
+            });
         } else if (target == "RANDOM_CALL") {
-            m_randomCall->setWindowOpacity(1.0);
-            m_randomCall->startAnim();
+            showToolDialog(m_randomCall, [this]() { m_randomCall->startAnim(); });
         } else if (target == "CLASS_TIMER") {
-            m_classTimer->setWindowOpacity(1.0);
-            m_classTimer->openTimer();
+            showToolDialog(m_classTimer, [this]() { m_classTimer->openTimer(); });
         } else if (target == "CLASS_NOTE") {
-            m_classNote->setWindowOpacity(1.0);
-            m_classNote->openNote();
+            showToolDialog(m_classNote, [this]() { m_classNote->openNote(); });
         } else if (target == "GROUP_SPLIT") {
-            m_groupSplit->setWindowOpacity(1.0);
-            m_groupSplit->openSplitter();
+            showToolDialog(m_groupSplit, [this]() { m_groupSplit->openSplitter(); });
         } else if (target == "SCORE_BOARD") {
-            m_scoreBoard->setWindowOpacity(1.0);
-            m_scoreBoard->openBoard();
+            showToolDialog(m_scoreBoard, [this]() { m_scoreBoard->openBoard(); });
         } else if (target == "AI_ASSISTANT") {
-            m_aiAssistant->setWindowOpacity(1.0);
-            m_aiAssistant->openAssistant();
+            showToolDialog(m_aiAssistant, [this]() { m_aiAssistant->openAssistant(); });
         } else if (target == "SETTINGS") {
-            m_settings->setWindowOpacity(1.0);
-            openSettings();
+            showToolDialog(m_settings, [this]() { openSettings(); });
         }
     }
 }
