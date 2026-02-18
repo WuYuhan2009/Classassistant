@@ -43,6 +43,29 @@ Sidebar::Sidebar(QWidget* parent) : QWidget(parent) {
     rebuildUI();
 }
 
+QList<QWidget*> Sidebar::managedToolWindows() const {
+    return {
+        m_attendanceSelector,
+        m_randomCall,
+        m_classTimer,
+        m_classNote,
+        m_groupSplit,
+        m_scoreBoard,
+        m_aiAssistant,
+        m_settings,
+    };
+}
+
+void Sidebar::showManagedWindow(QWidget* window) {
+    if (!window) {
+        return;
+    }
+    window->setWindowOpacity(1.0);
+    window->show();
+    window->raise();
+    window->activateWindow();
+}
+
 QPushButton* Sidebar::createIconButton(const QString& text,
                                        const QString& iconPath,
                                        const QString& tooltip,
@@ -97,9 +120,7 @@ void Sidebar::rebuildUI() {
 }
 
 void Sidebar::openSettings() {
-    m_settings->show();
-    m_settings->raise();
-    m_settings->activateWindow();
+    showManagedWindow(m_settings);
 }
 
 void Sidebar::triggerTool(const QString& target) {
@@ -112,26 +133,25 @@ void Sidebar::hideAllToolWindowsAnimated() {
     }
 
     const int duration = Config::instance().animationDurationMs;
-    const auto hideWidget = [this, duration](QWidget* w) {
-        if (!w || !w->isVisible()) {
+    const auto hideWidget = [duration](QWidget* window) {
+        if (!window || !window->isVisible()) {
             return;
         }
-        auto* anim = new QPropertyAnimation(w, "windowOpacity", w);
+
+        auto* anim = new QPropertyAnimation(window, "windowOpacity", window);
         anim->setDuration(duration);
-        anim->setStartValue(w->windowOpacity());
+        anim->setStartValue(window->windowOpacity());
         anim->setEndValue(0.0);
-        QObject::connect(anim, &QPropertyAnimation::finished, w, &QWidget::hide);
+        QObject::connect(anim, &QPropertyAnimation::finished, window, [window]() {
+            window->hide();
+            window->setWindowOpacity(1.0);
+        });
         anim->start(QAbstractAnimation::DeleteWhenStopped);
     };
 
-    hideWidget(m_attendanceSelector);
-    hideWidget(m_randomCall);
-    hideWidget(m_classTimer);
-    hideWidget(m_classNote);
-    hideWidget(m_groupSplit);
-    hideWidget(m_scoreBoard);
-    hideWidget(m_aiAssistant);
-    hideWidget(m_settings);
+    for (QWidget* window : managedToolWindows()) {
+        hideWidget(window);
+    }
 }
 
 void Sidebar::reloadConfig() {
@@ -151,52 +171,67 @@ void Sidebar::closeEvent(QCloseEvent* event) {
     event->ignore();
 }
 
+void Sidebar::launchExecutableTarget(const QString& target) {
+    const QString path = (target == "SEEWO") ? Config::instance().seewoPath : target;
+    if (path.trimmed().isEmpty()) {
+        QMessageBox::warning(this, "启动失败", "程序路径为空，请在设置中配置后重试。");
+        return;
+    }
+    if (!QProcess::startDetached(path, {})) {
+        if (!QDesktopServices::openUrl(QUrl::fromLocalFile(path))) {
+            QMessageBox::warning(this, "启动失败", QString("无法打开目标：%1").arg(path));
+        }
+    }
+}
+
+void Sidebar::launchUrlTarget(const QString& target) {
+    if (!Config::instance().allowExternalLinks) {
+        QMessageBox::information(this, "已禁用", "当前处于离线优先模式，URL 打开已禁用。可在设置-安全与离线中启用。");
+        return;
+    }
+    QDesktopServices::openUrl(QUrl(target));
+}
+
+void Sidebar::handleFunctionAction(const QString& target) {
+    if (target == "ATTENDANCE") {
+        m_attendanceSummary->show();
+        m_attendanceSummary->raise();
+        showManagedWindow(m_attendanceSelector);
+    } else if (target == "RANDOM_CALL") {
+        m_randomCall->setWindowOpacity(1.0);
+        m_randomCall->startAnim();
+    } else if (target == "CLASS_TIMER") {
+        m_classTimer->setWindowOpacity(1.0);
+        m_classTimer->openTimer();
+    } else if (target == "CLASS_NOTE") {
+        m_classNote->setWindowOpacity(1.0);
+        m_classNote->openNote();
+    } else if (target == "GROUP_SPLIT") {
+        m_groupSplit->setWindowOpacity(1.0);
+        m_groupSplit->openSplitter();
+    } else if (target == "SCORE_BOARD") {
+        m_scoreBoard->setWindowOpacity(1.0);
+        m_scoreBoard->openBoard();
+    } else if (target == "AI_ASSISTANT") {
+        m_aiAssistant->setWindowOpacity(1.0);
+        m_aiAssistant->openAssistant();
+    } else if (target == "SETTINGS") {
+        openSettings();
+    }
+}
+
 void Sidebar::handleAction(const QString& action, const QString& target) {
     if (action == "exe") {
-        const QString path = (target == "SEEWO") ? Config::instance().seewoPath : target;
-        if (path.trimmed().isEmpty()) {
-            QMessageBox::warning(this, "启动失败", "程序路径为空，请在设置中配置后重试。");
-            return;
-        }
-        if (!QProcess::startDetached(path, {})) {
-            if (!QDesktopServices::openUrl(QUrl::fromLocalFile(path))) {
-                QMessageBox::warning(this, "启动失败", QString("无法打开目标：%1").arg(path));
-            }
-        }
-    } else if (action == "url") {
-        if (!Config::instance().allowExternalLinks) {
-            QMessageBox::information(this, "已禁用", "当前处于离线优先模式，URL 打开已禁用。可在设置-安全与离线中启用。");
-            return;
-        }
-        QDesktopServices::openUrl(QUrl(target));
-    } else if (action == "func") {
-        if (target == "ATTENDANCE") {
-            m_attendanceSummary->show();
-            m_attendanceSummary->raise();
-            m_attendanceSelector->setWindowOpacity(1.0);
-            m_attendanceSelector->show();
-            m_attendanceSelector->raise();
-        } else if (target == "RANDOM_CALL") {
-            m_randomCall->setWindowOpacity(1.0);
-            m_randomCall->startAnim();
-        } else if (target == "CLASS_TIMER") {
-            m_classTimer->setWindowOpacity(1.0);
-            m_classTimer->openTimer();
-        } else if (target == "CLASS_NOTE") {
-            m_classNote->setWindowOpacity(1.0);
-            m_classNote->openNote();
-        } else if (target == "GROUP_SPLIT") {
-            m_groupSplit->setWindowOpacity(1.0);
-            m_groupSplit->openSplitter();
-        } else if (target == "SCORE_BOARD") {
-            m_scoreBoard->setWindowOpacity(1.0);
-            m_scoreBoard->openBoard();
-        } else if (target == "AI_ASSISTANT") {
-            m_aiAssistant->setWindowOpacity(1.0);
-            m_aiAssistant->openAssistant();
-        } else if (target == "SETTINGS") {
-            m_settings->setWindowOpacity(1.0);
-            openSettings();
-        }
+        launchExecutableTarget(target);
+        return;
+    }
+
+    if (action == "url") {
+        launchUrlTarget(target);
+        return;
+    }
+
+    if (action == "func") {
+        handleFunctionAction(target);
     }
 }
