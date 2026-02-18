@@ -10,7 +10,6 @@
 #include <QVersionNumber>
 #include <QDesktopServices>
 #include <QFile>
-#include <QFileDialog>
 #include <QFrame>
 #include <QStandardPaths>
 #include <QHBoxLayout>
@@ -468,7 +467,7 @@ void AttendanceSelectDialog::exportSelection() {
         }
     }
 
-    const QString path = QFileDialog::getSaveFileName(this, "导出缺勤名单",
+    const QString path = FluentTheme::getStyledSaveFileName(this, "导出缺勤名单",
                                                       QString("考勤_%1.txt").arg(QDate::currentDate().toString("yyyyMMdd")),
                                                       "Text File (*.txt)");
     if (path.isEmpty()) {
@@ -1049,7 +1048,7 @@ AIAssistantDialog::AIAssistantDialog(QWidget* parent) : QDialog(parent) {
     });
     connect(m_saveButton, &QPushButton::clicked, [this]() {
         const QString dir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
-        const QString path = QFileDialog::getSaveFileName(this, "导出对话", dir + "/classassistant_ai_chat.txt", "Text (*.txt)");
+        const QString path = FluentTheme::getStyledSaveFileName(this, "导出对话", dir + "/classassistant_ai_chat.txt", "Text (*.txt)");
         if (path.isEmpty()) {
             return;
         }
@@ -1155,7 +1154,7 @@ AddButtonDialog::AddButtonDialog(QWidget* parent) : QDialog(parent) {
     auto* iconBtn = new QPushButton("选择图标");
     iconBtn->setStyleSheet(buttonStylePrimary());
     connect(iconBtn, &QPushButton::clicked, [this]() {
-        const QString p = QFileDialog::getOpenFileName(this, "选择图标", "", "Images (*.png *.jpg *.ico *.svg)");
+        const QString p = FluentTheme::getStyledOpenFileName(this, "选择图标", "", "Images (*.png *.jpg *.ico *.svg)");
         if (!p.isEmpty()) {
             m_iconEdit->setText(p);
         }
@@ -1267,7 +1266,7 @@ FirstRunWizard::FirstRunWizard(QWidget* parent) : QDialog(parent) {
     auto* browse = new QPushButton("选择路径");
     browse->setStyleSheet(buttonStylePrimary());
     connect(browse, &QPushButton::clicked, [this]() {
-        const QString p = QFileDialog::getOpenFileName(this, "选择程序", "", "Executable (*.exe);;All Files (*)");
+        const QString p = FluentTheme::getStyledOpenFileName(this, "选择程序", "", "Executable (*.exe);;All Files (*)");
         if (!p.isEmpty()) {
             m_seewoPathEdit->setText(p);
         }
@@ -1531,7 +1530,7 @@ QWidget* SettingsDialog::createPageClassTools() {
     auto* choosePath = new QPushButton("选择路径");
     choosePath->setStyleSheet(buttonStylePrimary());
     connect(choosePath, &QPushButton::clicked, [this]() {
-        const QString p = QFileDialog::getOpenFileName(this, "选择可执行文件", "", "Executable (*.exe);;All Files (*)");
+        const QString p = FluentTheme::getStyledOpenFileName(this, "选择可执行文件", "", "Executable (*.exe);;All Files (*)");
         if (!p.isEmpty()) {
             m_seewoPathEdit->setText(p);
         }
@@ -1766,7 +1765,7 @@ void SettingsDialog::loadData() {
 }
 
 void SettingsDialog::importStudents() {
-    const QString path = QFileDialog::getOpenFileName(this, "选择名单", "", "Roster Files (*.xlsx *.xls *.csv *.txt)");
+    const QString path = FluentTheme::getStyledOpenFileName(this, "选择名单", "", "Roster Files (*.xlsx *.xls *.csv *.txt)");
     if (path.isEmpty()) {
         return;
     }

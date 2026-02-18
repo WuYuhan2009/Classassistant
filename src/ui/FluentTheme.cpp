@@ -2,11 +2,30 @@
 
 #include <QAbstractScrollArea>
 #include <QDialog>
+#include <QDialogButtonBox>
+#include <QPushButton>
+#include <QFileDialog>
 #include <QGraphicsDropShadowEffect>
 #include <QScroller>
 #include <QWidget>
 
 namespace FluentTheme {
+
+
+namespace {
+void styleFileDialog(QFileDialog& dialog) {
+    dialog.setOption(QFileDialog::DontUseNativeDialog, true);
+    dialog.setWindowFlag(Qt::FramelessWindowHint, true);
+    dialog.setAttribute(Qt::WA_StyledBackground, true);
+    dialog.setStyleSheet(FluentTheme::dialogChromeStyle() +
+                         QString("QFileDialog QPushButton{min-height:36px;padding:8px 12px;border:1px solid #cfdcec;background:#ffffff;border-radius:12px;}"
+                                 "QFileDialog QPushButton:hover{background:#edf5ff;border-color:#9fbde1;}"
+                                 "QFileDialog QListView,QFileDialog QTreeView{border:1px solid #d3dfef;border-radius:12px;background:#ffffff;}"
+                                 "QFileDialog QLineEdit{min-height:34px;}"));
+    FluentTheme::applyWinUIWindowShadow(&dialog);
+    FluentTheme::enableTouchOptimizations(&dialog);
+}
+}
 
 QString sidebarPanelStyle() {
     return "QWidget {"
@@ -70,6 +89,10 @@ QString dialogChromeStyle() {
            "QScrollBar::handle:vertical{background:#c8d8ec;min-height:20px;border-radius:5px;}"
            "QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{height:0;}"
            "QPushButton{border-radius:14px;}"
+           "QSpinBox::up-button,QSpinBox::down-button{width:22px;border-left:1px solid #d1deef;background:#f5f9ff;border-radius:8px;margin:2px;}"
+           "QSpinBox::up-button:hover,QSpinBox::down-button:hover{background:#e8f2ff;}"
+           "QSpinBox::up-arrow{image:none;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:7px solid #4f6f94;}"
+           "QSpinBox::down-arrow{image:none;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:7px solid #4f6f94;}"
            "QListWidget::item,QTreeWidget::item{border-radius:10px;padding:6px;}"
            "QFrame#DialogTitleBar{background:#ffffff;border:1px solid #d8e0eb;border-radius:14px;}"
            "QLabel#DialogTitleText{font-size:15px;font-weight:800;color:#1f3b5d;}"
@@ -117,6 +140,34 @@ void decorateDialog(QDialog* dialog, const QString& title) {
     dialog->setStyleSheet(dialogChromeStyle());
     applyWinUIWindowShadow(dialog);
     enableTouchOptimizations(dialog);
+}
+
+QString getStyledOpenFileName(QWidget* parent,
+                              const QString& title,
+                              const QString& initialPath,
+                              const QString& filter) {
+    QFileDialog dialog(parent, title, initialPath, filter);
+    dialog.setFileMode(QFileDialog::ExistingFile);
+    dialog.setAcceptMode(QFileDialog::AcceptOpen);
+    styleFileDialog(dialog);
+    if (dialog.exec() != QDialog::Accepted || dialog.selectedFiles().isEmpty()) {
+        return QString();
+    }
+    return dialog.selectedFiles().first();
+}
+
+QString getStyledSaveFileName(QWidget* parent,
+                              const QString& title,
+                              const QString& initialPath,
+                              const QString& filter) {
+    QFileDialog dialog(parent, title, initialPath, filter);
+    dialog.setFileMode(QFileDialog::AnyFile);
+    dialog.setAcceptMode(QFileDialog::AcceptSave);
+    styleFileDialog(dialog);
+    if (dialog.exec() != QDialog::Accepted || dialog.selectedFiles().isEmpty()) {
+        return QString();
+    }
+    return dialog.selectedFiles().first();
 }
 
 }  // namespace FluentTheme
