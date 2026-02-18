@@ -17,6 +17,7 @@
 #include "ui/FloatingBall.h"
 #include "ui/Sidebar.h"
 #include "ui/Tools.h"
+#include "ui/FluentTheme.h"
 
 namespace {
 QIcon loadNamedIcon(const QString& fileName) {
@@ -44,7 +45,7 @@ int main(int argc, char* argv[]) {
     app.setFont(uiFont);
     app.setStyleSheet("QWidget{font-family:'HarmonyOS Sans SC','HarmonyOS Sans','Microsoft YaHei',sans-serif;}"
                       "QAbstractButton{min-height:40px;padding:7px 10px;font-size:14px;border-radius:14px;}"
-                      "QToolTip{background:#ffffff;color:#1f2d3d;border:1px solid #d8e0eb;padding:6px;border-radius:8px;}");
+                      "QToolTip{background:#ffffff;color:#1f2d3d;border:1px solid #cddbeb;padding:6px;border-radius:10px;}");
 
     if (!Config::instance().firstRunCompleted) {
         FirstRunWizard wizard;
@@ -162,10 +163,7 @@ int main(int argc, char* argv[]) {
     menu->setAttribute(Qt::WA_AcceptTouchEvents);
     menu->setWindowFlag(Qt::FramelessWindowHint);
     menu->setAttribute(Qt::WA_TranslucentBackground);
-    menu->setStyleSheet("QMenu{background:#f8fbff;border:1px solid #cfdcec;border-radius:14px;padding:8px;}"
-                        "QMenu::item{font-size:14px;color:#1f3248;padding:10px 14px;border-radius:12px;margin:3px 2px;min-height:34px;}"
-                        "QMenu::item:selected{background:#e8f2ff;color:#16457d;}"
-                        "QMenu::separator{height:1px;background:#d6e2f1;margin:8px 4px;}");
+    menu->setStyleSheet(FluentTheme::trayMenuStyle());
 
     auto* actionShowSidebar = menu->addAction("展开侧边栏");
     auto* actionShowBall = menu->addAction("收起为悬浮球");

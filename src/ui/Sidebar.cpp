@@ -1,6 +1,7 @@
 #include "Sidebar.h"
 
 #include "../Utils.h"
+#include "FluentTheme.h"
 
 #include <QDesktopServices>
 #include <QIcon>
@@ -17,6 +18,7 @@ constexpr int kSidebarMinWidth = 84;
 Sidebar::Sidebar(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::FramelessWindowHint | Qt::Tool | Qt::WindowStaysOnTopHint);
     setAttribute(Qt::WA_TranslucentBackground);
+    FluentTheme::applyWinUIWindowShadow(this);
 
     m_attendanceSummary = new AttendanceSummaryWidget();
     if (Config::instance().showAttendanceSummaryOnStart) {
@@ -62,9 +64,7 @@ QPushButton* Sidebar::createIconButton(const QString& text,
         btn->setText(fallbackEmoji);
     }
 
-    btn->setStyleSheet("QPushButton{background: rgba(255,255,255,0.98); border: 1px solid #d6deea; border-radius: 14px; font-size: 20px; padding: 6px;}"
-                       "QPushButton:hover{background:#f4f9ff;border-color:#b7cae3;}"
-                       "QPushButton:pressed{background:#eaf2fb;}");
+    btn->setStyleSheet(FluentTheme::sidebarButtonStyle());
     return btn;
 }
 
@@ -76,7 +76,7 @@ void Sidebar::rebuildUI() {
 
     m_layout->setSpacing(Config::instance().compactMode ? 5 : 10);
     setFixedWidth(qMax(kSidebarMinWidth, Config::instance().sidebarWidth));
-    setStyleSheet("QWidget { background-color: rgba(250, 252, 255, 0.98); border-top-left-radius: 20px; border-bottom-left-radius: 20px; }");
+    setStyleSheet(FluentTheme::sidebarPanelStyle());
 
     m_layout->addStretch();
     const auto buttons = Config::instance().getButtons();

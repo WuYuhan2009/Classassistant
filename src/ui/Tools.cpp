@@ -1,5 +1,7 @@
 #include "Tools.h"
 
+#include "FluentTheme.h"
+
 #include <QApplication>
 #include <QClipboard>
 #include <QCoreApplication>
@@ -40,36 +42,15 @@ const char* kGithubRepoUrl = "https://github.com/WuYuhan2009/Classassistant/";
 const char* kGithubReleasesApiUrl = "https://api.github.com/repos/WuYuhan2009/Classassistant/releases/latest";
 
 QString buttonStylePrimary() {
-    return "QPushButton{background:#ffffff;border:1px solid #d8e0eb;border-radius:14px;font-weight:600;font-size:14px;padding:8px 12px;color:#1f2d3d;min-height:40px;}"
-           "QPushButton:hover{background:#f4f8fd;}";
+    return FluentTheme::dialogPrimaryButtonStyle();
 }
 
 QString cardStyle() {
-    return "background:#ffffff;border:1px solid #dfe5ee;border-radius:14px;";
+    return FluentTheme::dialogCardStyle();
 }
 
 void decorateDialog(QDialog* dlg, const QString& title) {
-    dlg->setWindowTitle(title);
-    dlg->setWindowFlags((dlg->windowFlags() | Qt::Tool | Qt::FramelessWindowHint) & ~Qt::WindowContextHelpButtonHint);
-    dlg->setAttribute(Qt::WA_AcceptTouchEvents);
-    dlg->setAttribute(Qt::WA_StyledBackground, true);
-    dlg->setStyleSheet("QDialog{background:#f5f8fc;border:1px solid #d8e0eb;border-radius:16px;} QLabel{color:#223042;} "
-                       "QLineEdit,QTextEdit,QListWidget,QTreeWidget,QComboBox,QSpinBox,QTableWidget{"
-                       "background:#ffffff;border:1px solid #d8e0eb;border-radius:14px;padding:6px;}"
-                       "QTreeWidget::item{height:30px;border-radius:10px;}"
-                       "QTreeWidget::item:selected{background:#e9f2ff;color:#1f4f8f;}"
-                       "QCheckBox{spacing:8px;} "
-                       "QSlider::groove:horizontal{height:6px;background:#dbe4ef;border-radius:3px;}"
-                       "QSlider::handle:horizontal{width:16px;margin:-5px 0;background:#ffffff;border:1px solid #9cb2ce;border-radius:8px;}"
-                       "QGroupBox{font-weight:700;border:1px solid #dfe5ee;border-radius:14px;margin-top:10px;padding-top:12px;background:#ffffff;}"
-                       "QGroupBox::title{subcontrol-origin:margin;left:10px;padding:0 6px;}"
-                       "QScrollBar:vertical{background:transparent;width:10px;margin:2px;}"
-                       "QScrollBar::handle:vertical{background:#c8d8ec;min-height:20px;border-radius:5px;}"
-                       "QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{height:0;}"
-                       "QPushButton{border-radius:14px;}"
-                       "QFrame#DialogTitleBar{background:#ffffff;border:1px solid #d8e0eb;border-radius:14px;}"
-                       "QLabel#DialogTitleText{font-size:15px;font-weight:800;color:#1f3b5d;}"
-                       "QPushButton#DialogCloseBtn{font-size:15px;min-width:30px;max-width:30px;min-height:30px;max-height:30px;padding:0;border-radius:10px;}");
+    FluentTheme::decorateDialog(dlg, title);
 }
 
 class DialogDragFilter : public QObject {
