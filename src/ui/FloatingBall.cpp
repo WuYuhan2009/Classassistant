@@ -72,15 +72,18 @@ void FloatingBall::paintEvent(QPaintEvent* event) {
     p.setRenderHint(QPainter::Antialiasing);
 
     p.setPen(Qt::NoPen);
-    p.setBrush(QColor(60, 56, 66, 38));
-    p.drawEllipse(6, 10, 58, 58);
+    p.setBrush(QColor(73, 69, 79, 36));
+    p.drawEllipse(8, 12, 54, 54);
 
-    QLinearGradient fill(6, 6, 62, 62);
-    fill.setColorAt(0.0, QColor(103, 80, 164, 245));
-    fill.setColorAt(1.0, QColor(125, 82, 96, 245));
+    p.setBrush(QColor(234, 221, 255));
+    p.drawEllipse(3, 3, 64, 64);
+
+    QLinearGradient fill(8, 8, 60, 60);
+    fill.setColorAt(0.0, QColor(103, 80, 164));
+    fill.setColorAt(1.0, QColor(98, 91, 113));
     p.setBrush(fill);
-    p.setPen(QPen(QColor(231, 224, 236, 236), 2));
-    p.drawEllipse(4, 4, 62, 62);
+    p.setPen(QPen(QColor(255, 255, 255, 180), 1));
+    p.drawEllipse(8, 8, 54, 54);
 
     const QString expandIconPath = Config::instance().resolveIconPath("icon_expand.png");
     QIcon icon(expandIconPath);
@@ -92,7 +95,7 @@ void FloatingBall::paintEvent(QPaintEvent* event) {
         f.setBold(true);
         f.setPointSize(10);
         p.setFont(f);
-        p.drawText(rect(), Qt::AlignCenter, "展开");
+        p.drawText(QRect(8, 8, 54, 54), Qt::AlignCenter, "展开");
     }
 }
 

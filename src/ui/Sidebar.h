@@ -1,6 +1,9 @@
 #pragma once
 
 #include <QCloseEvent>
+#include <QHash>
+#include <QLabel>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -28,6 +31,8 @@ protected:
 
 private:
     QVBoxLayout* m_layout;
+    QLabel* m_clockLabel;
+    QHash<QString, QPushButton*> m_toolButtons;
     AttendanceSummaryWidget* m_attendanceSummary;
     AttendanceSelectDialog* m_attendanceSelector;
     RandomCallDialog* m_randomCall;
@@ -39,6 +44,8 @@ private:
     SettingsDialog* m_settings;
 
     void handleAction(const QString& action, const QString& target);
+    void updateClockText();
+    void setActiveTool(const QString& target);
     QPushButton* createIconButton(const QString& text,
                                   const QString& iconPath,
                                   const QString& tooltip,

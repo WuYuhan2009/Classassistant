@@ -46,8 +46,14 @@ QString buttonStylePrimary() {
            "QPushButton:disabled{background:#cac4d0;border-color:#cac4d0;color:#938f99;}";
 }
 
+QString buttonStyleTonal() {
+    return "QPushButton{background:#e8def8;border:1px solid #e8def8;border-radius:20px;font-weight:700;font-size:14px;padding:8px 14px;color:#1d192b;min-height:40px;}"
+           "QPushButton:hover{background:#dfd3f2;border-color:#dfd3f2;}"
+           "QPushButton:pressed{background:#d0c3e6;border-color:#d0c3e6;}";
+}
+
 QString cardStyle() {
-    return "background:#fef7ff;border:1px solid #e7e0ec;border-radius:18px;";
+    return "background:#fef7ff;border:1px solid #e7e0ec;border-radius:20px;";
 }
 
 void decorateDialog(QDialog* dlg, const QString& title) {
@@ -55,7 +61,7 @@ void decorateDialog(QDialog* dlg, const QString& title) {
     dlg->setWindowFlags((dlg->windowFlags() | Qt::Tool | Qt::FramelessWindowHint) & ~Qt::WindowContextHelpButtonHint);
     dlg->setAttribute(Qt::WA_AcceptTouchEvents);
     dlg->setAttribute(Qt::WA_StyledBackground, true);
-    dlg->setStyleSheet("QDialog{background:#fef7ff;border:1px solid #e7e0ec;border-radius:24px;} QLabel{color:#1d1b20;} "
+    dlg->setStyleSheet("QDialog{background:#fef7ff;border:1px solid #e7e0ec;border-radius:28px;} QLabel{color:#1d1b20;} "
                        "QLineEdit,QTextEdit,QListWidget,QTreeWidget,QComboBox,QSpinBox,QTableWidget{"
                        "background:#fffbfe;border:1px solid #79747e;border-radius:14px;padding:8px;}"
                        "QLineEdit:focus,QTextEdit:focus,QListWidget:focus,QTreeWidget:focus,QComboBox:focus,QSpinBox:focus,QTableWidget:focus{border:2px solid #6750a4;}"
@@ -63,6 +69,7 @@ void decorateDialog(QDialog* dlg, const QString& title) {
                        "QTreeWidget::item:selected{background:#ece6f0;color:#4a4458;}"
                        "QCheckBox{spacing:8px;} "
                        "QSlider::groove:horizontal{height:6px;background:#cac4d0;border-radius:3px;}"
+                       "QSlider::sub-page:horizontal{background:#6750a4;border-radius:3px;}"
                        "QSlider::handle:horizontal{width:18px;margin:-6px 0;background:#6750a4;border:1px solid #6750a4;border-radius:9px;}"
                        "QGroupBox{font-weight:700;border:1px solid #e7e0ec;border-radius:16px;margin-top:10px;padding-top:12px;background:#fffbfe;}"
                        "QGroupBox::title{subcontrol-origin:margin;left:10px;padding:0 6px;color:#4a4458;}"
@@ -70,8 +77,9 @@ void decorateDialog(QDialog* dlg, const QString& title) {
                        "QScrollBar::handle:vertical{background:#cac4d0;min-height:20px;border-radius:5px;}"
                        "QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{height:0;}"
                        "QPushButton{border-radius:20px;}"
-                       "QFrame#DialogTitleBar{background:#fffbfe;border:1px solid #e7e0ec;border-radius:16px;}"
-                       "QLabel#DialogTitleText{font-size:15px;font-weight:800;color:#4a4458;}"
+                       "QFrame#DialogTitleBar{background:#fffbfe;border:1px solid #e7e0ec;border-radius:18px;}"
+                       "QLabel#DialogTitleText{font-size:16px;font-weight:800;color:#4a4458;}"
+                       "QLabel#DialogSubTitle{font-size:12px;color:#79747e;}"
                        "QPushButton#DialogCloseBtn{font-size:15px;min-width:32px;max-width:32px;min-height:32px;max-height:32px;padding:0;border-radius:12px;background:#ece6f0;border:1px solid #e7e0ec;color:#4a4458;}"
                        "QPushButton#DialogCloseBtn:hover{background:#e0d8ec;}");
 }
@@ -157,12 +165,19 @@ QWidget* createDialogTitleBar(QDialog* dlg, const QString& title) {
 
     auto* titleLabel = new QLabel(title, bar);
     titleLabel->setObjectName("DialogTitleText");
+    auto* subTitle = new QLabel("Material You · Classroom", bar);
+    subTitle->setObjectName("DialogSubTitle");
     auto* closeBtn = new QPushButton("×", bar);
     closeBtn->setObjectName("DialogCloseBtn");
     closeBtn->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     QObject::connect(closeBtn, &QPushButton::clicked, dlg, &QDialog::close);
 
-    row->addWidget(titleLabel, 1);
+    auto* titleWrap = new QVBoxLayout;
+    titleWrap->setContentsMargins(0, 0, 0, 0);
+    titleWrap->setSpacing(0);
+    titleWrap->addWidget(titleLabel);
+    titleWrap->addWidget(subTitle);
+    row->addLayout(titleWrap, 1);
     row->addWidget(closeBtn, 0, Qt::AlignRight | Qt::AlignVCenter);
 
     auto* dragFilter = new DialogDragFilter(dlg);
@@ -403,10 +418,14 @@ AttendanceSelectDialog::AttendanceSelectDialog(QWidget* parent) : QDialog(parent
     auto* aiSummaryBtn = new QPushButton("AI缺勤分析");
     auto* saveBtn = new QPushButton("保存");
     auto* cancelBtn = new QPushButton("关闭");
-    for (auto* btn : {markAllBtn, clearAllBtn, allPresentBtn, exportBtn, aiSummaryBtn, saveBtn, cancelBtn}) {
-        btn->setStyleSheet(buttonStylePrimary());
+    for (auto* btn : {markAllBtn, clearAllBtn, allPresentBtn, exportBtn, aiSummaryBtn}) {
+        btn->setStyleSheet(buttonStyleTonal());
         btn->setMinimumWidth(110);
     }
+    saveBtn->setStyleSheet(buttonStylePrimary());
+    cancelBtn->setStyleSheet(buttonStyleTonal());
+    saveBtn->setMinimumWidth(110);
+    cancelBtn->setMinimumWidth(110);
     actions->addWidget(markAllBtn, 0, 0);
     actions->addWidget(clearAllBtn, 0, 1);
     actions->addWidget(allPresentBtn, 0, 2);
