@@ -16,5 +16,6 @@ QString dialogChromeStyle();
 
 void applyWinUIWindowShadow(QWidget* widget);
 void decorateDialog(QDialog* dialog, const QString& title);
+void enableTouchOptimizations(QWidget* root);
 
 }  // namespace FluentTheme

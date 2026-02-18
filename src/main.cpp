@@ -30,6 +30,15 @@ int main(int argc, char* argv[]) {
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 #endif
+#if QT_VERSION >= QT_VERSION_CHECK(5, 6, 0)
+    QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
+#endif
+#if QT_VERSION >= QT_VERSION_CHECK(5, 7, 0)
+    QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
+#endif
+#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
+    QCoreApplication::setAttribute(Qt::AA_CompressHighFrequencyEvents);
+#endif
     QCoreApplication::setAttribute(Qt::AA_SynthesizeMouseForUnhandledTouchEvents);
     QCoreApplication::setAttribute(Qt::AA_SynthesizeTouchForUnhandledMouseEvents);
 

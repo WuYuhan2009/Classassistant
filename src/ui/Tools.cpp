@@ -255,13 +255,13 @@ AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(pare
     root->setContentsMargins(0, 0, 0, 0);
 
     auto* panel = new QWidget;
-    panel->setStyleSheet("background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 #ffffff,stop:1 #f5f9ff);border:1px solid #d9e4f2;border-radius:18px;");
+    panel->setStyleSheet("background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 #ffffff,stop:1 #f3f8ff);border:1px solid #d3dfef;border-radius:22px;");
     auto* inner = new QVBoxLayout(panel);
     inner->setContentsMargins(14, 12, 14, 12);
     inner->setSpacing(8);
 
     m_updateTime = new QLabel;
-    m_updateTime->setStyleSheet("font-size:11px;color:#5f7086;");
+    m_updateTime->setStyleSheet("font-size:11px;color:#5f7086;background:rgba(255,255,255,0.72);border:1px solid #dfe9f5;border-radius:10px;padding:6px 8px;");
 
     auto* countsRow = new QHBoxLayout;
     countsRow->setSpacing(10);
@@ -294,7 +294,7 @@ AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(pare
 
     m_absentList = new QLabel;
     m_absentList->setWordWrap(true);
-    m_absentList->setStyleSheet("font-size:12px;background:#ffffff;border:1px solid #dbe6f3;border-radius:10px;padding:8px;color:#304864;");
+    m_absentList->setStyleSheet("font-size:12px;background:#ffffff;border:1px solid #d3dfef;border-radius:14px;padding:10px 12px;color:#304864;line-height:1.5;");
 
     inner->addWidget(m_updateTime);
     inner->addLayout(countsRow);
