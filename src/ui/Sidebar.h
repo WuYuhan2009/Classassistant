@@ -7,6 +7,9 @@
 #include "Tools.h"
 
 class QPushButton;
+class QEvent;
+class QFocusEvent;
+class QObject;
 
 class Sidebar : public QWidget {
     Q_OBJECT
@@ -30,6 +33,8 @@ public slots:
 protected:
     void resizeEvent(QResizeEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
+    bool eventFilter(QObject* watched, QEvent* event) override;
+    void focusOutEvent(QFocusEvent* event) override;
 
 private:
     AttendanceSummaryWidget* m_attendanceSummary;

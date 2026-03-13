@@ -5,7 +5,9 @@
 
 #include <QApplication>
 #include <QDesktopServices>
+#include <QEvent>
 #include <QMessageBox>
+#include <QFocusEvent>
 #include <QMap>
 #include <QMouseEvent>
 #include <QProcess>
@@ -48,6 +50,7 @@ Sidebar::Sidebar(QWidget* parent) : QWidget(parent) {
     m_idleTimer.setSingleShot(true);
     connect(&m_idleTimer, &QTimer::timeout, this, &Sidebar::collapseMenu);
 
+    qApp->installEventFilter(this);
     rebuildUI();
 }
 
@@ -244,6 +247,34 @@ void Sidebar::mousePressEvent(QMouseEvent* event) {
     event->accept();
 }
 
+
+bool Sidebar::eventFilter(QObject* watched, QEvent* event) {
+    Q_UNUSED(watched);
+    if (!isVisible()) {
+        return QWidget::eventFilter(watched, event);
+    }
+
+    if (event->type() == QEvent::MouseButtonPress) {
+        auto* mouseEvent = static_cast<QMouseEvent*>(event);
+        const QPoint localPos = mapFromGlobal(mouseEvent->globalPos());
+        for (auto* btn : m_buttons) {
+            if (btn->isVisible() && btn->geometry().contains(localPos)) {
+                return QWidget::eventFilter(watched, event);
+            }
+        }
+        collapseMenu();
+    }
+
+    return QWidget::eventFilter(watched, event);
+}
+
+void Sidebar::focusOutEvent(QFocusEvent* event) {
+    QWidget::focusOutEvent(event);
+    if (isVisible()) {
+        collapseMenu();
+    }
+}
+
 void Sidebar::resetIdleCountdown() {
     m_idleTimer.start(Config::instance().menuAutoCollapseSeconds * 1000);
 }
@@ -279,28 +310,29 @@ void Sidebar::refreshButtonLayout() {
     }
 
     const bool anchorAtRight = center.x() >= width() / 2;
-    const qreal startDeg = anchorAtRight ? 110.0 : -70.0;
-    const qreal endDeg = anchorAtRight ? 250.0 : 70.0;
+    const qreal startDeg = anchorAtRight ? 90.0 : -90.0;
+    const qreal endDeg = anchorAtRight ? 270.0 : 90.0;
 
     const qreal arcDeg = qAbs(endDeg - startDeg);
     const qreal stepDeg = count <= 1 ? arcDeg : arcDeg / (count - 1);
     const qreal stepRad = qDegreesToRadians(stepDeg);
 
-    const int desiredSpacing = btnSize + 10;
-    const int minRadiusForNoOverlap = count <= 1 ? btnSize + 10
-                                                  : qCeil(desiredSpacing / qMax(0.15, 2.0 * qSin(stepRad / 2.0)));
+    const int desiredSpacing = btnSize + 8;
+    const int minRadiusForNoOverlap = count <= 1 ? btnSize
+                                                  : qCeil(desiredSpacing / qMax(0.2, 2.0 * qSin(stepRad / 2.0)));
 
-    const int distanceFromBallCenter = btnSize + 10;
-    const int requiredRadius = qMax(distanceFromBallCenter, minRadiusForNoOverlap);
+    const int maxPreferredRadius = btnSize * 2;
+    const int targetByConfig = qMin(Config::instance().radialMenuRadius, maxPreferredRadius);
 
     const int margin = btnSize / 2 + 10;
     const int horizontalLimit = anchorAtRight ? (center.x() - margin) : (width() - center.x() - margin);
     const int verticalLimit = qMin(center.y() - margin, height() - center.y() - margin);
-    const int safeMaxRadius = qMax(requiredRadius, qMin(horizontalLimit, verticalLimit));
-    const int radius = qBound(requiredRadius, Config::instance().radialMenuRadius, safeMaxRadius);
+    const int safeMaxRadius = qMax(minRadiusForNoOverlap, qMin(horizontalLimit, verticalLimit));
+    const int radius = qBound(minRadiusForNoOverlap, targetByConfig, safeMaxRadius);
 
     for (int i = 0; i < count; ++i) {
-        const qreal t = count <= 1 ? 0.5 : static_cast<qreal>(i) / (count - 1);
+        qreal t = count <= 1 ? 0.5 : static_cast<qreal>(i) / (count - 1);
+        if (anchorAtRight) { t = 1.0 - t; }
         const qreal deg = startDeg + (endDeg - startDeg) * t;
         const qreal rad = qDegreesToRadians(deg);
         const int x = center.x() + qRound(radius * qCos(rad)) - btnSize / 2;

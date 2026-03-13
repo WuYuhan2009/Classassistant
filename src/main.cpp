@@ -50,7 +50,6 @@ int main(int argc, char* argv[]) {
 
     auto showMenu = [&]() {
         sidebar->setAnchorGeometry(ball->geometry());
-        ball->hide();
         sidebar->expandMenu();
         Logger::instance().info("悬浮球点击展开");
     };
