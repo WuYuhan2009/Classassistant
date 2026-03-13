@@ -20,6 +20,7 @@ QVector<AppButton> buildDefaultButtons() {
         {"班级考勤", "icon_attendance.png", "func", "ATTENDANCE", true},
         {"随机点名", "icon_random.png", "func", "RANDOM_CALL", true},
         {"AI助手", "icon_ai.png", "func", "AI_ASSISTANT", true},
+        {"设置", "icon_settings.png", "func", "SETTINGS", true},
     };
 }
 

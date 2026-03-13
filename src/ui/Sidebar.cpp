@@ -5,14 +5,12 @@
 
 #include <QApplication>
 #include <QDesktopServices>
-#include <QLabel>
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QProcess>
 #include <QPushButton>
 #include <QScreen>
 #include <QUrl>
-#include <QWheelEvent>
 #include <QtMath>
 
 Sidebar::Sidebar(QWidget* parent) : QWidget(parent) {
@@ -31,11 +29,6 @@ Sidebar::Sidebar(QWidget* parent) : QWidget(parent) {
 
     connect(m_settings, &SettingsDialog::configChanged, this, &Sidebar::reloadConfig);
     connect(m_attendanceSelector, &AttendanceSelectDialog::saved, m_attendanceSummary, &AttendanceSummaryWidget::applyAbsentees);
-
-    m_hintLabel = new QLabel(this);
-    m_hintLabel->setStyleSheet("background:rgba(30,44,61,210);color:#f4f7ff;border-radius:12px;padding:8px 10px;font-size:12px;font-weight:700;");
-    m_hintLabel->setText("滚轮/滑动可查看更多按钮");
-    m_hintLabel->hide();
 
     m_idleTimer.setSingleShot(true);
     connect(&m_idleTimer, &QTimer::timeout, this, &Sidebar::collapseMenu);
@@ -66,7 +59,6 @@ void Sidebar::rebuildUI() {
         auto* btn = new QPushButton(this);
         btn->setToolTip(b.name);
         btn->setCursor(Qt::PointingHandCursor);
-        btn->setStyleSheet(FluentTheme::radialButtonStyle());
 
         const QIcon icon(Config::instance().resolveIconPath(b.iconPath));
         if (!icon.isNull()) {
@@ -80,20 +72,27 @@ void Sidebar::rebuildUI() {
         m_buttons.push_back(btn);
     }
 
-    auto* settingsBtn = new QPushButton(this);
-    settingsBtn->setStyleSheet(FluentTheme::radialButtonStyle());
-    settingsBtn->setToolTip("设置");
-    const QIcon settingsIcon(Config::instance().resolveIconPath("icon_settings.png"));
-    if (!settingsIcon.isNull()) {
-        settingsBtn->setIcon(settingsIcon);
-        settingsBtn->setIconSize(QSize(30, 30));
-    } else {
-        settingsBtn->setText("设");
+    bool hasSettings = false;
+    for (const auto& b : buttons) {
+        if (b.target == "SETTINGS") {
+            hasSettings = true;
+            break;
+        }
     }
-    connect(settingsBtn, &QPushButton::clicked, this, [this]() { onButtonTriggered("func", "SETTINGS"); });
-    m_buttons.push_back(settingsBtn);
+    if (!hasSettings) {
+        auto* settingsBtn = new QPushButton(this);
+        settingsBtn->setToolTip("设置");
+        const QIcon settingsIcon(Config::instance().resolveIconPath("icon_settings.png"));
+        if (!settingsIcon.isNull()) {
+            settingsBtn->setIcon(settingsIcon);
+            settingsBtn->setIconSize(QSize(30, 30));
+        } else {
+            settingsBtn->setText("设");
+        }
+        connect(settingsBtn, &QPushButton::clicked, this, [this]() { onButtonTriggered("func", "SETTINGS"); });
+        m_buttons.push_back(settingsBtn);
+    }
 
-    m_scrollOffset = 0;
     refreshButtonLayout();
 }
 
@@ -185,8 +184,6 @@ void Sidebar::handleAction(const QString& action, const QString& target) {
 
 void Sidebar::setAnchorGeometry(const QRect& anchorGeometry) {
     m_anchorGeometry = anchorGeometry;
-    const QRect screen = QApplication::primaryScreen()->availableGeometry();
-    m_anchorAtRightEdge = anchorGeometry.center().x() >= screen.center().x();
     refreshButtonLayout();
 }
 
@@ -224,7 +221,7 @@ void Sidebar::resizeEvent(QResizeEvent* event) {
 void Sidebar::mousePressEvent(QMouseEvent* event) {
     bool hitButton = false;
     for (auto* btn : m_buttons) {
-        if (btn->geometry().contains(event->pos())) {
+        if (btn->isVisible() && btn->geometry().contains(event->pos())) {
             hitButton = true;
             break;
         }
@@ -233,18 +230,6 @@ void Sidebar::mousePressEvent(QMouseEvent* event) {
         collapseMenu();
     }
     QWidget::mousePressEvent(event);
-}
-
-void Sidebar::wheelEvent(QWheelEvent* event) {
-    if (m_buttons.size() <= 6) {
-        event->accept();
-        return;
-    }
-    m_scrollOffset += event->angleDelta().y() > 0 ? -1 : 1;
-    m_scrollOffset = qBound(0, m_scrollOffset, qMax(0, m_buttons.size() - 6));
-    refreshButtonLayout();
-    resetIdleCountdown();
-    event->accept();
 }
 
 void Sidebar::resetIdleCountdown() {
@@ -262,39 +247,42 @@ void Sidebar::refreshButtonLayout() {
     }
 
     const int btnSize = qMax(56, Config::instance().floatingBallSize - 4);
-    const int radius = Config::instance().radialMenuRadius;
-    const int visibleCount = qMin(6, m_buttons.size());
-    const int start = qBound(0, m_scrollOffset, qMax(0, m_buttons.size() - visibleCount));
-
     for (auto* btn : m_buttons) {
-        btn->hide();
         btn->setFixedSize(btnSize, btnSize);
+        btn->setStyleSheet(QString("QPushButton{background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 rgba(255,255,255,245),stop:1 rgba(235,242,252,238));"
+                                 "border:1px solid #c6d4e8;border-radius:%1px;font-size:14px;font-weight:700;color:#1f3550;}"
+                                 "QPushButton:hover{background:#edf5ff;border-color:#9eb9da;}"
+                                 "QPushButton:pressed{background:#deebfb;border-color:#84a4cc;}")
+                              .arg(btnSize / 2));
+        btn->hide();
     }
 
-    const QPoint center = m_anchorGeometry.center();
-    const qreal startDeg = m_anchorAtRightEdge ? -110.0 : 70.0;
-    const qreal endDeg = m_anchorAtRightEdge ? 110.0 : 290.0;
+    const QPoint centerGlobal = m_anchorGeometry.center();
+    const QPoint center = centerGlobal - geometry().topLeft();
+    const int count = m_buttons.size();
+    if (count == 0) {
+        return;
+    }
 
-    for (int i = 0; i < visibleCount; ++i) {
-        const int index = start + i;
-        if (index >= m_buttons.size()) {
-            break;
-        }
-        const qreal t = visibleCount <= 1 ? 0.5 : static_cast<qreal>(i) / (visibleCount - 1);
-        const qreal deg = startDeg + (endDeg - startDeg) * t;
-        const qreal rad = qDegreesToRadians(deg);
+    const int baseRadius = Config::instance().radialMenuRadius;
+    const int minEdgeDistance = qMin(qMin(center.x(), width() - center.x()), qMin(center.y(), height() - center.y()));
+    const int clampedBaseRadius = qMax(btnSize + 8, qMin(baseRadius, minEdgeDistance - btnSize / 2 - 8));
+
+    const int buttonsPerRing = 8;
+    const int ringGap = btnSize + 16;
+
+    for (int i = 0; i < count; ++i) {
+        const int ring = i / buttonsPerRing;
+        const int inRingIndex = i % buttonsPerRing;
+        const int ringCount = qMin(buttonsPerRing, count - ring * buttonsPerRing);
+        const qreal angle = -90.0 + (360.0 * inRingIndex) / ringCount;
+        const qreal rad = qDegreesToRadians(angle);
+        const int radius = clampedBaseRadius + ring * ringGap;
         const int x = center.x() + qRound(radius * qCos(rad)) - btnSize / 2;
         const int y = center.y() + qRound(radius * qSin(rad)) - btnSize / 2;
-        m_buttons[index]->move(x, y);
-        m_buttons[index]->show();
-        m_buttons[index]->raise();
-    }
 
-    m_hintLabel->setVisible(m_buttons.size() > visibleCount);
-    if (m_hintLabel->isVisible()) {
-        const int hintX = m_anchorAtRightEdge ? center.x() - 220 : center.x() + 32;
-        const int hintY = center.y() - 22;
-        m_hintLabel->move(hintX, hintY);
-        m_hintLabel->raise();
+        m_buttons[i]->move(x, y);
+        m_buttons[i]->show();
+        m_buttons[i]->raise();
     }
 }

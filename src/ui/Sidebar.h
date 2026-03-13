@@ -6,7 +6,6 @@
 
 #include "Tools.h"
 
-class QLabel;
 class QPushButton;
 
 class Sidebar : public QWidget {
@@ -31,7 +30,6 @@ public slots:
 protected:
     void resizeEvent(QResizeEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
-    void wheelEvent(QWheelEvent* event) override;
 
 private:
     AttendanceSummaryWidget* m_attendanceSummary;
@@ -41,11 +39,8 @@ private:
     SettingsDialog* m_settings;
 
     QList<QPushButton*> m_buttons;
-    QLabel* m_hintLabel;
     QTimer m_idleTimer;
     QRect m_anchorGeometry;
-    int m_scrollOffset = 0;
-    bool m_anchorAtRightEdge = true;
 
     void handleAction(const QString& action, const QString& target);
     void handleFunctionAction(const QString& target);
