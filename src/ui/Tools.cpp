@@ -373,6 +373,10 @@ void ScreenOffOverlay::refreshClockAndProgress() {
 
 void ScreenOffOverlay::loadDailyQuote() {
     const auto& cfg = Config::instance();
+    if (!cfg.screenOffShowQuote) {
+        m_quoteLabel->setText("" );
+        return;
+    }
     if (cfg.siliconFlowApiKey.trimmed().isEmpty()) {
         m_quoteLabel->setText("填写 API Key 以获取每日金句");
         return;
@@ -389,7 +393,7 @@ void ScreenOffOverlay::loadDailyQuote() {
 
 
 AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(parent) {
-    setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
+    setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnBottomHint | Qt::Tool);
     setAttribute(Qt::WA_TranslucentBackground);
     setAttribute(Qt::WA_AcceptTouchEvents);
 
@@ -481,6 +485,12 @@ void AttendanceSummaryWidget::refreshUi() {
 
     const QRect screen = QApplication::primaryScreen()->availableGeometry();
     move(screen.right() - width() - 12, screen.top() + 12);
+}
+
+void AttendanceSummaryWidget::setPinnedOnTop(bool onTop) {
+    setWindowFlag(Qt::WindowStaysOnTopHint, onTop);
+    setWindowFlag(Qt::WindowStaysOnBottomHint, !onTop);
+    show();
 }
 
 void AttendanceSummaryWidget::closeEvent(QCloseEvent* event) {
@@ -1528,17 +1538,18 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     m_menuTree->setHeaderHidden(true);
     m_menuTree->setFixedWidth(240);
 
-    auto* topDisplay = new QTreeWidgetItem(QStringList{"显示与启动"});
+    auto* topDisplay = new QTreeWidgetItem(QStringList{"外观与启动"});
     topDisplay->addChild(new QTreeWidgetItem(QStringList{"窗口与显示"}));
     topDisplay->addChild(new QTreeWidgetItem(QStringList{"启动行为"}));
     topDisplay->addChild(new QTreeWidgetItem(QStringList{"动画与圆角"}));
-    auto* topTools = new QTreeWidgetItem(QStringList{"课堂工具"});
+    auto* topTools = new QTreeWidgetItem(QStringList{"课堂工具与息屏"});
     topTools->addChild(new QTreeWidgetItem(QStringList{"点名设置"}));
     topTools->addChild(new QTreeWidgetItem(QStringList{"程序路径"}));
     topTools->addChild(new QTreeWidgetItem(QStringList{"分组与计分"}));
-    auto* topData = new QTreeWidgetItem(QStringList{"数据管理"});
+    topTools->addChild(new QTreeWidgetItem(QStringList{"自习与息屏"}));
+    auto* topData = new QTreeWidgetItem(QStringList{"数据与按钮"});
     topData->addChild(new QTreeWidgetItem(QStringList{"名单与按钮"}));
-    auto* topSafety = new QTreeWidgetItem(QStringList{"安全与离线"});
+    auto* topSafety = new QTreeWidgetItem(QStringList{"AI与联网"});
     topSafety->addChild(new QTreeWidgetItem(QStringList{"联网控制"}));
     auto* topAbout = new QTreeWidgetItem(QStringList{"关于"});
     topAbout->addChild(new QTreeWidgetItem(QStringList{"关于与更新"}));
@@ -1588,13 +1599,13 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
             return;
         }
         const QString label = current->text(0);
-        if (label == "显示与启动" || label == "窗口与显示" || label == "启动行为" || label == "动画与圆角") {
+        if (label == "外观与启动" || label == "窗口与显示" || label == "启动行为" || label == "动画与圆角") {
             m_stacked->setCurrentIndex(0);
-        } else if (label == "课堂工具" || label == "点名设置" || label == "程序路径" || label == "分组与计分") {
+        } else if (label == "课堂工具与息屏" || label == "点名设置" || label == "程序路径" || label == "分组与计分" || label == "自习与息屏") {
             m_stacked->setCurrentIndex(1);
-        } else if (label == "数据管理" || label == "名单与按钮") {
+        } else if (label == "数据与按钮" || label == "名单与按钮") {
             m_stacked->setCurrentIndex(2);
-        } else if (label == "安全与离线" || label == "联网控制") {
+        } else if (label == "AI与联网" || label == "联网控制") {
             m_stacked->setCurrentIndex(3);
         } else {
             m_stacked->setCurrentIndex(4);
@@ -1740,6 +1751,17 @@ QWidget* SettingsDialog::createPageClassTools() {
     connect(removePeriodBtn, &QPushButton::clicked, this, [this]() {
         delete m_selfStudyPeriodList->takeItem(m_selfStudyPeriodList->currentRow());
     });
+
+    auto* idleRow = new QHBoxLayout;
+    idleRow->addWidget(new QLabel("自习无操作自动息屏阈值（秒）"));
+    m_selfStudyIdleSeconds = new QSpinBox;
+    m_selfStudyIdleSeconds->setRange(60, 900);
+    m_selfStudyIdleSeconds->setSingleStep(30);
+    idleRow->addWidget(m_selfStudyIdleSeconds);
+    selfStudyLayout->addLayout(idleRow);
+
+    m_screenOffShowQuote = new QCheckBox("息屏模式显示每日金句");
+    selfStudyLayout->addWidget(m_screenOffShowQuote);
 
     layout->addWidget(groupSelfStudy);
     layout->addStretch();
@@ -1935,6 +1957,8 @@ void SettingsDialog::loadData() {
 
     m_selfStudyPeriodList->clear();
     for (const auto& p : cfg.selfStudyPeriods) m_selfStudyPeriodList->addItem(p);
+    m_selfStudyIdleSeconds->setValue(cfg.selfStudyIdleSeconds);
+    m_screenOffShowQuote->setChecked(cfg.screenOffShowQuote);
 
     m_buttonList->clear();
     for (const auto& b : cfg.getButtons()) {
@@ -2064,6 +2088,8 @@ void SettingsDialog::saveData() {
                                                                             : m_aiEndpointEdit->text().trimmed();
     cfg.selfStudyPeriods.clear();
     for (int i = 0; i < m_selfStudyPeriodList->count(); ++i) cfg.selfStudyPeriods.append(m_selfStudyPeriodList->item(i)->text());
+    cfg.selfStudyIdleSeconds = m_selfStudyIdleSeconds->value();
+    cfg.screenOffShowQuote = m_screenOffShowQuote->isChecked();
 
     QVector<AppButton> buttons;
     for (int i = 0; i < m_buttonList->count(); ++i) {

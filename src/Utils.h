@@ -63,6 +63,8 @@ public:
     int floatingBallX = -1;
     int floatingBallY = -1;
     QStringList selfStudyPeriods;
+    int selfStudyIdleSeconds = 180;
+    bool screenOffShowQuote = true;
 
 private:
     Config();

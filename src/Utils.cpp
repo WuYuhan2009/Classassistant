@@ -83,7 +83,9 @@ void applyDefaults(Config& config, QVector<AppButton>& buttons, QStringList& stu
     config.classNote = "";
     config.floatingBallX = -1;
     config.floatingBallY = -1;
-    config.selfStudyPeriods = QStringList{QStringLiteral("19:00-19:45")};
+    config.selfStudyPeriods = QStringList() << QStringLiteral("19:00-19:45");
+    config.selfStudyIdleSeconds = 180;
+    config.screenOffShowQuote = true;
     buttons = buildDefaultButtons();
     normalizeSystemButtonIcons(buttons);
     students = defaultStudents();
@@ -155,6 +157,8 @@ void Config::load() {
         const QString p = v.toString().trimmed();
         if (!p.isEmpty()) selfStudyPeriods.append(p);
     }
+    selfStudyIdleSeconds = qBound(60, root["selfStudyIdleSeconds"].toInt(180), 900);
+    screenOffShowQuote = root["screenOffShowQuote"].toBool(true);
 
     m_students.clear();
     for (const auto& v : root["students"].toArray()) {
@@ -208,16 +212,18 @@ void Config::load() {
         m_buttons = buildDefaultButtons();
     }
     bool hasSettings = false;
+    bool hasScreenOff = false;
     for (const auto& b : m_buttons) {
-        if (b.target == "SETTINGS") {
-            hasSettings = true;
-            break;
-        }
+        if (b.target == "SETTINGS") hasSettings = true;
+        if (b.target == "SCREEN_OFF") hasScreenOff = true;
+    }
+    if (!hasScreenOff) {
+        m_buttons.append({"息屏", "", "func", "SCREEN_OFF", true});
     }
     if (!hasSettings) {
         m_buttons.append({"设置", "icon_settings.png", "func", "SETTINGS", true});
     }
-    if (selfStudyPeriods.isEmpty()) { selfStudyPeriods = QStringList{QStringLiteral("19:00-19:45")}; }
+    if (selfStudyPeriods.isEmpty()) { selfStudyPeriods = QStringList() << QStringLiteral("19:00-19:45"); }
     if (siliconFlowModel.isEmpty()) {
         siliconFlowModel = "deepseek-ai/DeepSeek-V3.2";
     }
@@ -258,6 +264,8 @@ void Config::save() {
     QJsonArray selfStudyArr;
     for (const auto& p : selfStudyPeriods) selfStudyArr.append(p);
     root["selfStudyPeriods"] = selfStudyArr;
+    root["selfStudyIdleSeconds"] = selfStudyIdleSeconds;
+    root["screenOffShowQuote"] = screenOffShowQuote;
     root["fixedSidebarWidth"] = kSidebarWidth;
 
     QJsonArray stuArr;

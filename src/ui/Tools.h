@@ -29,6 +29,7 @@ public:
     explicit AttendanceSummaryWidget(QWidget* parent = nullptr);
     void resetDaily();
     void applyAbsentees(const QStringList& absentees);
+    void setPinnedOnTop(bool onTop);
 
 protected:
     void closeEvent(QCloseEvent* event) override;
@@ -247,6 +248,8 @@ private:
     QCheckBox* m_allowExternalLinks;
     QLineEdit* m_seewoPathEdit;
     QListWidget* m_selfStudyPeriodList;
+    QSpinBox* m_selfStudyIdleSeconds;
+    QCheckBox* m_screenOffShowQuote;
     QLineEdit* m_aiApiKeyEdit;
     QLineEdit* m_aiModelEdit;
     QLineEdit* m_aiEndpointEdit;
@@ -293,6 +296,8 @@ private:
     QLineEdit* m_scoreTeamBName;
     QLineEdit* m_seewoPathEdit;
     QListWidget* m_selfStudyPeriodList;
+    QSpinBox* m_selfStudyIdleSeconds;
+    QCheckBox* m_screenOffShowQuote;
     QListWidget* m_buttonList;
     QLineEdit* m_apiKeyEdit;
     QLineEdit* m_aiModelEdit;

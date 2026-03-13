@@ -60,6 +60,9 @@ Sidebar::Sidebar(QWidget* parent) : QWidget(parent) {
     m_aiAssistant = new AIAssistantDialog();
     m_settings = new SettingsDialog();
     m_screenOff = new ScreenOffOverlay();
+    connect(m_screenOff, &ScreenOffOverlay::exited, this, [this]() {
+        m_attendanceSummary->setPinnedOnTop(false);
+    });
 
     connect(m_settings, &SettingsDialog::configChanged, this, &Sidebar::reloadConfig);
     connect(m_attendanceSelector, &AttendanceSelectDialog::saved, m_attendanceSummary, &AttendanceSummaryWidget::applyAbsentees);
@@ -169,11 +172,14 @@ void Sidebar::handleFunctionAction(const QString& target) {
         showManagedWindow(m_attendanceSelector);
     } else if (target == "SCREEN_OFF") {
         if (m_screenOff->isActive()) {
+            m_screenOff->deactivate();
+            m_attendanceSummary->setPinnedOnTop(false);
             return;
         }
-        m_screenOff->activate(inSelfStudyPeriod());
+        m_attendanceSummary->setPinnedOnTop(true);
         m_attendanceSummary->show();
         m_attendanceSummary->raise();
+        m_screenOff->activate(inSelfStudyPeriod());
     } else if (target == "RANDOM_CALL") {
         m_randomCall->setWindowOpacity(1.0);
         m_randomCall->startAnim();

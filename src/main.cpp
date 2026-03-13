@@ -179,7 +179,7 @@ int main(int argc, char* argv[]) {
             return;
         }
         const qint64 idleSeconds = lastInput.secsTo(QDateTime::currentDateTime());
-        if (idleSeconds >= 180 && !autoOpenedInCurrentIdle) {
+        if (idleSeconds >= Config::instance().selfStudyIdleSeconds && !autoOpenedInCurrentIdle) {
             sidebar->triggerTool("SCREEN_OFF");
             autoOpenedInCurrentIdle = true;
             Logger::instance().info("自习课检测到3分钟无操作，自动打开息屏");
