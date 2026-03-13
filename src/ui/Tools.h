@@ -210,6 +210,8 @@ private:
     QCheckBox* m_agreeTerms;
     QSlider* m_floatingOpacity;
     QSlider* m_summaryWidth;
+    QSlider* m_ballSize;
+    QSlider* m_buttonIconSize;
     QCheckBox* m_startCollapsed;
     QCheckBox* m_trayClickToOpen;
     QCheckBox* m_showAttendanceSummaryOnStart;
@@ -244,10 +246,11 @@ private:
     QStackedWidget* m_stacked;
     QSlider* m_floatingOpacity;
     QSlider* m_summaryWidth;
+    QSlider* m_ballSize;
+    QSlider* m_buttonIconSize;
     QCheckBox* m_startCollapsed;
     QCheckBox* m_trayClickToOpen;
     QCheckBox* m_showAttendanceSummaryOnStart;
-    QCheckBox* m_compactMode;
 
     QCheckBox* m_randomNoRepeat;
     QSpinBox* m_historyCount;

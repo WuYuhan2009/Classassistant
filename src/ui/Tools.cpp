@@ -260,7 +260,7 @@ AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(pare
     inner->setSpacing(8);
 
     m_updateTime = new QLabel;
-    m_updateTime->setStyleSheet("font-size:13px;font-weight:700;color:#4f647f;background:rgba(255,255,255,0.72);border:1px solid #dfe9f5;border-radius:10px;padding:6px 8px;");
+    m_updateTime->setStyleSheet("font-size:15px;font-weight:800;color:#324e70;background:rgba(255,255,255,0.72);border:1px solid #dfe9f5;border-radius:10px;padding:6px 8px;");
 
     auto* countsRow = new QHBoxLayout;
     countsRow->setSpacing(10);
@@ -270,11 +270,11 @@ AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(pare
     expectedLayout->setContentsMargins(12, 10, 12, 10);
     expectedLayout->setSpacing(3);
     m_expectedLabel = new QLabel("应到人数");
-    m_expectedLabel->setStyleSheet("font-size:14px;font-weight:800;color:#4e6280;");
+    m_expectedLabel->setStyleSheet("font-size:16px;font-weight:900;color:#334f71;");
     m_expectedValue = new QLabel;
-    m_expectedValue->setStyleSheet("font-size:46px;font-weight:900;color:#2f5e90;");
+    m_expectedValue->setStyleSheet("font-size:52px;font-weight:950;color:#1f4f86;");
     expectedLayout->addWidget(m_expectedLabel);
-    expectedLayout->addWidget(m_expectedValue);
+    expectedLayout->addWidget(m_expectedValue, 0, Qt::AlignHCenter);
 
     auto* presentCard = new QWidget;
     presentCard->setStyleSheet(cardStyle());
@@ -282,18 +282,18 @@ AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(pare
     presentLayout->setContentsMargins(12, 10, 12, 10);
     presentLayout->setSpacing(3);
     m_presentLabel = new QLabel("实到人数");
-    m_presentLabel->setStyleSheet("font-size:14px;font-weight:800;color:#4e6280;");
+    m_presentLabel->setStyleSheet("font-size:16px;font-weight:900;color:#334f71;");
     m_presentValue = new QLabel;
-    m_presentValue->setStyleSheet("font-size:46px;font-weight:900;color:#1e8a5a;");
+    m_presentValue->setStyleSheet("font-size:52px;font-weight:950;color:#0f7a49;");
     presentLayout->addWidget(m_presentLabel);
-    presentLayout->addWidget(m_presentValue);
+    presentLayout->addWidget(m_presentValue, 0, Qt::AlignHCenter);
 
     countsRow->addWidget(expectedCard, 1);
     countsRow->addWidget(presentCard, 1);
 
     m_absentList = new QLabel;
     m_absentList->setWordWrap(true);
-    m_absentList->setStyleSheet("font-size:15px;font-weight:700;background:#ffffff;border:1px solid #d3dfef;border-radius:18px;padding:14px 14px;color:#304864;line-height:1.6;");
+    m_absentList->setStyleSheet("font-size:18px;font-weight:900;background:#ffffff;border:1px solid #d3dfef;border-radius:18px;padding:14px 14px;color:#304864;line-height:1.6;");
 
     inner->addWidget(m_updateTime);
     inner->addLayout(countsRow);
@@ -1473,13 +1473,20 @@ QWidget* SettingsDialog::createPageDisplayStartup() {
     m_floatingOpacity->setRange(35, 100);
     displayLayout->addWidget(m_floatingOpacity);
 
+    displayLayout->addWidget(new QLabel("悬浮球尺寸"));
+    m_ballSize = new QSlider(Qt::Horizontal);
+    m_ballSize->setRange(56, 96);
+    displayLayout->addWidget(m_ballSize);
+
+    displayLayout->addWidget(new QLabel("按钮图标尺寸"));
+    m_buttonIconSize = new QSlider(Qt::Horizontal);
+    m_buttonIconSize->setRange(24, 56);
+    displayLayout->addWidget(m_buttonIconSize);
+
     displayLayout->addWidget(new QLabel("考勤概览宽度"));
     m_summaryWidth = new QSlider(Qt::Horizontal);
     m_summaryWidth->setRange(360, 660);
     displayLayout->addWidget(m_summaryWidth);
-
-    m_compactMode = new QCheckBox("紧凑模式（缩小图标与间距）");
-    displayLayout->addWidget(m_compactMode);
 
     displayLayout->addWidget(new QLabel("半圆菜单半径"));
     m_sidebarWidth = new QSlider(Qt::Horizontal);
@@ -1738,7 +1745,8 @@ void SettingsDialog::loadData() {
     m_trayClickToOpen->setChecked(cfg.trayClickToOpen);
     m_showAttendanceSummaryOnStart->setChecked(cfg.showAttendanceSummaryOnStart);
     m_collapseHidesToolWindows->setChecked(cfg.collapseHidesToolWindows);
-    m_compactMode->setChecked(cfg.compactMode);
+    m_ballSize->setValue(cfg.floatingBallSize);
+    m_buttonIconSize->setValue(cfg.iconSize);
     m_sidebarWidth->setValue(cfg.radialMenuRadius);
     m_animationDuration->setValue(cfg.menuAutoCollapseSeconds);
     m_randomNoRepeat->setChecked(cfg.randomNoRepeat);
@@ -1863,7 +1871,8 @@ void SettingsDialog::saveData() {
     cfg.trayClickToOpen = m_trayClickToOpen->isChecked();
     cfg.showAttendanceSummaryOnStart = m_showAttendanceSummaryOnStart->isChecked();
     cfg.collapseHidesToolWindows = m_collapseHidesToolWindows->isChecked();
-    cfg.compactMode = m_compactMode->isChecked();
+    cfg.floatingBallSize = m_ballSize->value();
+    cfg.iconSize = m_buttonIconSize->value();
     cfg.radialMenuRadius = m_sidebarWidth->value();
     cfg.menuAutoCollapseSeconds = m_animationDuration->value();
     cfg.randomNoRepeat = m_randomNoRepeat->isChecked();

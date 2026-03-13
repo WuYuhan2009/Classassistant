@@ -17,7 +17,6 @@ FloatingBall::FloatingBall(QWidget* parent) : QWidget(parent) {
     const int size = Config::instance().floatingBallSize;
     setFixedSize(size, size);
     setWindowOpacity(Config::instance().floatingOpacity / 100.0);
-    FluentTheme::applyWinUIWindowShadow(this);
     restoreSavedPosition();
 }
 
@@ -90,19 +89,15 @@ void FloatingBall::paintEvent(QPaintEvent* event) {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
 
-    const QRect ringRect(2, 2, width() - 4, height() - 4);
-    QRadialGradient outerGlow(ringRect.center(), width() / 2.0);
-    outerGlow.setColorAt(0.0, QColor(255, 255, 255, 245));
-    outerGlow.setColorAt(0.75, QColor(208, 214, 223, 230));
-    outerGlow.setColorAt(1.0, QColor(48, 54, 62, 220));
-    p.setPen(Qt::NoPen);
-    p.setBrush(outerGlow);
-    p.drawEllipse(ringRect);
+    const QRect outer(1, 1, width() - 2, height() - 2);
+    p.setPen(QPen(QColor(180, 188, 198), 1));
+    p.setBrush(QColor(250, 252, 255));
+    p.drawEllipse(outer);
 
-    const int innerMargin = width() / 6;
-    QRect inner(innerMargin, innerMargin, width() - innerMargin * 2, height() - innerMargin * 2);
-    p.setBrush(QColor(245, 245, 240));
-    p.setPen(QPen(QColor(32, 35, 40, 160), 1.5));
+    const int innerMargin = width() / 5;
+    const QRect inner(innerMargin, innerMargin, width() - innerMargin * 2, height() - innerMargin * 2);
+    p.setPen(Qt::NoPen);
+    p.setBrush(QColor(224, 232, 242));
     p.drawEllipse(inner);
 }
 

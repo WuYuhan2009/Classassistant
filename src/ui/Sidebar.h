@@ -1,6 +1,8 @@
 #pragma once
 
+#include <QHash>
 #include <QList>
+#include <QPoint>
 #include <QTimer>
 #include <QWidget>
 
@@ -44,9 +46,11 @@ private:
     SettingsDialog* m_settings;
 
     QList<QPushButton*> m_buttons;
+    QHash<QPushButton*, QPoint> m_buttonExpandedPos;
     QTimer m_idleTimer;
     QRect m_anchorGeometry;
     bool m_suppressToolHideOnce = false;
+    bool m_isAnimating = false;
 
     void handleAction(const QString& action, const QString& target);
     void handleFunctionAction(const QString& target);
@@ -57,4 +61,5 @@ private:
     void refreshButtonLayout();
     void resetIdleCountdown();
     void onButtonTriggered(const QString& action, const QString& target);
+    void animateButtons(bool expanding);
 };
