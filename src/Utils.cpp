@@ -1,23 +1,24 @@
 #include "Utils.h"
 
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QMutexLocker>
 #include <QTextStream>
+
+#include <atomic>
 
 namespace {
 constexpr int kSidebarWidth = 84;
+std::atomic<bool> g_isQuitting{false};
 
 QVector<AppButton> buildDefaultButtons() {
     return {
         {"希沃白板", "icon_seewo.png", "exe", "SEEWO", true},
         {"班级考勤", "icon_attendance.png", "func", "ATTENDANCE", true},
         {"随机点名", "icon_random.png", "func", "RANDOM_CALL", true},
-        {"课堂计时", "icon_timer.png", "func", "CLASS_TIMER", true},
-        {"课堂便签", "icon_note.png", "func", "CLASS_NOTE", true},
-        {"分组抽签", "icon_group.png", "func", "GROUP_SPLIT", true},
-        {"课堂计分", "icon_score.png", "func", "SCORE_BOARD", true},
         {"AI助手", "icon_ai.png", "func", "AI_ASSISTANT", true},
     };
 }
@@ -57,8 +58,11 @@ void normalizeSystemButtonIcons(QVector<AppButton>& buttons) {
 void applyDefaults(Config& config, QVector<AppButton>& buttons, QStringList& students) {
     config.seewoPath = "C:/Program Files (x86)/Seewo/EasiNote5/swenlauncher/swenlauncher.exe";
     config.iconSize = 46;
+    config.floatingBallSize = 72;
     config.floatingOpacity = 85;
-    config.attendanceSummaryWidth = 360;
+    config.attendanceSummaryWidth = 420;
+    config.radialMenuRadius = 210;
+    config.menuAutoCollapseSeconds = 15;
     config.startCollapsed = false;
     config.trayClickToOpen = true;
     config.showAttendanceSummaryOnStart = true;
@@ -115,8 +119,11 @@ void Config::load() {
     const QJsonObject root = doc.object();
     seewoPath = root["seewoPath"].toString().trimmed();
     iconSize = qBound(28, root["iconSize"].toInt(46), 72);
+    floatingBallSize = qBound(56, root["floatingBallSize"].toInt(72), 96);
     floatingOpacity = qBound(35, root["floatingOpacity"].toInt(85), 100);
-    attendanceSummaryWidth = qBound(300, root["attendanceSummaryWidth"].toInt(360), 520);
+    attendanceSummaryWidth = qBound(360, root["attendanceSummaryWidth"].toInt(420), 660);
+    radialMenuRadius = qBound(150, root["radialMenuRadius"].toInt(210), 280);
+    menuAutoCollapseSeconds = qBound(5, root["menuAutoCollapseSeconds"].toInt(15), 60);
     startCollapsed = root["startCollapsed"].toBool(false);
     trayClickToOpen = root["trayClickToOpen"].toBool(true);
     showAttendanceSummaryOnStart = root["showAttendanceSummaryOnStart"].toBool(true);
@@ -190,8 +197,11 @@ void Config::save() {
     QJsonObject root;
     root["seewoPath"] = seewoPath;
     root["iconSize"] = iconSize;
+    root["floatingBallSize"] = floatingBallSize;
     root["floatingOpacity"] = floatingOpacity;
     root["attendanceSummaryWidth"] = attendanceSummaryWidth;
+    root["radialMenuRadius"] = radialMenuRadius;
+    root["menuAutoCollapseSeconds"] = menuAutoCollapseSeconds;
     root["startCollapsed"] = startCollapsed;
     root["trayClickToOpen"] = trayClickToOpen;
     root["showAttendanceSummaryOnStart"] = showAttendanceSummaryOnStart;
@@ -340,4 +350,51 @@ QString Config::resolveIconPath(const QString& iconRef) const {
     }
 
     return {};
+}
+
+Logger& Logger::instance() {
+    static Logger logger;
+    return logger;
+}
+
+Logger::Logger() {
+    const QString logDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/logs";
+    QDir().mkpath(logDir);
+    m_logPath = logDir + "/classassistant.log";
+}
+
+void Logger::info(const QString& message) {
+    write("INFO", message);
+}
+
+void Logger::warn(const QString& message) {
+    write("WARN", message);
+}
+
+void Logger::error(const QString& message) {
+    write("ERROR", message);
+}
+
+QString Logger::logPath() const {
+    return m_logPath;
+}
+
+void Logger::write(const QString& level, const QString& message) {
+    QMutexLocker locker(&m_mutex);
+    QFile file(m_logPath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+        return;
+    }
+
+    QTextStream out(&file);
+    out << '[' << QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss.zzz") << "] "
+        << level << " " << message << "\n";
+}
+
+void AppState::setQuitting(bool quitting) {
+    g_isQuitting.store(quitting);
+}
+
+bool AppState::isQuitting() {
+    return g_isQuitting.load();
 }

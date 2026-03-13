@@ -9,6 +9,7 @@ namespace FluentTheme {
 
 QString sidebarPanelStyle();
 QString sidebarButtonStyle();
+QString radialButtonStyle();
 QString trayMenuStyle();
 QString dialogPrimaryButtonStyle();
 QString dialogCardStyle();

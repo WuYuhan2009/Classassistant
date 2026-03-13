@@ -260,7 +260,7 @@ AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(pare
     inner->setSpacing(8);
 
     m_updateTime = new QLabel;
-    m_updateTime->setStyleSheet("font-size:11px;color:#5f7086;background:rgba(255,255,255,0.72);border:1px solid #dfe9f5;border-radius:10px;padding:6px 8px;");
+    m_updateTime->setStyleSheet("font-size:13px;font-weight:700;color:#4f647f;background:rgba(255,255,255,0.72);border:1px solid #dfe9f5;border-radius:10px;padding:6px 8px;");
 
     auto* countsRow = new QHBoxLayout;
     countsRow->setSpacing(10);
@@ -270,9 +270,9 @@ AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(pare
     expectedLayout->setContentsMargins(12, 10, 12, 10);
     expectedLayout->setSpacing(3);
     m_expectedLabel = new QLabel("应到人数");
-    m_expectedLabel->setStyleSheet("font-size:11px;color:#5f7086;");
+    m_expectedLabel->setStyleSheet("font-size:14px;font-weight:800;color:#4e6280;");
     m_expectedValue = new QLabel;
-    m_expectedValue->setStyleSheet("font-size:38px;font-weight:850;color:#2f5e90;");
+    m_expectedValue->setStyleSheet("font-size:46px;font-weight:900;color:#2f5e90;");
     expectedLayout->addWidget(m_expectedLabel);
     expectedLayout->addWidget(m_expectedValue);
 
@@ -282,9 +282,9 @@ AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(pare
     presentLayout->setContentsMargins(12, 10, 12, 10);
     presentLayout->setSpacing(3);
     m_presentLabel = new QLabel("实到人数");
-    m_presentLabel->setStyleSheet("font-size:11px;color:#5f7086;");
+    m_presentLabel->setStyleSheet("font-size:14px;font-weight:800;color:#4e6280;");
     m_presentValue = new QLabel;
-    m_presentValue->setStyleSheet("font-size:38px;font-weight:850;color:#1e8a5a;");
+    m_presentValue->setStyleSheet("font-size:46px;font-weight:900;color:#1e8a5a;");
     presentLayout->addWidget(m_presentLabel);
     presentLayout->addWidget(m_presentValue);
 
@@ -293,7 +293,7 @@ AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(pare
 
     m_absentList = new QLabel;
     m_absentList->setWordWrap(true);
-    m_absentList->setStyleSheet("font-size:12px;background:#ffffff;border:1px solid #d3dfef;border-radius:14px;padding:10px 12px;color:#304864;line-height:1.5;");
+    m_absentList->setStyleSheet("font-size:15px;font-weight:700;background:#ffffff;border:1px solid #d3dfef;border-radius:18px;padding:14px 14px;color:#304864;line-height:1.6;");
 
     inner->addWidget(m_updateTime);
     inner->addLayout(countsRow);
@@ -341,13 +341,13 @@ void AttendanceSummaryWidget::refreshUi() {
 }
 
 void AttendanceSummaryWidget::closeEvent(QCloseEvent* event) {
-    event->ignore();
+    if (AppState::isQuitting()) { event->accept(); } else { event->ignore(); }
 }
 
 AttendanceSelectDialog::AttendanceSelectDialog(QWidget* parent) : QDialog(parent) {
     const QString dialogTitle = "考勤选择（勾选缺勤学生）";
     decorateDialog(this, dialogTitle);
-    setFixedSize(560, 560);
+    setFixedSize(620, 640);
 
     auto* layout = new QVBoxLayout(this);
     layout->addWidget(createDialogTitleBar(this, dialogTitle));
@@ -490,7 +490,7 @@ void AttendanceSelectDialog::exportSelection() {
 
 void AttendanceSelectDialog::closeEvent(QCloseEvent* event) {
     smoothHide(this);
-    event->ignore();
+    if (AppState::isQuitting()) { event->accept(); } else { event->ignore(); }
 }
 
 RandomCallDialog::RandomCallDialog(QWidget* parent) : QDialog(parent) {
@@ -638,7 +638,7 @@ void RandomCallDialog::startAnim() {
 
 void RandomCallDialog::closeEvent(QCloseEvent* event) {
     smoothHide(this);
-    event->ignore();
+    if (AppState::isQuitting()) { event->accept(); } else { event->ignore(); }
 }
 
 ClassTimerDialog::ClassTimerDialog(QWidget* parent) : QDialog(parent) {
@@ -736,7 +736,7 @@ void ClassTimerDialog::openTimer() {
 
 void ClassTimerDialog::closeEvent(QCloseEvent* event) {
     smoothHide(this);
-    event->ignore();
+    if (AppState::isQuitting()) { event->accept(); } else { event->ignore(); }
 }
 
 ClassNoteDialog::ClassNoteDialog(QWidget* parent) : QDialog(parent) {
@@ -818,7 +818,7 @@ void ClassNoteDialog::openNote() {
 
 void ClassNoteDialog::closeEvent(QCloseEvent* event) {
     smoothHide(this);
-    event->ignore();
+    if (AppState::isQuitting()) { event->accept(); } else { event->ignore(); }
 }
 
 GroupSplitDialog::GroupSplitDialog(QWidget* parent) : QDialog(parent) {
@@ -894,7 +894,7 @@ void GroupSplitDialog::openSplitter() {
 
 void GroupSplitDialog::closeEvent(QCloseEvent* event) {
     smoothHide(this);
-    event->ignore();
+    if (AppState::isQuitting()) { event->accept(); } else { event->ignore(); }
 }
 
 ScoreBoardDialog::ScoreBoardDialog(QWidget* parent) : QDialog(parent) {
@@ -962,7 +962,7 @@ void ScoreBoardDialog::openBoard() {
 
 void ScoreBoardDialog::closeEvent(QCloseEvent* event) {
     smoothHide(this);
-    event->ignore();
+    if (AppState::isQuitting()) { event->accept(); } else { event->ignore(); }
 }
 
 
@@ -1134,7 +1134,7 @@ void AIAssistantDialog::openAssistant() {
 
 void AIAssistantDialog::closeEvent(QCloseEvent* event) {
     smoothHide(this);
-    event->ignore();
+    if (AppState::isQuitting()) { event->accept(); } else { event->ignore(); }
 }
 
 AddButtonDialog::AddButtonDialog(QWidget* parent) : QDialog(parent) {
@@ -1240,13 +1240,13 @@ FirstRunWizard::FirstRunWizard(QWidget* parent) : QDialog(parent) {
 
     displayLayout->addWidget(new QLabel("考勤概览宽度"));
     m_summaryWidth = new QSlider(Qt::Horizontal);
-    m_summaryWidth->setRange(300, 520);
+    m_summaryWidth->setRange(360, 660);
     m_summaryWidth->setValue(Config::instance().attendanceSummaryWidth);
     displayLayout->addWidget(m_summaryWidth);
 
     m_startCollapsed = new QCheckBox("启动后默认收起到右下角悬浮球");
     m_startCollapsed->setChecked(Config::instance().startCollapsed);
-    m_trayClickToOpen = new QCheckBox("托盘单击时展开侧栏");
+    m_trayClickToOpen = new QCheckBox("托盘单击时展开半圆菜单");
     m_trayClickToOpen->setChecked(Config::instance().trayClickToOpen);
     m_showAttendanceSummaryOnStart = new QCheckBox("启动时显示考勤概览窗口");
     m_showAttendanceSummaryOnStart->setChecked(Config::instance().showAttendanceSummaryOnStart);
@@ -1367,7 +1367,7 @@ void FirstRunWizard::finishSetup() {
 }
 
 void FirstRunWizard::closeEvent(QCloseEvent* event) {
-    event->ignore();
+    if (AppState::isQuitting()) { event->accept(); } else { event->ignore(); }
 }
 
 SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
@@ -1475,26 +1475,26 @@ QWidget* SettingsDialog::createPageDisplayStartup() {
 
     displayLayout->addWidget(new QLabel("考勤概览宽度"));
     m_summaryWidth = new QSlider(Qt::Horizontal);
-    m_summaryWidth->setRange(300, 520);
+    m_summaryWidth->setRange(360, 660);
     displayLayout->addWidget(m_summaryWidth);
 
     m_compactMode = new QCheckBox("紧凑模式（缩小图标与间距）");
     displayLayout->addWidget(m_compactMode);
 
-    displayLayout->addWidget(new QLabel("主界面宽度"));
+    displayLayout->addWidget(new QLabel("半圆菜单半径"));
     m_sidebarWidth = new QSlider(Qt::Horizontal);
-    m_sidebarWidth->setRange(84, 128);
+    m_sidebarWidth->setRange(150, 280);
     displayLayout->addWidget(m_sidebarWidth);
 
-    displayLayout->addWidget(new QLabel("过渡动画时长（毫秒）"));
+    displayLayout->addWidget(new QLabel("无操作自动收起秒数"));
     m_animationDuration = new QSlider(Qt::Horizontal);
-    m_animationDuration->setRange(120, 600);
+    m_animationDuration->setRange(5, 60);
     displayLayout->addWidget(m_animationDuration);
 
     auto* groupStartup = new QGroupBox("启动行为（二级）");
     auto* startupLayout = new QVBoxLayout(groupStartup);
     m_startCollapsed = new QCheckBox("启动时收起到悬浮球");
-    m_trayClickToOpen = new QCheckBox("托盘单击时展开侧栏");
+    m_trayClickToOpen = new QCheckBox("托盘单击时展开半圆菜单");
     m_showAttendanceSummaryOnStart = new QCheckBox("启动时显示考勤概览");
     m_collapseHidesToolWindows = new QCheckBox("收起主界面时联动隐藏所有工具窗口");
     startupLayout->addWidget(m_startCollapsed);
@@ -1575,7 +1575,7 @@ QWidget* SettingsDialog::createPageDataManagement() {
     connect(importBtn, &QPushButton::clicked, this, &SettingsDialog::importStudents);
     layout->addWidget(importBtn);
 
-    layout->addWidget(new QLabel("按钮管理（除“设置”外，主界面按钮都可删改；可一键恢复默认按钮）"));
+    layout->addWidget(new QLabel("按钮管理（主界面为半圆按钮，可自定义并滚动查看更多）"));
     m_buttonList = new QListWidget;
     layout->addWidget(m_buttonList, 1);
 
@@ -1739,8 +1739,8 @@ void SettingsDialog::loadData() {
     m_showAttendanceSummaryOnStart->setChecked(cfg.showAttendanceSummaryOnStart);
     m_collapseHidesToolWindows->setChecked(cfg.collapseHidesToolWindows);
     m_compactMode->setChecked(cfg.compactMode);
-    m_sidebarWidth->setValue(cfg.sidebarWidth);
-    m_animationDuration->setValue(cfg.animationDurationMs);
+    m_sidebarWidth->setValue(cfg.radialMenuRadius);
+    m_animationDuration->setValue(cfg.menuAutoCollapseSeconds);
     m_randomNoRepeat->setChecked(cfg.randomNoRepeat);
     m_historyCount->setValue(cfg.randomHistorySize);
     m_allowExternalLinks->setChecked(cfg.allowExternalLinks);
@@ -1864,8 +1864,8 @@ void SettingsDialog::saveData() {
     cfg.showAttendanceSummaryOnStart = m_showAttendanceSummaryOnStart->isChecked();
     cfg.collapseHidesToolWindows = m_collapseHidesToolWindows->isChecked();
     cfg.compactMode = m_compactMode->isChecked();
-    cfg.sidebarWidth = m_sidebarWidth->value();
-    cfg.animationDurationMs = m_animationDuration->value();
+    cfg.radialMenuRadius = m_sidebarWidth->value();
+    cfg.menuAutoCollapseSeconds = m_animationDuration->value();
     cfg.randomNoRepeat = m_randomNoRepeat->isChecked();
     cfg.randomHistorySize = m_historyCount->value();
     cfg.allowExternalLinks = m_allowExternalLinks->isChecked();
@@ -1890,6 +1890,7 @@ void SettingsDialog::saveData() {
 
     cfg.setButtons(buttons);
     cfg.save();
+    Logger::instance().info("设置已保存");
     emit configChanged();
     smoothHide(this);
 }
@@ -1906,5 +1907,5 @@ void SettingsDialog::restoreDefaults() {
 
 void SettingsDialog::closeEvent(QCloseEvent* event) {
     smoothHide(this);
-    event->ignore();
+    if (AppState::isQuitting()) { event->accept(); } else { event->ignore(); }
 }

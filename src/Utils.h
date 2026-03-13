@@ -3,6 +3,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QMutex>
 #include <QStandardPaths>
 #include <QString>
 #include <QStringList>
@@ -35,8 +36,11 @@ public:
     QString resolveIconPath(const QString& iconRef) const;
 
     int iconSize = 46;
+    int floatingBallSize = 72;
     int floatingOpacity = 85;
     int attendanceSummaryWidth = 360;
+    int radialMenuRadius = 210;
+    int menuAutoCollapseSeconds = 15;
     bool startCollapsed = false;
     bool trayClickToOpen = true;
     bool showAttendanceSummaryOnStart = true;
@@ -64,3 +68,24 @@ private:
     QVector<AppButton> m_buttons;
     QStringList m_students;
 };
+
+class Logger {
+public:
+    static Logger& instance();
+    void info(const QString& message);
+    void warn(const QString& message);
+    void error(const QString& message);
+    QString logPath() const;
+
+private:
+    Logger();
+    void write(const QString& level, const QString& message);
+
+    QString m_logPath;
+    mutable QMutex m_mutex;
+};
+
+namespace AppState {
+void setQuitting(bool quitting);
+bool isQuitting();
+}
