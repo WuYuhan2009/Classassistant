@@ -6,6 +6,7 @@
 #include <QApplication>
 #include <QDesktopServices>
 #include <QMessageBox>
+#include <QMap>
 #include <QMouseEvent>
 #include <QProcess>
 #include <QPushButton>
@@ -15,9 +16,15 @@
 #include <QtMath>
 
 namespace {
+const QStringList kOrderedTargets = {"SEEWO", "ATTENDANCE", "RANDOM_CALL", "AI_ASSISTANT", "SETTINGS"};
+
 bool isAllowedTarget(const QString& target) {
-    static const QSet<QString> kAllowedTargets = {"SEEWO", "ATTENDANCE", "RANDOM_CALL", "AI_ASSISTANT", "SETTINGS"};
-    return kAllowedTargets.contains(target);
+    return kOrderedTargets.contains(target);
+}
+
+int orderIndex(const QString& target) {
+    const int idx = kOrderedTargets.indexOf(target);
+    return idx < 0 ? 999 : idx;
 }
 }
 
@@ -63,15 +70,19 @@ void Sidebar::rebuildUI() {
     m_buttons.clear();
 
     const auto buttons = Config::instance().getButtons();
-    bool hasSettings = false;
+    QMap<int, AppButton> ordered;
     for (const auto& b : buttons) {
         if (!isAllowedTarget(b.target)) {
             continue;
         }
-        if (b.target == "SETTINGS") {
-            hasSettings = true;
-        }
+        ordered.insert(orderIndex(b.target), b);
+    }
 
+    if (!ordered.contains(orderIndex("SETTINGS"))) {
+        ordered.insert(orderIndex("SETTINGS"), {"设置", "icon_settings.png", "func", "SETTINGS", true});
+    }
+
+    for (const auto& b : ordered) {
         auto* btn = new QPushButton(this);
         btn->setToolTip(b.name);
         btn->setCursor(Qt::PointingHandCursor);
@@ -85,20 +96,6 @@ void Sidebar::rebuildUI() {
 
         connect(btn, &QPushButton::clicked, this, [this, b]() { onButtonTriggered(b.action, b.target); });
         m_buttons.push_back(btn);
-    }
-
-    if (!hasSettings) {
-        auto* settingsBtn = new QPushButton(this);
-        settingsBtn->setToolTip("设置");
-        const QIcon settingsIcon(Config::instance().resolveIconPath("icon_settings.png"));
-        if (!settingsIcon.isNull()) {
-            settingsBtn->setIcon(settingsIcon);
-            settingsBtn->setIconSize(QSize(30, 30));
-        } else {
-            settingsBtn->setText("设");
-        }
-        connect(settingsBtn, &QPushButton::clicked, this, [this]() { onButtonTriggered("func", "SETTINGS"); });
-        m_buttons.push_back(settingsBtn);
     }
 
     refreshButtonLayout();
@@ -223,7 +220,10 @@ void Sidebar::collapseMenu() {
         return;
     }
     m_idleTimer.stop();
-    hideAllToolWindowsAnimated();
+    if (!m_suppressToolHideOnce) {
+        hideAllToolWindowsAnimated();
+    }
+    m_suppressToolHideOnce = false;
     hide();
     emit requestCollapseToBall();
     Logger::instance().info("菜单收起");
@@ -241,7 +241,7 @@ void Sidebar::mousePressEvent(QMouseEvent* event) {
         return;
     }
     collapseMenu();
-    QWidget::mousePressEvent(event);
+    event->accept();
 }
 
 void Sidebar::resetIdleCountdown() {
@@ -250,6 +250,7 @@ void Sidebar::resetIdleCountdown() {
 
 void Sidebar::onButtonTriggered(const QString& action, const QString& target) {
     handleAction(action, target);
+    m_suppressToolHideOnce = true;
     collapseMenu();
 }
 
@@ -278,19 +279,25 @@ void Sidebar::refreshButtonLayout() {
     }
 
     const bool anchorAtRight = center.x() >= width() / 2;
-    const qreal startDeg = anchorAtRight ? 120.0 : -60.0;
-    const qreal endDeg = anchorAtRight ? 240.0 : 60.0;
+    const qreal startDeg = anchorAtRight ? 110.0 : -70.0;
+    const qreal endDeg = anchorAtRight ? 250.0 : 70.0;
 
-    const int minGap = 12;
     const qreal arcDeg = qAbs(endDeg - startDeg);
     const qreal stepDeg = count <= 1 ? arcDeg : arcDeg / (count - 1);
     const qreal stepRad = qDegreesToRadians(stepDeg);
-    const int requiredRadius = count <= 1 ? Config::instance().radialMenuRadius
-                                          : qCeil((btnSize + minGap) / qMax(0.20, stepRad));
 
-    const int screenPad = btnSize / 2 + 8;
-    const int maxRadius = anchorAtRight ? (center.x() - screenPad) : ((width() - center.x()) - screenPad);
-    const int radius = qBound(requiredRadius, Config::instance().radialMenuRadius, qMax(requiredRadius, maxRadius));
+    const int desiredSpacing = btnSize + 10;
+    const int minRadiusForNoOverlap = count <= 1 ? btnSize + 10
+                                                  : qCeil(desiredSpacing / qMax(0.15, 2.0 * qSin(stepRad / 2.0)));
+
+    const int distanceFromBallCenter = btnSize + 10;
+    const int requiredRadius = qMax(distanceFromBallCenter, minRadiusForNoOverlap);
+
+    const int margin = btnSize / 2 + 10;
+    const int horizontalLimit = anchorAtRight ? (center.x() - margin) : (width() - center.x() - margin);
+    const int verticalLimit = qMin(center.y() - margin, height() - center.y() - margin);
+    const int safeMaxRadius = qMax(requiredRadius, qMin(horizontalLimit, verticalLimit));
+    const int radius = qBound(requiredRadius, Config::instance().radialMenuRadius, safeMaxRadius);
 
     for (int i = 0; i < count; ++i) {
         const qreal t = count <= 1 ? 0.5 : static_cast<qreal>(i) / (count - 1);

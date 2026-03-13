@@ -10,9 +10,12 @@ class FloatingBall : public QWidget {
 public:
     explicit FloatingBall(QWidget* parent = nullptr);
     void moveToBottomRight();
+    void moveToDefaultCollapsedPosition();
+    void restoreSavedPosition();
 
 signals:
     void clicked();
+    void positionCommitted(const QPoint& globalTopLeft);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -23,6 +26,7 @@ protected:
     bool event(QEvent* event) override;
 
 private:
+    void snapToScreenEdge();
     QPoint m_dragPos;
     QPoint m_touchStartPos;
     bool m_isDragging = false;

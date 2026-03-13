@@ -41,6 +41,7 @@ private:
     QList<QPushButton*> m_buttons;
     QTimer m_idleTimer;
     QRect m_anchorGeometry;
+    bool m_suppressToolHideOnce = false;
 
     void handleAction(const QString& action, const QString& target);
     void handleFunctionAction(const QString& target);

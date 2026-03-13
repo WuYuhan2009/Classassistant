@@ -64,7 +64,7 @@ void applyDefaults(Config& config, QVector<AppButton>& buttons, QStringList& stu
     config.attendanceSummaryWidth = 420;
     config.radialMenuRadius = 210;
     config.menuAutoCollapseSeconds = 15;
-    config.startCollapsed = false;
+    config.startCollapsed = true;
     config.trayClickToOpen = true;
     config.showAttendanceSummaryOnStart = true;
     config.randomNoRepeat = true;
@@ -79,6 +79,8 @@ void applyDefaults(Config& config, QVector<AppButton>& buttons, QStringList& stu
     config.collapseHidesToolWindows = true;
     config.firstRunCompleted = false;
     config.classNote = "";
+    config.floatingBallX = -1;
+    config.floatingBallY = -1;
     buttons = buildDefaultButtons();
     normalizeSystemButtonIcons(buttons);
     students = defaultStudents();
@@ -125,7 +127,7 @@ void Config::load() {
     attendanceSummaryWidth = qBound(360, root["attendanceSummaryWidth"].toInt(420), 660);
     radialMenuRadius = qBound(150, root["radialMenuRadius"].toInt(210), 280);
     menuAutoCollapseSeconds = qBound(5, root["menuAutoCollapseSeconds"].toInt(15), 60);
-    startCollapsed = root["startCollapsed"].toBool(false);
+    startCollapsed = root["startCollapsed"].toBool(true);
     trayClickToOpen = root["trayClickToOpen"].toBool(true);
     showAttendanceSummaryOnStart = root["showAttendanceSummaryOnStart"].toBool(true);
     randomNoRepeat = root["randomNoRepeat"].toBool(true);
@@ -143,6 +145,8 @@ void Config::load() {
     siliconFlowApiKey = root["siliconFlowApiKey"].toString().trimmed();
     siliconFlowModel = root["siliconFlowModel"].toString("deepseek-ai/DeepSeek-V3.2").trimmed();
     siliconFlowEndpoint = root["siliconFlowEndpoint"].toString("https://api.siliconflow.cn/v1/chat/completions").trimmed();
+    floatingBallX = root["floatingBallX"].toInt(-1);
+    floatingBallY = root["floatingBallY"].toInt(-1);
 
     m_students.clear();
     for (const auto& v : root["students"].toArray()) {
@@ -240,6 +244,8 @@ void Config::save() {
     root["siliconFlowApiKey"] = siliconFlowApiKey;
     root["siliconFlowModel"] = siliconFlowModel;
     root["siliconFlowEndpoint"] = siliconFlowEndpoint;
+    root["floatingBallX"] = floatingBallX;
+    root["floatingBallY"] = floatingBallY;
     root["fixedSidebarWidth"] = kSidebarWidth;
 
     QJsonArray stuArr;

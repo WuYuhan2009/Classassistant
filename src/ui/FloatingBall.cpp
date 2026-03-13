@@ -18,7 +18,7 @@ FloatingBall::FloatingBall(QWidget* parent) : QWidget(parent) {
     setFixedSize(size, size);
     setWindowOpacity(Config::instance().floatingOpacity / 100.0);
     FluentTheme::applyWinUIWindowShadow(this);
-    moveToBottomRight();
+    restoreSavedPosition();
 }
 
 bool FloatingBall::event(QEvent* event) {
@@ -52,10 +52,7 @@ bool FloatingBall::event(QEvent* event) {
         if (!m_isDragging) {
             emit clicked();
         } else {
-            const QRect screen = QApplication::primaryScreen()->availableGeometry();
-            const int snapX = x() + width() / 2 < screen.center().x() ? screen.left() + 8 : screen.right() - width() - 8;
-            const int boundedY = qBound(screen.top() + 8, y(), screen.bottom() - height() - 8);
-            move(snapX, boundedY);
+            snapToScreenEdge();
         }
         event->accept();
         return true;
@@ -64,8 +61,28 @@ bool FloatingBall::event(QEvent* event) {
 }
 
 void FloatingBall::moveToBottomRight() {
+    moveToDefaultCollapsedPosition();
+}
+
+void FloatingBall::moveToDefaultCollapsedPosition() {
     const QRect screen = QApplication::primaryScreen()->availableGeometry();
-    move(screen.right() - width() - 14, screen.bottom() - height() - 14);
+    const int x = screen.right() - width() - 12;
+    const int y = screen.top() + ((screen.height() * 2) / 3) - height() / 2;
+    move(x, qBound(screen.top() + 8, y, screen.bottom() - height() - 8));
+    emit positionCommitted(pos());
+}
+
+void FloatingBall::restoreSavedPosition() {
+    const QRect screen = QApplication::primaryScreen()->availableGeometry();
+    auto& cfg = Config::instance();
+    if (cfg.floatingBallX < 0 || cfg.floatingBallY < 0) {
+        moveToDefaultCollapsedPosition();
+        return;
+    }
+
+    const int x = qBound(screen.left() + 8, cfg.floatingBallX, screen.right() - width() - 8);
+    const int y = qBound(screen.top() + 8, cfg.floatingBallY, screen.bottom() - height() - 8);
+    move(x, y);
 }
 
 void FloatingBall::paintEvent(QPaintEvent* event) {
@@ -109,11 +126,16 @@ void FloatingBall::mouseReleaseEvent(QMouseEvent* e) {
         return;
     }
     if (e->button() == Qt::LeftButton && m_isDragging) {
-        const QRect screen = QApplication::primaryScreen()->availableGeometry();
-        const int snapX = x() + width() / 2 < screen.center().x() ? screen.left() + 8 : screen.right() - width() - 8;
-        const int boundedY = qBound(screen.top() + 8, y(), screen.bottom() - height() - 8);
-        move(snapX, boundedY);
+        snapToScreenEdge();
     }
+}
+
+void FloatingBall::snapToScreenEdge() {
+    const QRect screen = QApplication::primaryScreen()->availableGeometry();
+    const int snapX = x() + width() / 2 < screen.center().x() ? screen.left() + 8 : screen.right() - width() - 8;
+    const int boundedY = qBound(screen.top() + 8, y(), screen.bottom() - height() - 8);
+    move(snapX, boundedY);
+    emit positionCommitted(pos());
 }
 
 void FloatingBall::closeEvent(QCloseEvent* event) {

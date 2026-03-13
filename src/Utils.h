@@ -41,7 +41,7 @@ public:
     int attendanceSummaryWidth = 360;
     int radialMenuRadius = 210;
     int menuAutoCollapseSeconds = 15;
-    bool startCollapsed = false;
+    bool startCollapsed = true;
     bool trayClickToOpen = true;
     bool showAttendanceSummaryOnStart = true;
     bool randomNoRepeat = true;
@@ -60,6 +60,8 @@ public:
     QString siliconFlowApiKey;
     QString siliconFlowModel = "deepseek-ai/DeepSeek-V3.2";
     QString siliconFlowEndpoint = "https://api.siliconflow.cn/v1/chat/completions";
+    int floatingBallX = -1;
+    int floatingBallY = -1;
 
 private:
     Config();

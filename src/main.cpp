@@ -50,6 +50,7 @@ int main(int argc, char* argv[]) {
 
     auto showMenu = [&]() {
         sidebar->setAnchorGeometry(ball->geometry());
+        ball->hide();
         sidebar->expandMenu();
         Logger::instance().info("悬浮球点击展开");
     };
@@ -62,6 +63,12 @@ int main(int argc, char* argv[]) {
 
     QObject::connect(ball, &FloatingBall::clicked, showMenu);
     QObject::connect(sidebar, &Sidebar::requestCollapseToBall, showBall);
+    QObject::connect(ball, &FloatingBall::positionCommitted, [](const QPoint& pt) {
+        auto& cfg = Config::instance();
+        cfg.floatingBallX = pt.x();
+        cfg.floatingBallY = pt.y();
+        cfg.save();
+    });
 
     QObject::connect(&app, &QCoreApplication::aboutToQuit, [&]() {
         AppState::setQuitting(true);
@@ -123,8 +130,8 @@ int main(int argc, char* argv[]) {
         }
     });
 
+    ball->restoreSavedPosition();
     if (Config::instance().startCollapsed) {
-        ball->moveToBottomRight();
         ball->show();
     } else {
         showMenu();
