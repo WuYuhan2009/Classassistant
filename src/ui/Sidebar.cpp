@@ -16,11 +16,12 @@
 #include <QPushButton>
 #include <QScreen>
 #include <QSet>
+#include <QTime>
 #include <QUrl>
 #include <QtMath>
 
 namespace {
-const QStringList kOrderedTargets = {"SEEWO", "ATTENDANCE", "RANDOM_CALL", "AI_ASSISTANT", "SETTINGS"};
+const QStringList kOrderedTargets = {"SEEWO", "ATTENDANCE", "SCREEN_OFF", "RANDOM_CALL", "AI_ASSISTANT", "SETTINGS"};
 
 bool isAllowedTarget(const QString& target) {
     return kOrderedTargets.contains(target);
@@ -29,6 +30,19 @@ bool isAllowedTarget(const QString& target) {
 int orderIndex(const QString& target) {
     const int idx = kOrderedTargets.indexOf(target);
     return idx < 0 ? 999 : idx;
+}
+
+bool inSelfStudyPeriod() {
+    const QTime now = QTime::currentTime();
+    for (const QString& period : Config::instance().selfStudyPeriods) {
+        const QStringList parts = period.split('-', Qt::SkipEmptyParts);
+        if (parts.size() != 2) continue;
+        const QTime s = QTime::fromString(parts[0].trimmed(), "HH:mm");
+        const QTime e = QTime::fromString(parts[1].trimmed(), "HH:mm");
+        if (!s.isValid() || !e.isValid()) continue;
+        if (now >= s && now <= e) return true;
+    }
+    return false;
 }
 }
 
@@ -45,6 +59,7 @@ Sidebar::Sidebar(QWidget* parent) : QWidget(parent) {
     m_randomCall = new RandomCallDialog();
     m_aiAssistant = new AIAssistantDialog();
     m_settings = new SettingsDialog();
+    m_screenOff = new ScreenOffOverlay();
 
     connect(m_settings, &SettingsDialog::configChanged, this, &Sidebar::reloadConfig);
     connect(m_attendanceSelector, &AttendanceSelectDialog::saved, m_attendanceSummary, &AttendanceSummaryWidget::applyAbsentees);
@@ -57,7 +72,7 @@ Sidebar::Sidebar(QWidget* parent) : QWidget(parent) {
 }
 
 QList<QWidget*> Sidebar::managedToolWindows() const {
-    return {m_attendanceSelector, m_randomCall, m_aiAssistant, m_settings};
+    return {m_attendanceSelector, m_randomCall, m_aiAssistant, m_settings, m_screenOff};
 }
 
 void Sidebar::showManagedWindow(QWidget* window) {
@@ -152,6 +167,13 @@ void Sidebar::handleFunctionAction(const QString& target) {
         m_attendanceSummary->show();
         m_attendanceSummary->raise();
         showManagedWindow(m_attendanceSelector);
+    } else if (target == "SCREEN_OFF") {
+        if (m_screenOff->isActive()) {
+            return;
+        }
+        m_screenOff->activate(inSelfStudyPeriod());
+        m_attendanceSummary->show();
+        m_attendanceSummary->raise();
     } else if (target == "RANDOM_CALL") {
         m_randomCall->setWindowOpacity(1.0);
         m_randomCall->startAnim();

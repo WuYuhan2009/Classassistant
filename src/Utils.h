@@ -62,6 +62,7 @@ public:
     QString siliconFlowEndpoint = "https://api.siliconflow.cn/v1/chat/completions";
     int floatingBallX = -1;
     int floatingBallY = -1;
+    QStringList selfStudyPeriods;
 
 private:
     Config();

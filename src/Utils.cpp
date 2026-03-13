@@ -18,6 +18,7 @@ QVector<AppButton> buildDefaultButtons() {
     return {
         {"希沃白板", "icon_seewo.png", "exe", "SEEWO", true},
         {"班级考勤", "icon_attendance.png", "func", "ATTENDANCE", true},
+        {"息屏", "", "func", "SCREEN_OFF", true},
         {"随机点名", "icon_random.png", "func", "RANDOM_CALL", true},
         {"AI助手", "icon_ai.png", "func", "AI_ASSISTANT", true},
         {"设置", "icon_settings.png", "func", "SETTINGS", true},
@@ -32,6 +33,7 @@ QString canonicalIconForTarget(const QString& target) {
     if (target == "SEEWO") return "icon_seewo.png";
     if (target == "ATTENDANCE") return "icon_attendance.png";
     if (target == "RANDOM_CALL") return "icon_random.png";
+    if (target == "SCREEN_OFF") return "";
     if (target == "CLASS_TIMER") return "icon_timer.png";
     if (target == "CLASS_NOTE") return "icon_note.png";
     if (target == "GROUP_SPLIT") return "icon_group.png";
@@ -81,6 +83,7 @@ void applyDefaults(Config& config, QVector<AppButton>& buttons, QStringList& stu
     config.classNote = "";
     config.floatingBallX = -1;
     config.floatingBallY = -1;
+    config.selfStudyPeriods = {"19:00-19:45"};
     buttons = buildDefaultButtons();
     normalizeSystemButtonIcons(buttons);
     students = defaultStudents();
@@ -147,6 +150,11 @@ void Config::load() {
     siliconFlowEndpoint = root["siliconFlowEndpoint"].toString("https://api.siliconflow.cn/v1/chat/completions").trimmed();
     floatingBallX = root["floatingBallX"].toInt(-1);
     floatingBallY = root["floatingBallY"].toInt(-1);
+    selfStudyPeriods.clear();
+    for (const auto& v : root["selfStudyPeriods"].toArray()) {
+        const QString p = v.toString().trimmed();
+        if (!p.isEmpty()) selfStudyPeriods.append(p);
+    }
 
     m_students.clear();
     for (const auto& v : root["students"].toArray()) {
@@ -184,7 +192,7 @@ void Config::load() {
     QVector<AppButton> filteredButtons;
     for (const auto& b : m_buttons) {
         if (b.target == "SEEWO" || b.target == "ATTENDANCE" || b.target == "RANDOM_CALL"
-            || b.target == "AI_ASSISTANT" || b.target == "SETTINGS") {
+            || b.target == "AI_ASSISTANT" || b.target == "SETTINGS" || b.target == "SCREEN_OFF") {
             filteredButtons.append(b);
         }
     }
@@ -209,6 +217,7 @@ void Config::load() {
     if (!hasSettings) {
         m_buttons.append({"设置", "icon_settings.png", "func", "SETTINGS", true});
     }
+    if (selfStudyPeriods.isEmpty()) { selfStudyPeriods = {"19:00-19:45"}; }
     if (siliconFlowModel.isEmpty()) {
         siliconFlowModel = "deepseek-ai/DeepSeek-V3.2";
     }
@@ -246,6 +255,9 @@ void Config::save() {
     root["siliconFlowEndpoint"] = siliconFlowEndpoint;
     root["floatingBallX"] = floatingBallX;
     root["floatingBallY"] = floatingBallY;
+    QJsonArray selfStudyArr;
+    for (const auto& p : selfStudyPeriods) selfStudyArr.append(p);
+    root["selfStudyPeriods"] = selfStudyArr;
     root["fixedSidebarWidth"] = kSidebarWidth;
 
     QJsonArray stuArr;

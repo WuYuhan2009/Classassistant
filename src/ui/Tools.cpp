@@ -22,8 +22,10 @@
 #include <QGuiApplication>
 #include <QGridLayout>
 #include <QMessageBox>
+#include <QInputDialog>
 #include <QMouseEvent>
 #include <QPushButton>
+#include <QProcess>
 #include <QPropertyAnimation>
 #include <QRandomGenerator>
 #include <QSet>
@@ -245,8 +247,149 @@ void requestAiCompletion(QWidget* owner,
     });
 }
 
+
+ScreenOffOverlay::ScreenOffOverlay(QWidget* parent) : QWidget(parent) {
+    setWindowFlags(Qt::FramelessWindowHint | Qt::Tool | Qt::WindowStaysOnTopHint);
+    setAttribute(Qt::WA_StyledBackground, true);
+    setStyleSheet("background:#000000;");
+
+    auto* root = new QVBoxLayout(this);
+    root->setContentsMargins(28, 20, 28, 24);
+    root->setSpacing(18);
+
+    auto* topRow = new QHBoxLayout;
+    topRow->addStretch();
+    m_attendanceLabel = new QLabel("考勤概览");
+    m_attendanceLabel->setStyleSheet("color:#ffffff;font-size:22px;font-weight:800;");
+    topRow->addWidget(m_attendanceLabel, 0, Qt::AlignRight | Qt::AlignTop);
+    root->addLayout(topRow);
+
+    m_timeLabel = new QLabel("00:00");
+    m_timeLabel->setAlignment(Qt::AlignCenter);
+    m_timeLabel->setStyleSheet("color:#ffffff;font-size:110px;font-weight:900;font-family:'Segoe UI','HarmonyOS Sans SC','Microsoft YaHei';");
+    root->addSpacing(18);
+    root->addWidget(m_timeLabel, 0, Qt::AlignHCenter);
+
+    m_progress = new QProgressBar;
+    m_progress->setFixedWidth(520);
+    m_progress->setTextVisible(false);
+    m_progress->setStyleSheet("QProgressBar{background:#1d1d1d;border:1px solid #555;border-radius:10px;height:18px;}QProgressBar::chunk{background:#7ea8ff;border-radius:10px;}");
+    m_remainingLabel = new QLabel;
+    m_remainingLabel->setAlignment(Qt::AlignCenter);
+    m_remainingLabel->setStyleSheet("color:#e5ecff;font-size:24px;font-weight:800;");
+    root->addWidget(m_progress, 0, Qt::AlignHCenter);
+    root->addWidget(m_remainingLabel, 0, Qt::AlignHCenter);
+
+    root->addStretch();
+    m_quoteLabel = new QLabel("正在获取每日金句...");
+    m_quoteLabel->setWordWrap(true);
+    m_quoteLabel->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
+    m_quoteLabel->setStyleSheet("color:#ffffff;font-size:30px;font-weight:800;");
+    m_quoteLabel->setMaximumWidth(1280);
+    root->addWidget(m_quoteLabel, 0, Qt::AlignHCenter);
+
+    auto* bottomRow = new QHBoxLayout;
+    bottomRow->addStretch();
+    m_shutdownButton = new QPushButton("⏻ 关机");
+    m_exitButton = new QPushButton("⤫ 退出");
+    for (auto* b : {m_shutdownButton, m_exitButton}) {
+        b->setFixedSize(140, 48);
+        b->setStyleSheet("QPushButton{background:#111;color:#fff;border:1px solid #555;border-radius:12px;font-size:20px;font-weight:700;}QPushButton:hover{background:#1f1f1f;}");
+        bottomRow->addWidget(b);
+        bottomRow->addSpacing(12);
+    }
+    root->addSpacing(8);
+    root->addLayout(bottomRow);
+
+    m_tickTimer = new QTimer(this);
+    connect(m_tickTimer, &QTimer::timeout, this, &ScreenOffOverlay::refreshClockAndProgress);
+    connect(m_exitButton, &QPushButton::clicked, this, &ScreenOffOverlay::deactivate);
+    connect(m_shutdownButton, &QPushButton::clicked, this, [this]() {
+        if (QMessageBox::question(this, "确认关机", "确定要立即关机吗？") != QMessageBox::Yes) {
+            return;
+        }
+#ifdef Q_OS_WIN
+        QProcess::startDetached("shutdown", {"/s", "/t", "0"});
+#else
+        QProcess::startDetached("shutdown", {"-h", "now"});
+#endif
+    });
+}
+
+bool ScreenOffOverlay::isActive() const { return isVisible(); }
+
+void ScreenOffOverlay::activate(bool fromSelfStudy) {
+    const QRect screen = QApplication::primaryScreen()->availableGeometry();
+    setGeometry(screen);
+    m_fromSelfStudy = fromSelfStudy;
+    show();
+    raise();
+    activateWindow();
+    loadDailyQuote();
+    refreshClockAndProgress();
+    m_tickTimer->start(1000);
+}
+
+void ScreenOffOverlay::deactivate() {
+    m_tickTimer->stop();
+    hide();
+    emit exited();
+}
+
+bool ScreenOffOverlay::currentSelfStudyPeriod(QDateTime* start, QDateTime* end) const {
+    const QTime now = QTime::currentTime();
+    for (const QString& p : Config::instance().selfStudyPeriods) {
+        const QStringList parts = p.split('-', Qt::SkipEmptyParts);
+        if (parts.size() != 2) continue;
+        const QTime s = QTime::fromString(parts[0].trimmed(), "HH:mm");
+        const QTime e = QTime::fromString(parts[1].trimmed(), "HH:mm");
+        if (!s.isValid() || !e.isValid()) continue;
+        if (now >= s && now <= e) {
+            const QDate d = QDate::currentDate();
+            if (start) *start = QDateTime(d, s);
+            if (end) *end = QDateTime(d, e);
+            return true;
+        }
+    }
+    return false;
+}
+
+void ScreenOffOverlay::refreshClockAndProgress() {
+    m_timeLabel->setText(QTime::currentTime().toString("HH:mm"));
+
+    QDateTime st, ed;
+    const bool inStudy = m_fromSelfStudy && currentSelfStudyPeriod(&st, &ed);
+    m_progress->setVisible(inStudy);
+    m_remainingLabel->setVisible(inStudy);
+    if (inStudy) {
+        const qint64 total = st.secsTo(ed);
+        const qint64 done = st.secsTo(QDateTime::currentDateTime());
+        const int percent = total <= 0 ? 100 : qBound(0, static_cast<int>((done * 100) / total), 100);
+        m_progress->setValue(percent);
+        const qint64 left = qMax<qint64>(0, QDateTime::currentDateTime().secsTo(ed));
+        m_remainingLabel->setText(QString("剩余 %1 分 %2 秒").arg(left / 60).arg(left % 60));
+    }
+}
+
+void ScreenOffOverlay::loadDailyQuote() {
+    const auto& cfg = Config::instance();
+    if (cfg.siliconFlowApiKey.trimmed().isEmpty()) {
+        m_quoteLabel->setText("填写 API Key 以获取每日金句");
+        return;
+    }
+
+    requestAiCompletion(this,
+                        "你是中文励志文案助手。",
+                        "请给出一句适合中学生自习课展示的每日金句，不超过40字。",
+                        QJsonArray(),
+                        [this](const QString& out, bool) {
+                            m_quoteLabel->setText(out.trimmed().isEmpty() ? QString("愿你今日专注而有收获。") : out.trimmed());
+                        });
+}
+
+
 AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(parent) {
-    setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnBottomHint | Qt::Tool);
+    setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
     setAttribute(Qt::WA_TranslucentBackground);
     setAttribute(Qt::WA_AcceptTouchEvents);
 
@@ -1569,6 +1712,36 @@ QWidget* SettingsDialog::createPageClassTools() {
     layout->addWidget(groupRandom);
     layout->addWidget(groupPath);
     layout->addWidget(groupFeature);
+
+    auto* groupSelfStudy = new QGroupBox("自习课设置（二级）");
+    auto* selfStudyLayout = new QVBoxLayout(groupSelfStudy);
+    selfStudyLayout->addWidget(new QLabel("自习时段（HH:mm-HH:mm，可添加多节）"));
+    m_selfStudyPeriodList = new QListWidget;
+    m_selfStudyPeriodList->setMinimumHeight(110);
+    selfStudyLayout->addWidget(m_selfStudyPeriodList);
+    auto* selfOps = new QHBoxLayout;
+    auto* addPeriodBtn = new QPushButton("添加时段");
+    auto* removePeriodBtn = new QPushButton("删除时段");
+    for (auto* b : {addPeriodBtn, removePeriodBtn}) b->setStyleSheet(buttonStylePrimary());
+    selfOps->addWidget(addPeriodBtn);
+    selfOps->addWidget(removePeriodBtn);
+    selfOps->addStretch();
+    selfStudyLayout->addLayout(selfOps);
+    connect(addPeriodBtn, &QPushButton::clicked, this, [this]() {
+        const QString txt = QInputDialog::getText(this, "添加自习时段", "格式：HH:mm-HH:mm", QLineEdit::Normal, "19:00-19:45");
+        if (txt.trimmed().isEmpty()) return;
+        const QStringList parts = txt.split('-', Qt::SkipEmptyParts);
+        if (parts.size() != 2 || !QTime::fromString(parts[0].trimmed(), "HH:mm").isValid() || !QTime::fromString(parts[1].trimmed(), "HH:mm").isValid()) {
+            QMessageBox::warning(this, "格式错误", "请输入有效时间段，例如 19:00-19:45");
+            return;
+        }
+        m_selfStudyPeriodList->addItem(parts[0].trimmed() + "-" + parts[1].trimmed());
+    });
+    connect(removePeriodBtn, &QPushButton::clicked, this, [this]() {
+        delete m_selfStudyPeriodList->takeItem(m_selfStudyPeriodList->currentRow());
+    });
+
+    layout->addWidget(groupSelfStudy);
     layout->addStretch();
     return page;
 }
@@ -1760,6 +1933,9 @@ void SettingsDialog::loadData() {
     m_aiModelEdit->setText(cfg.siliconFlowModel);
     m_aiEndpointEdit->setText(cfg.siliconFlowEndpoint);
 
+    m_selfStudyPeriodList->clear();
+    for (const auto& p : cfg.selfStudyPeriods) m_selfStudyPeriodList->addItem(p);
+
     m_buttonList->clear();
     for (const auto& b : cfg.getButtons()) {
         auto* item = new QListWidgetItem(QString("%1 [%2]").arg(b.name, b.action));
@@ -1886,6 +2062,8 @@ void SettingsDialog::saveData() {
     cfg.siliconFlowModel = m_aiModelEdit->text().trimmed().isEmpty() ? QString("deepseek-ai/DeepSeek-V3.2") : m_aiModelEdit->text().trimmed();
     cfg.siliconFlowEndpoint = m_aiEndpointEdit->text().trimmed().isEmpty() ? QString("https://api.siliconflow.cn/v1/chat/completions")
                                                                             : m_aiEndpointEdit->text().trimmed();
+    cfg.selfStudyPeriods.clear();
+    for (int i = 0; i < m_selfStudyPeriodList->count(); ++i) cfg.selfStudyPeriods.append(m_selfStudyPeriodList->item(i)->text());
 
     QVector<AppButton> buttons;
     for (int i = 0; i < m_buttonList->count(); ++i) {

@@ -44,6 +44,7 @@ private:
     RandomCallDialog* m_randomCall;
     AIAssistantDialog* m_aiAssistant;
     SettingsDialog* m_settings;
+    ScreenOffOverlay* m_screenOff;
 
     QList<QPushButton*> m_buttons;
     QHash<QPushButton*, QPoint> m_buttonExpandedPos;
