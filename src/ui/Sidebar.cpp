@@ -98,7 +98,7 @@ void Sidebar::rebuildUI() {
         ordered.insert(orderIndex(b.target), b);
     }
     if (!ordered.contains(orderIndex("SETTINGS"))) {
-        ordered.insert(orderIndex("SETTINGS"), {"设置", "icon_settings.png", "func", "SETTINGS", true});
+        ordered.insert(orderIndex("SETTINGS"), {"设置", "icon_settings.svg", "func", "SETTINGS", true});
     }
 
     for (const auto& b : ordered) {
@@ -176,10 +176,11 @@ void Sidebar::handleFunctionAction(const QString& target) {
             m_attendanceSummary->setPinnedOnTop(false);
             return;
         }
+        m_screenOff->activate(inSelfStudyPeriod());
         m_attendanceSummary->setPinnedOnTop(true);
         m_attendanceSummary->show();
         m_attendanceSummary->raise();
-        m_screenOff->activate(inSelfStudyPeriod());
+        m_attendanceSummary->activateWindow();
     } else if (target == "RANDOM_CALL") {
         m_randomCall->setWindowOpacity(1.0);
         m_randomCall->startAnim();

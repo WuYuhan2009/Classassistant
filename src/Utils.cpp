@@ -16,12 +16,12 @@ std::atomic<bool> g_isQuitting{false};
 
 QVector<AppButton> buildDefaultButtons() {
     return {
-        {"希沃白板", "icon_seewo.png", "exe", "SEEWO", true},
-        {"班级考勤", "icon_attendance.png", "func", "ATTENDANCE", true},
-        {"息屏", "", "func", "SCREEN_OFF", true},
-        {"随机点名", "icon_random.png", "func", "RANDOM_CALL", true},
-        {"AI助手", "icon_ai.png", "func", "AI_ASSISTANT", true},
-        {"设置", "icon_settings.png", "func", "SETTINGS", true},
+        {"希沃白板", "icon_seewo.svg", "exe", "SEEWO", true},
+        {"班级考勤", "icon_attendance.svg", "func", "ATTENDANCE", true},
+        {"息屏", "icon_screen_off.svg", "func", "SCREEN_OFF", true},
+        {"随机点名", "icon_random.svg", "func", "RANDOM_CALL", true},
+        {"AI助手", "icon_ai.svg", "func", "AI_ASSISTANT", true},
+        {"设置", "icon_settings.svg", "func", "SETTINGS", true},
     };
 }
 
@@ -30,16 +30,16 @@ QStringList defaultStudents() {
 }
 
 QString canonicalIconForTarget(const QString& target) {
-    if (target == "SEEWO") return "icon_seewo.png";
-    if (target == "ATTENDANCE") return "icon_attendance.png";
-    if (target == "RANDOM_CALL") return "icon_random.png";
-    if (target == "SCREEN_OFF") return "";
-    if (target == "CLASS_TIMER") return "icon_timer.png";
-    if (target == "CLASS_NOTE") return "icon_note.png";
-    if (target == "GROUP_SPLIT") return "icon_group.png";
-    if (target == "SCORE_BOARD") return "icon_score.png";
-    if (target == "AI_ASSISTANT") return "icon_ai.png";
-    if (target == "SETTINGS") return "icon_settings.png";
+    if (target == "SEEWO") return "icon_seewo.svg";
+    if (target == "ATTENDANCE") return "icon_attendance.svg";
+    if (target == "RANDOM_CALL") return "icon_random.svg";
+    if (target == "SCREEN_OFF") return "icon_screen_off.svg";
+    if (target == "CLASS_TIMER") return "icon_timer.svg";
+    if (target == "CLASS_NOTE") return "icon_note.svg";
+    if (target == "GROUP_SPLIT") return "icon_group.svg";
+    if (target == "SCORE_BOARD") return "icon_score.svg";
+    if (target == "AI_ASSISTANT") return "icon_ai.svg";
+    if (target == "SETTINGS") return "icon_settings.svg";
     return QString();
 }
 
@@ -52,7 +52,7 @@ void normalizeSystemButtonIcons(QVector<AppButton>& buttons) {
         if (canonical.isEmpty()) {
             continue;
         }
-        if (b.iconPath.trimmed().isEmpty() || b.iconPath == "icon_settings.png" || b.iconPath.startsWith(":/assets/icon_settings")) {
+        if (b.iconPath.trimmed().isEmpty() || b.iconPath == "icon_settings.svg" || b.iconPath.startsWith(":/assets/icon_settings")) {
             b.iconPath = canonical;
         }
     }
@@ -221,7 +221,7 @@ void Config::load() {
         m_buttons.append({"息屏", "", "func", "SCREEN_OFF", true});
     }
     if (!hasSettings) {
-        m_buttons.append({"设置", "icon_settings.png", "func", "SETTINGS", true});
+        m_buttons.append({"设置", "icon_settings.svg", "func", "SETTINGS", true});
     }
     if (selfStudyPeriods.isEmpty()) { selfStudyPeriods = QStringList() << QStringLiteral("19:00-19:45"); }
     if (siliconFlowModel.isEmpty()) {

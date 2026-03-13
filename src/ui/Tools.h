@@ -18,7 +18,6 @@
 #include <QTableWidget>
 #include <QTextEdit>
 #include <QTimer>
-#include <QTreeWidget>
 #include <QWidget>
 
 #include "../Utils.h"
@@ -273,7 +272,7 @@ protected:
     void closeEvent(QCloseEvent* event) override;
 
 private:
-    QTreeWidget* m_menuTree;
+    QListWidget* m_menuList;
     QStackedWidget* m_stacked;
     QSlider* m_floatingOpacity;
     QSlider* m_summaryWidth;

@@ -50,6 +50,17 @@ QString cardStyle() {
     return FluentTheme::dialogCardStyle();
 }
 
+
+QString touchFriendlySectionStyle() {
+    return "QGroupBox{font-size:16px;font-weight:800;border:1px solid #d8e4f4;border-radius:14px;margin-top:14px;padding-top:12px;background:#ffffff;}"
+           "QGroupBox::title{subcontrol-origin:margin;left:12px;padding:0 6px;color:#23415f;}"
+           "QPushButton{min-height:42px;padding:8px 14px;border-radius:10px;}"
+           "QLineEdit,QSpinBox,QComboBox,QListWidget{min-height:40px;border-radius:10px;padding:6px 10px;}"
+           "QCheckBox{spacing:10px;font-size:15px;padding:4px 0;}"
+           "QSlider::groove:horizontal{height:8px;border-radius:4px;background:#d9e4f3;}"
+           "QSlider::handle:horizontal{width:22px;height:22px;margin:-7px 0;border-radius:11px;background:#4f89d8;}";
+}
+
 void decorateDialog(QDialog* dlg, const QString& title) {
     FluentTheme::decorateDialog(dlg, title);
 }
@@ -1519,7 +1530,7 @@ void FirstRunWizard::closeEvent(QCloseEvent* event) {
 SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     const QString dialogTitle = "ClassAssistant 设置";
     decorateDialog(this, dialogTitle);
-    setFixedSize(940, 660);
+    setFixedSize(980, 700);
 
     auto* root = new QVBoxLayout(this);
     root->addWidget(createDialogTitleBar(this, dialogTitle));
@@ -1527,32 +1538,19 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     root->setSpacing(10);
 
     auto* content = new QHBoxLayout;
-    m_menuTree = new QTreeWidget;
-    m_menuTree->setHeaderHidden(true);
-    m_menuTree->setFixedWidth(240);
+    m_menuList = new QListWidget;
+    m_menuList->setFixedWidth(260);
+    m_menuList->setSpacing(8);
+    m_menuList->setStyleSheet("QListWidget{background:#f6f9ff;border:1px solid #d9e5f2;border-radius:14px;padding:8px;}"
+                              "QListWidget::item{min-height:48px;padding:10px 12px;border-radius:10px;font-size:16px;font-weight:700;color:#2b4766;}"
+                              "QListWidget::item:selected{background:#dbeaff;color:#15385f;}");
 
-    auto* topDisplay = new QTreeWidgetItem(QStringList{"外观与启动"});
-    topDisplay->addChild(new QTreeWidgetItem(QStringList{"窗口与显示"}));
-    topDisplay->addChild(new QTreeWidgetItem(QStringList{"启动行为"}));
-    topDisplay->addChild(new QTreeWidgetItem(QStringList{"动画与圆角"}));
-    auto* topTools = new QTreeWidgetItem(QStringList{"课堂工具与息屏"});
-    topTools->addChild(new QTreeWidgetItem(QStringList{"点名设置"}));
-    topTools->addChild(new QTreeWidgetItem(QStringList{"程序路径"}));
-    topTools->addChild(new QTreeWidgetItem(QStringList{"分组与计分"}));
-    topTools->addChild(new QTreeWidgetItem(QStringList{"自习与息屏"}));
-    auto* topData = new QTreeWidgetItem(QStringList{"数据与按钮"});
-    topData->addChild(new QTreeWidgetItem(QStringList{"名单与按钮"}));
-    auto* topSafety = new QTreeWidgetItem(QStringList{"AI与联网"});
-    topSafety->addChild(new QTreeWidgetItem(QStringList{"联网控制"}));
-    auto* topAbout = new QTreeWidgetItem(QStringList{"关于"});
-    topAbout->addChild(new QTreeWidgetItem(QStringList{"关于与更新"}));
-
-    m_menuTree->addTopLevelItem(topDisplay);
-    m_menuTree->addTopLevelItem(topTools);
-    m_menuTree->addTopLevelItem(topData);
-    m_menuTree->addTopLevelItem(topSafety);
-    m_menuTree->addTopLevelItem(topAbout);
-    m_menuTree->expandAll();
+    const QStringList sections = {"显示与启动", "课堂工具", "数据与按钮", "AI与联网", "关于"};
+    for (const QString& section : sections) {
+        auto* item = new QListWidgetItem(section);
+        item->setData(Qt::UserRole, m_menuList->count());
+        m_menuList->addItem(item);
+    }
 
     m_stacked = new QStackedWidget;
     const auto wrapScrollable = [](QWidget* page) -> QWidget* {
@@ -1568,7 +1566,7 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     m_stacked->addWidget(wrapScrollable(createPageSafety()));
     m_stacked->addWidget(wrapScrollable(createPageAbout()));
 
-    content->addWidget(m_menuTree);
+    content->addWidget(m_menuList);
     content->addWidget(m_stacked, 1);
     root->addLayout(content, 1);
 
@@ -1579,7 +1577,7 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     auto* quitAppBtn = new QPushButton("退出应用");
     for (auto* btn : {restore, save, quitAppBtn}) {
         btn->setStyleSheet(buttonStylePrimary());
-        btn->setMinimumHeight(38);
+        btn->setMinimumHeight(42);
         footer->addWidget(btn);
     }
     connect(restore, &QPushButton::clicked, this, &SettingsDialog::restoreDefaults);
@@ -1587,31 +1585,21 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     connect(quitAppBtn, &QPushButton::clicked, qApp, &QCoreApplication::quit);
     root->addLayout(footer);
 
-    connect(m_menuTree, &QTreeWidget::currentItemChanged, [this](QTreeWidgetItem* current) {
-        if (!current) {
-            return;
-        }
-        const QString label = current->text(0);
-        if (label == "外观与启动" || label == "窗口与显示" || label == "启动行为" || label == "动画与圆角") {
-            m_stacked->setCurrentIndex(0);
-        } else if (label == "课堂工具与息屏" || label == "点名设置" || label == "程序路径" || label == "分组与计分" || label == "自习与息屏") {
-            m_stacked->setCurrentIndex(1);
-        } else if (label == "数据与按钮" || label == "名单与按钮") {
-            m_stacked->setCurrentIndex(2);
-        } else if (label == "AI与联网" || label == "联网控制") {
-            m_stacked->setCurrentIndex(3);
-        } else {
-            m_stacked->setCurrentIndex(4);
+    connect(m_menuList, &QListWidget::currentRowChanged, this, [this](int row) {
+        if (row >= 0 && row < m_stacked->count()) {
+            m_stacked->setCurrentIndex(row);
         }
     });
 
-    m_menuTree->setCurrentItem(topDisplay->child(0));
+    m_menuList->setCurrentRow(0);
     loadData();
 }
 
 QWidget* SettingsDialog::createPageDisplayStartup() {
     auto* page = new QWidget;
+    page->setStyleSheet(touchFriendlySectionStyle());
     auto* layout = new QVBoxLayout(page);
+    layout->setSpacing(14);
 
     auto* groupDisplay = new QGroupBox("窗口与显示（二级）");
     auto* displayLayout = new QVBoxLayout(groupDisplay);
@@ -1664,7 +1652,9 @@ QWidget* SettingsDialog::createPageDisplayStartup() {
 
 QWidget* SettingsDialog::createPageClassTools() {
     auto* page = new QWidget;
+    page->setStyleSheet(touchFriendlySectionStyle());
     auto* layout = new QVBoxLayout(page);
+    layout->setSpacing(14);
 
     auto* groupRandom = new QGroupBox("点名设置（二级）");
     auto* randomLayout = new QVBoxLayout(groupRandom);
@@ -1763,7 +1753,9 @@ QWidget* SettingsDialog::createPageClassTools() {
 
 QWidget* SettingsDialog::createPageDataManagement() {
     auto* page = new QWidget;
+    page->setStyleSheet(touchFriendlySectionStyle());
     auto* layout = new QVBoxLayout(page);
+    layout->setSpacing(14);
 
     auto* importBtn = new QPushButton("导入班级名单（CSV/TXT）");
     importBtn->setStyleSheet(buttonStylePrimary());
@@ -1803,7 +1795,9 @@ QWidget* SettingsDialog::createPageDataManagement() {
 
 QWidget* SettingsDialog::createPageSafety() {
     auto* page = new QWidget;
+    page->setStyleSheet(touchFriendlySectionStyle());
     auto* layout = new QVBoxLayout(page);
+    layout->setSpacing(14);
 
     auto* groupSafety = new QGroupBox("联网控制（二级）");
     auto* safetyLayout = new QVBoxLayout(groupSafety);
@@ -1851,7 +1845,9 @@ QWidget* SettingsDialog::createPageSafety() {
 
 QWidget* SettingsDialog::createPageAbout() {
     auto* page = new QWidget;
+    page->setStyleSheet(touchFriendlySectionStyle());
     auto* layout = new QVBoxLayout(page);
+    layout->setSpacing(14);
 
     auto* aboutBox = new QGroupBox("关于 ClassAssistant");
     auto* aboutLayout = new QVBoxLayout(aboutBox);
