@@ -249,20 +249,13 @@ void requestAiCompletion(QWidget* owner,
 
 
 ScreenOffOverlay::ScreenOffOverlay(QWidget* parent) : QWidget(parent) {
-    setWindowFlags(Qt::FramelessWindowHint | Qt::Tool | Qt::WindowStaysOnTopHint);
+    setWindowFlags(Qt::FramelessWindowHint | Qt::Window | Qt::WindowStaysOnTopHint);
     setAttribute(Qt::WA_StyledBackground, true);
     setStyleSheet("background:#000000;");
 
     auto* root = new QVBoxLayout(this);
     root->setContentsMargins(28, 20, 28, 24);
     root->setSpacing(18);
-
-    auto* topRow = new QHBoxLayout;
-    topRow->addStretch();
-    m_attendanceLabel = new QLabel("考勤概览");
-    m_attendanceLabel->setStyleSheet("color:#ffffff;font-size:22px;font-weight:800;");
-    topRow->addWidget(m_attendanceLabel, 0, Qt::AlignRight | Qt::AlignTop);
-    root->addLayout(topRow);
 
     m_timeLabel = new QLabel("00:00");
     m_timeLabel->setAlignment(Qt::AlignCenter);
@@ -289,7 +282,6 @@ ScreenOffOverlay::ScreenOffOverlay(QWidget* parent) : QWidget(parent) {
     root->addWidget(m_quoteLabel, 0, Qt::AlignHCenter);
 
     auto* bottomRow = new QHBoxLayout;
-    bottomRow->addStretch();
     m_shutdownButton = new QPushButton("⏻ 关机");
     m_exitButton = new QPushButton("⤫ 退出");
     for (auto* b : {m_shutdownButton, m_exitButton}) {
@@ -298,6 +290,7 @@ ScreenOffOverlay::ScreenOffOverlay(QWidget* parent) : QWidget(parent) {
         bottomRow->addWidget(b);
         bottomRow->addSpacing(12);
     }
+    bottomRow->addStretch();
     root->addSpacing(8);
     root->addLayout(bottomRow);
 
@@ -319,7 +312,7 @@ ScreenOffOverlay::ScreenOffOverlay(QWidget* parent) : QWidget(parent) {
 bool ScreenOffOverlay::isActive() const { return isVisible(); }
 
 void ScreenOffOverlay::activate(bool fromSelfStudy) {
-    const QRect screen = QApplication::primaryScreen()->availableGeometry();
+    const QRect screen = QApplication::primaryScreen()->geometry();
     setGeometry(screen);
     m_fromSelfStudy = fromSelfStudy;
     show();
@@ -483,7 +476,7 @@ void AttendanceSummaryWidget::refreshUi() {
     setFixedWidth(Config::instance().attendanceSummaryWidth);
     adjustSize();
 
-    const QRect screen = QApplication::primaryScreen()->availableGeometry();
+    const QRect screen = QApplication::primaryScreen()->geometry();
     move(screen.right() - width() - 12, screen.top() + 12);
 }
 

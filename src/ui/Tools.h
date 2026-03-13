@@ -203,7 +203,6 @@ private:
     QLabel* m_quoteLabel;
     QProgressBar* m_progress;
     QLabel* m_remainingLabel;
-    QLabel* m_attendanceLabel;
     QPushButton* m_shutdownButton;
     QPushButton* m_exitButton;
     QTimer* m_tickTimer;
