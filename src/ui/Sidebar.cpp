@@ -10,8 +10,16 @@
 #include <QProcess>
 #include <QPushButton>
 #include <QScreen>
+#include <QSet>
 #include <QUrl>
 #include <QtMath>
+
+namespace {
+bool isAllowedTarget(const QString& target) {
+    static const QSet<QString> kAllowedTargets = {"SEEWO", "ATTENDANCE", "RANDOM_CALL", "AI_ASSISTANT", "SETTINGS"};
+    return kAllowedTargets.contains(target);
+}
+}
 
 Sidebar::Sidebar(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::FramelessWindowHint | Qt::Tool | Qt::WindowStaysOnTopHint);
@@ -55,11 +63,18 @@ void Sidebar::rebuildUI() {
     m_buttons.clear();
 
     const auto buttons = Config::instance().getButtons();
+    bool hasSettings = false;
     for (const auto& b : buttons) {
+        if (!isAllowedTarget(b.target)) {
+            continue;
+        }
+        if (b.target == "SETTINGS") {
+            hasSettings = true;
+        }
+
         auto* btn = new QPushButton(this);
         btn->setToolTip(b.name);
         btn->setCursor(Qt::PointingHandCursor);
-
         const QIcon icon(Config::instance().resolveIconPath(b.iconPath));
         if (!icon.isNull()) {
             btn->setIcon(icon);
@@ -72,13 +87,6 @@ void Sidebar::rebuildUI() {
         m_buttons.push_back(btn);
     }
 
-    bool hasSettings = false;
-    for (const auto& b : buttons) {
-        if (b.target == "SETTINGS") {
-            hasSettings = true;
-            break;
-        }
-    }
     if (!hasSettings) {
         auto* settingsBtn = new QPushButton(this);
         settingsBtn->setToolTip("设置");
@@ -101,6 +109,9 @@ void Sidebar::openSettings() {
 }
 
 void Sidebar::triggerTool(const QString& target) {
+    if (!isAllowedTarget(target)) {
+        return;
+    }
     handleAction("func", target);
 }
 
@@ -166,6 +177,11 @@ void Sidebar::handleFunctionAction(const QString& target) {
 }
 
 void Sidebar::handleAction(const QString& action, const QString& target) {
+    if (!isAllowedTarget(target)) {
+        Logger::instance().warn(QString("忽略未允许目标: %1").arg(target));
+        return;
+    }
+
     Logger::instance().info(QString("触发按钮 action=%1 target=%2").arg(action, target));
     if (action == "exe") {
         launchExecutableTarget(target);
@@ -219,16 +235,12 @@ void Sidebar::resizeEvent(QResizeEvent* event) {
 }
 
 void Sidebar::mousePressEvent(QMouseEvent* event) {
-    bool hitButton = false;
-    for (auto* btn : m_buttons) {
-        if (btn->isVisible() && btn->geometry().contains(event->pos())) {
-            hitButton = true;
-            break;
-        }
+    QWidget* child = childAt(event->pos());
+    if (qobject_cast<QPushButton*>(child) != nullptr) {
+        QWidget::mousePressEvent(event);
+        return;
     }
-    if (!hitButton) {
-        collapseMenu();
-    }
+    collapseMenu();
     QWidget::mousePressEvent(event);
 }
 
@@ -247,37 +259,43 @@ void Sidebar::refreshButtonLayout() {
     }
 
     const int btnSize = qMax(56, Config::instance().floatingBallSize - 4);
+    const QString btnStyle = QString("QPushButton{background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 rgba(255,255,255,245),stop:1 rgba(235,242,252,238));"
+                                    "border:1px solid #c6d4e8;border-radius:%1px;font-size:14px;font-weight:700;color:#1f3550;}"
+                                    "QPushButton:hover{background:#edf5ff;border-color:#9eb9da;}"
+                                    "QPushButton:pressed{background:#deebfb;border-color:#84a4cc;}")
+                                .arg(btnSize / 2);
+
     for (auto* btn : m_buttons) {
         btn->setFixedSize(btnSize, btnSize);
-        btn->setStyleSheet(QString("QPushButton{background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 rgba(255,255,255,245),stop:1 rgba(235,242,252,238));"
-                                 "border:1px solid #c6d4e8;border-radius:%1px;font-size:14px;font-weight:700;color:#1f3550;}"
-                                 "QPushButton:hover{background:#edf5ff;border-color:#9eb9da;}"
-                                 "QPushButton:pressed{background:#deebfb;border-color:#84a4cc;}")
-                              .arg(btnSize / 2));
+        btn->setStyleSheet(btnStyle);
         btn->hide();
     }
 
-    const QPoint centerGlobal = m_anchorGeometry.center();
-    const QPoint center = centerGlobal - geometry().topLeft();
+    const QPoint center = m_anchorGeometry.center() - geometry().topLeft();
     const int count = m_buttons.size();
-    if (count == 0) {
+    if (count <= 0) {
         return;
     }
 
-    const int baseRadius = Config::instance().radialMenuRadius;
-    const int minEdgeDistance = qMin(qMin(center.x(), width() - center.x()), qMin(center.y(), height() - center.y()));
-    const int clampedBaseRadius = qMax(btnSize + 8, qMin(baseRadius, minEdgeDistance - btnSize / 2 - 8));
+    const bool anchorAtRight = center.x() >= width() / 2;
+    const qreal startDeg = anchorAtRight ? 120.0 : -60.0;
+    const qreal endDeg = anchorAtRight ? 240.0 : 60.0;
 
-    const int buttonsPerRing = 8;
-    const int ringGap = btnSize + 16;
+    const int minGap = 12;
+    const qreal arcDeg = qAbs(endDeg - startDeg);
+    const qreal stepDeg = count <= 1 ? arcDeg : arcDeg / (count - 1);
+    const qreal stepRad = qDegreesToRadians(stepDeg);
+    const int requiredRadius = count <= 1 ? Config::instance().radialMenuRadius
+                                          : qCeil((btnSize + minGap) / qMax(0.20, stepRad));
+
+    const int screenPad = btnSize / 2 + 8;
+    const int maxRadius = anchorAtRight ? (center.x() - screenPad) : ((width() - center.x()) - screenPad);
+    const int radius = qBound(requiredRadius, Config::instance().radialMenuRadius, qMax(requiredRadius, maxRadius));
 
     for (int i = 0; i < count; ++i) {
-        const int ring = i / buttonsPerRing;
-        const int inRingIndex = i % buttonsPerRing;
-        const int ringCount = qMin(buttonsPerRing, count - ring * buttonsPerRing);
-        const qreal angle = -90.0 + (360.0 * inRingIndex) / ringCount;
-        const qreal rad = qDegreesToRadians(angle);
-        const int radius = clampedBaseRadius + ring * ringGap;
+        const qreal t = count <= 1 ? 0.5 : static_cast<qreal>(i) / (count - 1);
+        const qreal deg = startDeg + (endDeg - startDeg) * t;
+        const qreal rad = qDegreesToRadians(deg);
         const int x = center.x() + qRound(radius * qCos(rad)) - btnSize / 2;
         const int y = center.y() + qRound(radius * qSin(rad)) - btnSize / 2;
 

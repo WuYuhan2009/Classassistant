@@ -177,6 +177,15 @@ void Config::load() {
 
     normalizeSystemButtonIcons(m_buttons);
 
+    QVector<AppButton> filteredButtons;
+    for (const auto& b : m_buttons) {
+        if (b.target == "SEEWO" || b.target == "ATTENDANCE" || b.target == "RANDOM_CALL"
+            || b.target == "AI_ASSISTANT" || b.target == "SETTINGS") {
+            filteredButtons.append(b);
+        }
+    }
+    m_buttons = filteredButtons;
+
     if (seewoPath.isEmpty()) {
         seewoPath = "C:/Program Files (x86)/Seewo/EasiNote5/swenlauncher/swenlauncher.exe";
     }
@@ -185,6 +194,16 @@ void Config::load() {
     }
     if (m_buttons.isEmpty()) {
         m_buttons = buildDefaultButtons();
+    }
+    bool hasSettings = false;
+    for (const auto& b : m_buttons) {
+        if (b.target == "SETTINGS") {
+            hasSettings = true;
+            break;
+        }
+    }
+    if (!hasSettings) {
+        m_buttons.append({"设置", "icon_settings.png", "func", "SETTINGS", true});
     }
     if (siliconFlowModel.isEmpty()) {
         siliconFlowModel = "deepseek-ai/DeepSeek-V3.2";
