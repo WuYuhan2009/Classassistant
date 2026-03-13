@@ -3,6 +3,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QMutex>
 #include <QStandardPaths>
 #include <QString>
 #include <QStringList>
@@ -35,9 +36,12 @@ public:
     QString resolveIconPath(const QString& iconRef) const;
 
     int iconSize = 46;
+    int floatingBallSize = 72;
     int floatingOpacity = 85;
     int attendanceSummaryWidth = 360;
-    bool startCollapsed = false;
+    int radialMenuRadius = 210;
+    int menuAutoCollapseSeconds = 15;
+    bool startCollapsed = true;
     bool trayClickToOpen = true;
     bool showAttendanceSummaryOnStart = true;
     bool randomNoRepeat = true;
@@ -56,6 +60,11 @@ public:
     QString siliconFlowApiKey;
     QString siliconFlowModel = "deepseek-ai/DeepSeek-V3.2";
     QString siliconFlowEndpoint = "https://api.siliconflow.cn/v1/chat/completions";
+    int floatingBallX = -1;
+    int floatingBallY = -1;
+    QStringList selfStudyPeriods;
+    int selfStudyIdleSeconds = 180;
+    bool screenOffShowQuote = true;
 
 private:
     Config();
@@ -64,3 +73,24 @@ private:
     QVector<AppButton> m_buttons;
     QStringList m_students;
 };
+
+class Logger {
+public:
+    static Logger& instance();
+    void info(const QString& message);
+    void warn(const QString& message);
+    void error(const QString& message);
+    QString logPath() const;
+
+private:
+    Logger();
+    void write(const QString& level, const QString& message);
+
+    QString m_logPath;
+    mutable QMutex m_mutex;
+};
+
+namespace AppState {
+void setQuitting(bool quitting);
+bool isQuitting();
+}

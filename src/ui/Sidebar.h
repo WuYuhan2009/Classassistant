@@ -1,13 +1,17 @@
 #pragma once
 
-#include <QCloseEvent>
+#include <QHash>
 #include <QList>
-#include <QVBoxLayout>
+#include <QPoint>
+#include <QTimer>
 #include <QWidget>
 
 #include "Tools.h"
 
 class QPushButton;
+class QEvent;
+class QFocusEvent;
+class QObject;
 
 class Sidebar : public QWidget {
     Q_OBJECT
@@ -17,27 +21,37 @@ public:
     void openSettings();
     void hideAllToolWindowsAnimated();
     void triggerTool(const QString& target);
+    void setAnchorGeometry(const QRect& anchorGeometry);
+    bool isExpanded() const;
+    void expandMenu();
+    void collapseMenu();
 
 signals:
-    void requestHide();
+    void requestCollapseToBall();
 
 public slots:
     void reloadConfig();
 
 protected:
-    void closeEvent(QCloseEvent* event) override;
+    void resizeEvent(QResizeEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
+    bool eventFilter(QObject* watched, QEvent* event) override;
+    void focusOutEvent(QFocusEvent* event) override;
 
 private:
-    QVBoxLayout* m_layout;
     AttendanceSummaryWidget* m_attendanceSummary;
     AttendanceSelectDialog* m_attendanceSelector;
     RandomCallDialog* m_randomCall;
-    ClassTimerDialog* m_classTimer;
-    ClassNoteDialog* m_classNote;
-    GroupSplitDialog* m_groupSplit;
-    ScoreBoardDialog* m_scoreBoard;
     AIAssistantDialog* m_aiAssistant;
     SettingsDialog* m_settings;
+    ScreenOffOverlay* m_screenOff;
+
+    QList<QPushButton*> m_buttons;
+    QHash<QPushButton*, QPoint> m_buttonExpandedPos;
+    QTimer m_idleTimer;
+    QRect m_anchorGeometry;
+    bool m_suppressToolHideOnce = false;
+    bool m_isAnimating = false;
 
     void handleAction(const QString& action, const QString& target);
     void handleFunctionAction(const QString& target);
@@ -45,9 +59,8 @@ private:
     void launchUrlTarget(const QString& target);
     QList<QWidget*> managedToolWindows() const;
     void showManagedWindow(QWidget* window);
-
-    QPushButton* createIconButton(const QString& text,
-                                  const QString& iconPath,
-                                  const QString& tooltip,
-                                  const QString& fallbackEmoji = "");
+    void refreshButtonLayout();
+    void resetIdleCountdown();
+    void onButtonTriggered(const QString& action, const QString& target);
+    void animateButtons(bool expanding);
 };

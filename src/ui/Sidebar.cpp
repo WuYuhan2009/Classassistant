@@ -3,22 +3,53 @@
 #include "../Utils.h"
 #include "FluentTheme.h"
 
+#include <QApplication>
 #include <QDesktopServices>
-#include <QIcon>
+#include <QEvent>
+#include <QFocusEvent>
+#include <QMap>
 #include <QMessageBox>
+#include <QMouseEvent>
+#include <QParallelAnimationGroup>
 #include <QProcess>
 #include <QPropertyAnimation>
 #include <QPushButton>
+#include <QScreen>
+#include <QSet>
+#include <QTime>
 #include <QUrl>
+#include <QtMath>
 
 namespace {
-constexpr int kSidebarMinWidth = 84;
+const QStringList kOrderedTargets = {"SEEWO", "ATTENDANCE", "SCREEN_OFF", "RANDOM_CALL", "AI_ASSISTANT", "SETTINGS"};
+
+bool isAllowedTarget(const QString& target) {
+    return kOrderedTargets.contains(target);
+}
+
+int orderIndex(const QString& target) {
+    const int idx = kOrderedTargets.indexOf(target);
+    return idx < 0 ? 999 : idx;
+}
+
+bool inSelfStudyPeriod() {
+    const QTime now = QTime::currentTime();
+    for (const QString& period : Config::instance().selfStudyPeriods) {
+        const QStringList parts = period.split('-', Qt::SkipEmptyParts);
+        if (parts.size() != 2) continue;
+        const QTime s = QTime::fromString(parts[0].trimmed(), "HH:mm");
+        const QTime e = QTime::fromString(parts[1].trimmed(), "HH:mm");
+        if (!s.isValid() || !e.isValid()) continue;
+        if (now >= s && now <= e) return true;
+    }
+    return false;
+}
 }
 
 Sidebar::Sidebar(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::FramelessWindowHint | Qt::Tool | Qt::WindowStaysOnTopHint);
     setAttribute(Qt::WA_TranslucentBackground);
-    FluentTheme::applyWinUIWindowShadow(this);
+    setAttribute(Qt::WA_AcceptTouchEvents);
 
     m_attendanceSummary = new AttendanceSummaryWidget();
     if (Config::instance().showAttendanceSummaryOnStart) {
@@ -26,131 +57,82 @@ Sidebar::Sidebar(QWidget* parent) : QWidget(parent) {
     }
     m_attendanceSelector = new AttendanceSelectDialog();
     m_randomCall = new RandomCallDialog();
-    m_classTimer = new ClassTimerDialog();
-    m_classNote = new ClassNoteDialog();
-    m_groupSplit = new GroupSplitDialog();
-    m_scoreBoard = new ScoreBoardDialog();
     m_aiAssistant = new AIAssistantDialog();
     m_settings = new SettingsDialog();
+    m_screenOff = new ScreenOffOverlay();
+    connect(m_screenOff, &ScreenOffOverlay::exited, this, [this]() {
+        m_attendanceSummary->setPinnedOnTop(false);
+    });
 
     connect(m_settings, &SettingsDialog::configChanged, this, &Sidebar::reloadConfig);
     connect(m_attendanceSelector, &AttendanceSelectDialog::saved, m_attendanceSummary, &AttendanceSummaryWidget::applyAbsentees);
 
-    m_layout = new QVBoxLayout(this);
-    m_layout->setContentsMargins(6, 12, 6, 12);
-    m_layout->setSpacing(8);
+    m_idleTimer.setSingleShot(true);
+    connect(&m_idleTimer, &QTimer::timeout, this, &Sidebar::collapseMenu);
 
+    qApp->installEventFilter(this);
     rebuildUI();
 }
 
 QList<QWidget*> Sidebar::managedToolWindows() const {
-    return {
-        m_attendanceSelector,
-        m_randomCall,
-        m_classTimer,
-        m_classNote,
-        m_groupSplit,
-        m_scoreBoard,
-        m_aiAssistant,
-        m_settings,
-    };
+    return {m_attendanceSelector, m_randomCall, m_aiAssistant, m_settings, m_screenOff};
 }
 
 void Sidebar::showManagedWindow(QWidget* window) {
-    if (!window) {
-        return;
-    }
+    if (!window) return;
     window->setWindowOpacity(1.0);
     window->show();
     window->raise();
     window->activateWindow();
 }
 
-QPushButton* Sidebar::createIconButton(const QString& text,
-                                       const QString& iconPath,
-                                       const QString& tooltip,
-                                       const QString& fallbackEmoji) {
-    auto* btn = new QPushButton(text);
-    const bool compact = Config::instance().compactMode;
-    const int width = qMax(kSidebarMinWidth, Config::instance().sidebarWidth);
-    const int side = compact ? (width - 24) : (width - 12);
-    btn->setFixedSize(side, side);
-    btn->setToolTip(tooltip);
-
-    const QIcon icon(Config::instance().resolveIconPath(iconPath));
-    if (!icon.isNull()) {
-        btn->setIcon(icon);
-        const int iconSide = qMin(compact ? 28 : 40, qMax(20, Config::instance().iconSize));
-        btn->setIconSize(QSize(iconSide, iconSide));
-        btn->setText("");
-    } else if (!fallbackEmoji.isEmpty()) {
-        btn->setText(fallbackEmoji);
-    }
-
-    btn->setStyleSheet(FluentTheme::sidebarButtonStyle());
-    return btn;
-}
-
 void Sidebar::rebuildUI() {
-    while (QLayoutItem* item = m_layout->takeAt(0)) {
-        delete item->widget();
-        delete item;
-    }
+    qDeleteAll(m_buttons);
+    m_buttons.clear();
+    m_buttonExpandedPos.clear();
 
-    m_layout->setSpacing(Config::instance().compactMode ? 5 : 10);
-    setFixedWidth(qMax(kSidebarMinWidth, Config::instance().sidebarWidth));
-    setStyleSheet(FluentTheme::sidebarPanelStyle());
-
-    m_layout->addStretch();
     const auto buttons = Config::instance().getButtons();
+    QMap<int, AppButton> ordered;
     for (const auto& b : buttons) {
-        auto* btn = createIconButton(b.name.left(2), b.iconPath, b.name, "🔘");
-        connect(btn, &QPushButton::clicked, [this, b]() { handleAction(b.action, b.target); });
-        m_layout->addWidget(btn, 0, Qt::AlignHCenter);
+        if (!isAllowedTarget(b.target)) continue;
+        ordered.insert(orderIndex(b.target), b);
+    }
+    if (!ordered.contains(orderIndex("SETTINGS"))) {
+        ordered.insert(orderIndex("SETTINGS"), {"设置", "icon_settings.png", "func", "SETTINGS", true});
     }
 
-    auto* settingsBtn = createIconButton("设", "icon_settings.png", "设置", "⚙️");
-    connect(settingsBtn, &QPushButton::clicked, this, &Sidebar::openSettings);
-    m_layout->addWidget(settingsBtn, 0, Qt::AlignHCenter);
+    for (const auto& b : ordered) {
+        auto* btn = new QPushButton(this);
+        btn->setToolTip(b.name);
+        btn->setCursor(Qt::PointingHandCursor);
+        const QIcon icon(Config::instance().resolveIconPath(b.iconPath));
+        if (!icon.isNull()) {
+            btn->setIcon(icon);
+            btn->setIconSize(QSize(30, 30));
+        } else {
+            btn->setText(b.name.left(2));
+        }
+        connect(btn, &QPushButton::clicked, this, [this, b]() { onButtonTriggered(b.action, b.target); });
+        m_buttons.push_back(btn);
+    }
 
-    auto* collapseBtn = createIconButton("收", "icon_collapse.png", "收起", "⏷");
-    connect(collapseBtn, &QPushButton::clicked, this, &Sidebar::requestHide);
-    m_layout->addWidget(collapseBtn, 0, Qt::AlignHCenter);
-    m_layout->addStretch();
+    refreshButtonLayout();
 }
 
-void Sidebar::openSettings() {
-    showManagedWindow(m_settings);
-}
+void Sidebar::openSettings() { showManagedWindow(m_settings); }
 
 void Sidebar::triggerTool(const QString& target) {
+    if (!isAllowedTarget(target)) return;
     handleAction("func", target);
 }
 
 void Sidebar::hideAllToolWindowsAnimated() {
-    if (!Config::instance().collapseHidesToolWindows) {
-        return;
-    }
-
-    const int duration = Config::instance().animationDurationMs;
-    const auto hideWidget = [duration](QWidget* window) {
-        if (!window || !window->isVisible()) {
-            return;
-        }
-
-        auto* anim = new QPropertyAnimation(window, "windowOpacity", window);
-        anim->setDuration(duration);
-        anim->setStartValue(window->windowOpacity());
-        anim->setEndValue(0.0);
-        QObject::connect(anim, &QPropertyAnimation::finished, window, [window]() {
+    if (!Config::instance().collapseHidesToolWindows) return;
+    for (QWidget* window : managedToolWindows()) {
+        if (window && window->isVisible()) {
             window->hide();
             window->setWindowOpacity(1.0);
-        });
-        anim->start(QAbstractAnimation::DeleteWhenStopped);
-    };
-
-    for (QWidget* window : managedToolWindows()) {
-        hideWidget(window);
+        }
     }
 }
 
@@ -158,17 +140,8 @@ void Sidebar::reloadConfig() {
     Config::instance().load();
     rebuildUI();
     m_attendanceSummary->resetDaily();
-    if (Config::instance().showAttendanceSummaryOnStart) {
-        m_attendanceSummary->show();
-    } else {
-        m_attendanceSummary->hide();
-    }
-}
-
-void Sidebar::closeEvent(QCloseEvent* event) {
-    hideAllToolWindowsAnimated();
-    hide();
-    event->ignore();
+    if (Config::instance().showAttendanceSummaryOnStart) m_attendanceSummary->show();
+    else m_attendanceSummary->hide();
 }
 
 void Sidebar::launchExecutableTarget(const QString& target) {
@@ -197,21 +170,19 @@ void Sidebar::handleFunctionAction(const QString& target) {
         m_attendanceSummary->show();
         m_attendanceSummary->raise();
         showManagedWindow(m_attendanceSelector);
+    } else if (target == "SCREEN_OFF") {
+        if (m_screenOff->isActive()) {
+            m_screenOff->deactivate();
+            m_attendanceSummary->setPinnedOnTop(false);
+            return;
+        }
+        m_attendanceSummary->setPinnedOnTop(true);
+        m_attendanceSummary->show();
+        m_attendanceSummary->raise();
+        m_screenOff->activate(inSelfStudyPeriod());
     } else if (target == "RANDOM_CALL") {
         m_randomCall->setWindowOpacity(1.0);
         m_randomCall->startAnim();
-    } else if (target == "CLASS_TIMER") {
-        m_classTimer->setWindowOpacity(1.0);
-        m_classTimer->openTimer();
-    } else if (target == "CLASS_NOTE") {
-        m_classNote->setWindowOpacity(1.0);
-        m_classNote->openNote();
-    } else if (target == "GROUP_SPLIT") {
-        m_groupSplit->setWindowOpacity(1.0);
-        m_groupSplit->openSplitter();
-    } else if (target == "SCORE_BOARD") {
-        m_scoreBoard->setWindowOpacity(1.0);
-        m_scoreBoard->openBoard();
     } else if (target == "AI_ASSISTANT") {
         m_aiAssistant->setWindowOpacity(1.0);
         m_aiAssistant->openAssistant();
@@ -221,17 +192,181 @@ void Sidebar::handleFunctionAction(const QString& target) {
 }
 
 void Sidebar::handleAction(const QString& action, const QString& target) {
-    if (action == "exe") {
-        launchExecutableTarget(target);
+    if (!isAllowedTarget(target)) {
+        Logger::instance().warn(QString("忽略未允许目标: %1").arg(target));
         return;
     }
+    Logger::instance().info(QString("触发按钮 action=%1 target=%2").arg(action, target));
+    if (action == "exe") launchExecutableTarget(target);
+    else if (action == "url") launchUrlTarget(target);
+    else if (action == "func") handleFunctionAction(target);
+}
 
-    if (action == "url") {
-        launchUrlTarget(target);
+void Sidebar::setAnchorGeometry(const QRect& anchorGeometry) {
+    m_anchorGeometry = anchorGeometry;
+    refreshButtonLayout();
+}
+
+bool Sidebar::isExpanded() const { return isVisible(); }
+
+void Sidebar::expandMenu() {
+    const QRect screen = QApplication::primaryScreen()->availableGeometry();
+    setGeometry(screen);
+    refreshButtonLayout();
+    show();
+    raise();
+    activateWindow();
+    animateButtons(true);
+    resetIdleCountdown();
+    Logger::instance().info("菜单展开");
+}
+
+void Sidebar::collapseMenu() {
+    if (!isVisible() || m_isAnimating) return;
+    m_idleTimer.stop();
+    animateButtons(false);
+}
+
+void Sidebar::resizeEvent(QResizeEvent* event) {
+    QWidget::resizeEvent(event);
+    refreshButtonLayout();
+}
+
+void Sidebar::mousePressEvent(QMouseEvent* event) {
+    QWidget* child = childAt(event->pos());
+    if (qobject_cast<QPushButton*>(child) == nullptr) {
+        collapseMenu();
+        event->accept();
         return;
     }
+    QWidget::mousePressEvent(event);
+}
 
-    if (action == "func") {
-        handleFunctionAction(target);
+bool Sidebar::eventFilter(QObject* watched, QEvent* event) {
+    Q_UNUSED(watched);
+    if (!isVisible() || m_isAnimating) return QWidget::eventFilter(watched, event);
+
+    if (event->type() == QEvent::MouseButtonPress) {
+        auto* mouseEvent = static_cast<QMouseEvent*>(event);
+        const QPoint localPos = mapFromGlobal(mouseEvent->globalPos());
+        for (auto* btn : m_buttons) {
+            if (btn->isVisible() && btn->geometry().contains(localPos)) {
+                return QWidget::eventFilter(watched, event);
+            }
+        }
+        collapseMenu();
     }
+    return QWidget::eventFilter(watched, event);
+}
+
+void Sidebar::focusOutEvent(QFocusEvent* event) {
+    QWidget::focusOutEvent(event);
+    if (isVisible()) collapseMenu();
+}
+
+void Sidebar::resetIdleCountdown() {
+    m_idleTimer.start(Config::instance().menuAutoCollapseSeconds * 1000);
+}
+
+void Sidebar::onButtonTriggered(const QString& action, const QString& target) {
+    handleAction(action, target);
+    m_suppressToolHideOnce = true;
+    collapseMenu();
+}
+
+void Sidebar::refreshButtonLayout() {
+    if (m_anchorGeometry.isNull()) return;
+
+    const int btnSize = qMax(56, Config::instance().floatingBallSize - 4);
+    const QString btnStyle = QString("QPushButton{background:#f4f8ff;border:1px solid #d0dded;border-radius:%1px;font-size:14px;font-weight:700;color:#1f3550;min-height:%2px;}"
+                                    "QPushButton:hover{background:#edf5ff;border-color:#9eb9da;}"
+                                    "QPushButton:pressed{background:#deebfb;border-color:#84a4cc;}")
+                                .arg(btnSize / 2)
+                                .arg(btnSize);
+
+    const QPoint center = m_anchorGeometry.center() - geometry().topLeft();
+    const int count = m_buttons.size();
+    if (count <= 0) return;
+
+    const bool anchorAtRight = center.x() >= width() / 2;
+    const qreal startDeg = anchorAtRight ? 90.0 : -90.0;
+    const qreal endDeg = anchorAtRight ? 270.0 : 90.0;
+
+    const qreal arcDeg = qAbs(endDeg - startDeg);
+    const qreal stepDeg = count <= 1 ? arcDeg : arcDeg / (count - 1);
+    const qreal stepRad = qDegreesToRadians(stepDeg);
+    const int desiredSpacing = btnSize + 8;
+    const int minRadiusForNoOverlap = count <= 1 ? btnSize : qCeil(desiredSpacing / qMax(0.2, 2.0 * qSin(stepRad / 2.0)));
+
+    const int maxPreferredRadius = btnSize * 2;
+    const int targetByConfig = qMin(Config::instance().radialMenuRadius, maxPreferredRadius);
+    const int margin = btnSize / 2 + 10;
+    const int horizontalLimit = anchorAtRight ? (center.x() - margin) : (width() - center.x() - margin);
+    const int verticalLimit = qMin(center.y() - margin, height() - center.y() - margin);
+    const int safeMaxRadius = qMax(minRadiusForNoOverlap, qMin(horizontalLimit, verticalLimit));
+    const int radius = qBound(minRadiusForNoOverlap, targetByConfig, safeMaxRadius);
+
+    m_buttonExpandedPos.clear();
+    for (int i = 0; i < count; ++i) {
+        qreal t = count <= 1 ? 0.5 : static_cast<qreal>(i) / (count - 1);
+        if (anchorAtRight) t = 1.0 - t;
+        const qreal deg = startDeg + (endDeg - startDeg) * t;
+        const qreal rad = qDegreesToRadians(deg);
+        const int x = center.x() + qRound(radius * qCos(rad)) - btnSize / 2;
+        const int y = center.y() + qRound(radius * qSin(rad)) - btnSize / 2;
+
+        auto* btn = m_buttons[i];
+        btn->setFixedSize(btnSize, btnSize);
+        btn->setStyleSheet(btnStyle);
+        m_buttonExpandedPos.insert(btn, QPoint(x, y));
+    }
+}
+
+void Sidebar::animateButtons(bool expanding) {
+    if (m_anchorGeometry.isNull() || m_buttons.isEmpty()) return;
+
+    m_isAnimating = true;
+    const QPoint center = m_anchorGeometry.center() - geometry().topLeft() - QPoint(m_buttons.first()->width() / 2, m_buttons.first()->height() / 2);
+
+    auto* group = new QParallelAnimationGroup(this);
+    for (auto* btn : m_buttons) {
+        const QPoint endPos = m_buttonExpandedPos.value(btn, center);
+        const QPoint startPos = center;
+
+        auto* posAnim = new QPropertyAnimation(btn, "pos", group);
+        posAnim->setDuration(220);
+        posAnim->setEasingCurve(expanding ? QEasingCurve::OutCubic : QEasingCurve::InCubic);
+        posAnim->setStartValue(expanding ? startPos : endPos);
+        posAnim->setEndValue(expanding ? endPos : startPos);
+
+        auto* opaAnim = new QPropertyAnimation(btn, "windowOpacity", group);
+        opaAnim->setDuration(200);
+        opaAnim->setStartValue(expanding ? 0.0 : 1.0);
+        opaAnim->setEndValue(expanding ? 1.0 : 0.0);
+
+        if (expanding) {
+            btn->move(startPos);
+            btn->setWindowOpacity(0.0);
+            btn->show();
+            btn->raise();
+        }
+        group->addAnimation(posAnim);
+        group->addAnimation(opaAnim);
+    }
+
+    connect(group, &QParallelAnimationGroup::finished, this, [this, expanding]() {
+        m_isAnimating = false;
+        if (!expanding) {
+            for (auto* btn : m_buttons) {
+                btn->hide();
+                btn->setWindowOpacity(1.0);
+            }
+            if (!m_suppressToolHideOnce) hideAllToolWindowsAnimated();
+            m_suppressToolHideOnce = false;
+            hide();
+            emit requestCollapseToBall();
+            Logger::instance().info("菜单收起");
+        }
+    });
+    group->start(QAbstractAnimation::DeleteWhenStopped);
 }

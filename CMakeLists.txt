@@ -1,9 +1,13 @@
 cmake_minimum_required(VERSION 3.10)
 
-# Qt Creator + Ninja + 新版 CMake 在部分环境下会传入异常的
-# CMAKE_CONFIGURATION_TYPES（空值或不含 Debug），导致 project() 阶段
-# 的编译器检测 try_compile 报错：No CMake configuration for build type "Debug" found。
-# 在 project() 前统一兜底。
+# Qt Creator + Ninja + CMake 4.x + MSVC 组合下的稳定性兜底：
+# 1) 补齐 Debug 构建类型，避免 "No CMake configuration for build type \"Debug\" found"
+# 2) 固定 try_compile 走 Debug + STATIC_LIBRARY，减少探测阶段差异
+# 3) 提前设置 MSVC 调试信息为 /Z7，降低 PDB 争用导致的 C1041
+if(NOT DEFINED CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
+    set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
+endif()
+
 if(DEFINED CMAKE_CONFIGURATION_TYPES)
     if(CMAKE_CONFIGURATION_TYPES STREQUAL "")
         set(CMAKE_CONFIGURATION_TYPES "Debug;Release;RelWithDebInfo;MinSizeRel" CACHE STRING "" FORCE)
@@ -13,13 +17,21 @@ if(DEFINED CMAKE_CONFIGURATION_TYPES)
             set(CMAKE_CONFIGURATION_TYPES "Debug;${CMAKE_CONFIGURATION_TYPES}" CACHE STRING "" FORCE)
         endif()
     endif()
-    set(CMAKE_TRY_COMPILE_CONFIGURATION Debug CACHE STRING "" FORCE)
 endif()
 
-# 某些 Qt Creator + Ninja + MSVC 组合下，try_compile 阶段会出现
-# PDB 竞争（fatal error C1041）。在 project() 前强制 try_compile 使用
-# 静态库并固定 Debug，减少并行与PDB文件争用问题。
+set(CMAKE_TRY_COMPILE_CONFIGURATION Debug CACHE STRING "" FORCE)
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY CACHE STRING "" FORCE)
+
+if(MSVC)
+    if(POLICY CMP0141)
+        cmake_policy(SET CMP0141 NEW)
+    endif()
+    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT
+        "$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>"
+        CACHE STRING "" FORCE)
+    set(CMAKE_C_FLAGS_DEBUG "/MDd /Ob0 /Od /RTC1 /FS /Z7" CACHE STRING "" FORCE)
+    set(CMAKE_CXX_FLAGS_DEBUG "/MDd /Ob0 /Od /RTC1 /FS /Z7" CACHE STRING "" FORCE)
+endif()
 
 project(ClassAssistant VERSION 1.0.0 LANGUAGES CXX)
 
@@ -46,14 +58,6 @@ if(MSVC)
     add_definitions(-D_WIN32_WINNT=0x0601)
     add_definitions(-DWINVER=0x0601)
 
-    # 避免 /Zi 共享 PDB 在某些环境触发 C1041；使用 /Z7 嵌入调试信息更稳定。
-    # 该设置同样有助于 Qt Creator 触发的 try_compile 检测阶段。
-    if(POLICY CMP0141)
-        cmake_policy(SET CMP0141 NEW)
-        set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT
-            "$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>"
-            CACHE STRING "" FORCE)
-    endif()
 endif()
 
 # ==============================

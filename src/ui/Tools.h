@@ -8,6 +8,7 @@
 #include <QJsonArray>
 #include <QLabel>
 #include <QLineEdit>
+#include <QProgressBar>
 #include <QListWidget>
 #include <QPushButton>
 #include <QSlider>
@@ -28,6 +29,7 @@ public:
     explicit AttendanceSummaryWidget(QWidget* parent = nullptr);
     void resetDaily();
     void applyAbsentees(const QStringList& absentees);
+    void setPinnedOnTop(bool onTop);
 
 protected:
     void closeEvent(QCloseEvent* event) override;
@@ -185,6 +187,32 @@ private:
     void sendMessage();
 };
 
+class ScreenOffOverlay : public QWidget {
+    Q_OBJECT
+public:
+    explicit ScreenOffOverlay(QWidget* parent = nullptr);
+    void activate(bool fromSelfStudy = false);
+    void deactivate();
+    bool isActive() const;
+
+signals:
+    void exited();
+
+private:
+    QLabel* m_timeLabel;
+    QLabel* m_quoteLabel;
+    QProgressBar* m_progress;
+    QLabel* m_remainingLabel;
+    QPushButton* m_shutdownButton;
+    QPushButton* m_exitButton;
+    QTimer* m_tickTimer;
+    bool m_fromSelfStudy = false;
+
+    void refreshClockAndProgress();
+    void loadDailyQuote();
+    bool currentSelfStudyPeriod(QDateTime* start, QDateTime* end) const;
+};
+
 class AddButtonDialog : public QDialog {
     Q_OBJECT
 public:
@@ -210,12 +238,17 @@ private:
     QCheckBox* m_agreeTerms;
     QSlider* m_floatingOpacity;
     QSlider* m_summaryWidth;
+    QSlider* m_ballSize;
+    QSlider* m_buttonIconSize;
     QCheckBox* m_startCollapsed;
     QCheckBox* m_trayClickToOpen;
     QCheckBox* m_showAttendanceSummaryOnStart;
     QCheckBox* m_randomNoRepeat;
     QCheckBox* m_allowExternalLinks;
     QLineEdit* m_seewoPathEdit;
+    QListWidget* m_selfStudyPeriodList;
+    QSpinBox* m_selfStudyIdleSeconds;
+    QCheckBox* m_screenOffShowQuote;
     QLineEdit* m_aiApiKeyEdit;
     QLineEdit* m_aiModelEdit;
     QLineEdit* m_aiEndpointEdit;
@@ -244,10 +277,11 @@ private:
     QStackedWidget* m_stacked;
     QSlider* m_floatingOpacity;
     QSlider* m_summaryWidth;
+    QSlider* m_ballSize;
+    QSlider* m_buttonIconSize;
     QCheckBox* m_startCollapsed;
     QCheckBox* m_trayClickToOpen;
     QCheckBox* m_showAttendanceSummaryOnStart;
-    QCheckBox* m_compactMode;
 
     QCheckBox* m_randomNoRepeat;
     QSpinBox* m_historyCount;
@@ -260,6 +294,9 @@ private:
     QLineEdit* m_scoreTeamAName;
     QLineEdit* m_scoreTeamBName;
     QLineEdit* m_seewoPathEdit;
+    QListWidget* m_selfStudyPeriodList;
+    QSpinBox* m_selfStudyIdleSeconds;
+    QCheckBox* m_screenOffShowQuote;
     QListWidget* m_buttonList;
     QLineEdit* m_apiKeyEdit;
     QLineEdit* m_aiModelEdit;

@@ -22,8 +22,10 @@
 #include <QGuiApplication>
 #include <QGridLayout>
 #include <QMessageBox>
+#include <QInputDialog>
 #include <QMouseEvent>
 #include <QPushButton>
+#include <QProcess>
 #include <QPropertyAnimation>
 #include <QRandomGenerator>
 #include <QSet>
@@ -245,6 +247,144 @@ void requestAiCompletion(QWidget* owner,
     });
 }
 
+
+ScreenOffOverlay::ScreenOffOverlay(QWidget* parent) : QWidget(parent) {
+    setWindowFlags(Qt::FramelessWindowHint | Qt::Window | Qt::WindowStaysOnTopHint);
+    setAttribute(Qt::WA_StyledBackground, true);
+    setStyleSheet("background:#000000;");
+
+    auto* root = new QVBoxLayout(this);
+    root->setContentsMargins(28, 20, 28, 24);
+    root->setSpacing(18);
+
+    m_timeLabel = new QLabel("00:00");
+    m_timeLabel->setAlignment(Qt::AlignCenter);
+    m_timeLabel->setStyleSheet("color:#ffffff;font-size:110px;font-weight:900;font-family:'Segoe UI','HarmonyOS Sans SC','Microsoft YaHei';");
+    root->addSpacing(18);
+    root->addWidget(m_timeLabel, 0, Qt::AlignHCenter);
+
+    m_progress = new QProgressBar;
+    m_progress->setFixedWidth(520);
+    m_progress->setTextVisible(false);
+    m_progress->setStyleSheet("QProgressBar{background:#1d1d1d;border:1px solid #555;border-radius:10px;height:18px;}QProgressBar::chunk{background:#7ea8ff;border-radius:10px;}");
+    m_remainingLabel = new QLabel;
+    m_remainingLabel->setAlignment(Qt::AlignCenter);
+    m_remainingLabel->setStyleSheet("color:#e5ecff;font-size:24px;font-weight:800;");
+    root->addWidget(m_progress, 0, Qt::AlignHCenter);
+    root->addWidget(m_remainingLabel, 0, Qt::AlignHCenter);
+
+    root->addStretch();
+    m_quoteLabel = new QLabel("正在获取每日金句...");
+    m_quoteLabel->setWordWrap(true);
+    m_quoteLabel->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
+    m_quoteLabel->setStyleSheet("color:#ffffff;font-size:30px;font-weight:800;");
+    m_quoteLabel->setMaximumWidth(1280);
+    root->addWidget(m_quoteLabel, 0, Qt::AlignHCenter);
+
+    auto* bottomRow = new QHBoxLayout;
+    m_shutdownButton = new QPushButton("⏻ 关机");
+    m_exitButton = new QPushButton("⤫ 退出");
+    for (auto* b : {m_shutdownButton, m_exitButton}) {
+        b->setFixedSize(140, 48);
+        b->setStyleSheet("QPushButton{background:#111;color:#fff;border:1px solid #555;border-radius:12px;font-size:20px;font-weight:700;}QPushButton:hover{background:#1f1f1f;}");
+        bottomRow->addWidget(b);
+        bottomRow->addSpacing(12);
+    }
+    bottomRow->addStretch();
+    root->addSpacing(8);
+    root->addLayout(bottomRow);
+
+    m_tickTimer = new QTimer(this);
+    connect(m_tickTimer, &QTimer::timeout, this, &ScreenOffOverlay::refreshClockAndProgress);
+    connect(m_exitButton, &QPushButton::clicked, this, &ScreenOffOverlay::deactivate);
+    connect(m_shutdownButton, &QPushButton::clicked, this, [this]() {
+        if (QMessageBox::question(this, "确认关机", "确定要立即关机吗？") != QMessageBox::Yes) {
+            return;
+        }
+#ifdef Q_OS_WIN
+        QProcess::startDetached("shutdown", {"/s", "/t", "0"});
+#else
+        QProcess::startDetached("shutdown", {"-h", "now"});
+#endif
+    });
+}
+
+bool ScreenOffOverlay::isActive() const { return isVisible(); }
+
+void ScreenOffOverlay::activate(bool fromSelfStudy) {
+    const QRect screen = QApplication::primaryScreen()->geometry();
+    setGeometry(screen);
+    m_fromSelfStudy = fromSelfStudy;
+    show();
+    raise();
+    activateWindow();
+    loadDailyQuote();
+    refreshClockAndProgress();
+    m_tickTimer->start(1000);
+}
+
+void ScreenOffOverlay::deactivate() {
+    m_tickTimer->stop();
+    hide();
+    emit exited();
+}
+
+bool ScreenOffOverlay::currentSelfStudyPeriod(QDateTime* start, QDateTime* end) const {
+    const QTime now = QTime::currentTime();
+    for (const QString& p : Config::instance().selfStudyPeriods) {
+        const QStringList parts = p.split('-', Qt::SkipEmptyParts);
+        if (parts.size() != 2) continue;
+        const QTime s = QTime::fromString(parts[0].trimmed(), "HH:mm");
+        const QTime e = QTime::fromString(parts[1].trimmed(), "HH:mm");
+        if (!s.isValid() || !e.isValid()) continue;
+        if (now >= s && now <= e) {
+            const QDate d = QDate::currentDate();
+            if (start) *start = QDateTime(d, s);
+            if (end) *end = QDateTime(d, e);
+            return true;
+        }
+    }
+    return false;
+}
+
+void ScreenOffOverlay::refreshClockAndProgress() {
+    m_timeLabel->setText(QTime::currentTime().toString("HH:mm"));
+
+    QDateTime st, ed;
+    const bool inStudy = m_fromSelfStudy && currentSelfStudyPeriod(&st, &ed);
+    m_progress->setVisible(inStudy);
+    m_remainingLabel->setVisible(inStudy);
+    if (inStudy) {
+        const qint64 total = st.secsTo(ed);
+        const qint64 done = st.secsTo(QDateTime::currentDateTime());
+        const int percent = total <= 0 ? 100 : qBound(0, static_cast<int>((done * 100) / total), 100);
+        m_progress->setValue(percent);
+        const qint64 left = qMax<qint64>(0, QDateTime::currentDateTime().secsTo(ed));
+        m_remainingLabel->setText(QString("剩余 %1 分 %2 秒").arg(left / 60).arg(left % 60));
+    }
+}
+
+void ScreenOffOverlay::loadDailyQuote() {
+    const auto& cfg = Config::instance();
+    if (!cfg.screenOffShowQuote) {
+        m_quoteLabel->setText("" );
+        return;
+    }
+    if (cfg.siliconFlowApiKey.trimmed().isEmpty()) {
+        m_quoteLabel->setText("填写 API Key 以获取每日金句");
+        return;
+    }
+
+    requestAiCompletion(this,
+                        "你是中文励志文案助手。",
+                        "请给出一句适合中学生自习课展示的每日金句，不超过40字。",
+                        QJsonArray(),
+                        [this](const QString& out, bool) {
+                            m_quoteLabel->setText(out.trimmed().isEmpty() ? QString("愿你今日专注而有收获。") : out.trimmed());
+                        });
+}
+
+
 AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnBottomHint | Qt::Tool);
     setAttribute(Qt::WA_TranslucentBackground);
@@ -260,7 +400,7 @@ AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(pare
     inner->setSpacing(8);
 
     m_updateTime = new QLabel;
-    m_updateTime->setStyleSheet("font-size:11px;color:#5f7086;background:rgba(255,255,255,0.72);border:1px solid #dfe9f5;border-radius:10px;padding:6px 8px;");
+    m_updateTime->setStyleSheet("font-size:15px;font-weight:800;color:#324e70;background:rgba(255,255,255,0.72);border:1px solid #dfe9f5;border-radius:10px;padding:6px 8px;");
 
     auto* countsRow = new QHBoxLayout;
     countsRow->setSpacing(10);
@@ -270,11 +410,11 @@ AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(pare
     expectedLayout->setContentsMargins(12, 10, 12, 10);
     expectedLayout->setSpacing(3);
     m_expectedLabel = new QLabel("应到人数");
-    m_expectedLabel->setStyleSheet("font-size:11px;color:#5f7086;");
+    m_expectedLabel->setStyleSheet("font-size:16px;font-weight:900;color:#334f71;");
     m_expectedValue = new QLabel;
-    m_expectedValue->setStyleSheet("font-size:38px;font-weight:850;color:#2f5e90;");
+    m_expectedValue->setStyleSheet("font-size:52px;font-weight:950;color:#1f4f86;");
     expectedLayout->addWidget(m_expectedLabel);
-    expectedLayout->addWidget(m_expectedValue);
+    expectedLayout->addWidget(m_expectedValue, 0, Qt::AlignHCenter);
 
     auto* presentCard = new QWidget;
     presentCard->setStyleSheet(cardStyle());
@@ -282,18 +422,18 @@ AttendanceSummaryWidget::AttendanceSummaryWidget(QWidget* parent) : QWidget(pare
     presentLayout->setContentsMargins(12, 10, 12, 10);
     presentLayout->setSpacing(3);
     m_presentLabel = new QLabel("实到人数");
-    m_presentLabel->setStyleSheet("font-size:11px;color:#5f7086;");
+    m_presentLabel->setStyleSheet("font-size:16px;font-weight:900;color:#334f71;");
     m_presentValue = new QLabel;
-    m_presentValue->setStyleSheet("font-size:38px;font-weight:850;color:#1e8a5a;");
+    m_presentValue->setStyleSheet("font-size:52px;font-weight:950;color:#0f7a49;");
     presentLayout->addWidget(m_presentLabel);
-    presentLayout->addWidget(m_presentValue);
+    presentLayout->addWidget(m_presentValue, 0, Qt::AlignHCenter);
 
     countsRow->addWidget(expectedCard, 1);
     countsRow->addWidget(presentCard, 1);
 
     m_absentList = new QLabel;
     m_absentList->setWordWrap(true);
-    m_absentList->setStyleSheet("font-size:12px;background:#ffffff;border:1px solid #d3dfef;border-radius:14px;padding:10px 12px;color:#304864;line-height:1.5;");
+    m_absentList->setStyleSheet("font-size:18px;font-weight:900;background:#ffffff;border:1px solid #d3dfef;border-radius:18px;padding:14px 14px;color:#304864;line-height:1.6;");
 
     inner->addWidget(m_updateTime);
     inner->addLayout(countsRow);
@@ -336,18 +476,24 @@ void AttendanceSummaryWidget::refreshUi() {
     setFixedWidth(Config::instance().attendanceSummaryWidth);
     adjustSize();
 
-    const QRect screen = QApplication::primaryScreen()->availableGeometry();
+    const QRect screen = QApplication::primaryScreen()->geometry();
     move(screen.right() - width() - 12, screen.top() + 12);
 }
 
+void AttendanceSummaryWidget::setPinnedOnTop(bool onTop) {
+    setWindowFlag(Qt::WindowStaysOnTopHint, onTop);
+    setWindowFlag(Qt::WindowStaysOnBottomHint, !onTop);
+    show();
+}
+
 void AttendanceSummaryWidget::closeEvent(QCloseEvent* event) {
-    event->ignore();
+    if (AppState::isQuitting()) { event->accept(); } else { event->ignore(); }
 }
 
 AttendanceSelectDialog::AttendanceSelectDialog(QWidget* parent) : QDialog(parent) {
     const QString dialogTitle = "考勤选择（勾选缺勤学生）";
     decorateDialog(this, dialogTitle);
-    setFixedSize(560, 560);
+    setFixedSize(620, 640);
 
     auto* layout = new QVBoxLayout(this);
     layout->addWidget(createDialogTitleBar(this, dialogTitle));
@@ -490,7 +636,7 @@ void AttendanceSelectDialog::exportSelection() {
 
 void AttendanceSelectDialog::closeEvent(QCloseEvent* event) {
     smoothHide(this);
-    event->ignore();
+    if (AppState::isQuitting()) { event->accept(); } else { event->ignore(); }
 }
 
 RandomCallDialog::RandomCallDialog(QWidget* parent) : QDialog(parent) {
@@ -638,7 +784,7 @@ void RandomCallDialog::startAnim() {
 
 void RandomCallDialog::closeEvent(QCloseEvent* event) {
     smoothHide(this);
-    event->ignore();
+    if (AppState::isQuitting()) { event->accept(); } else { event->ignore(); }
 }
 
 ClassTimerDialog::ClassTimerDialog(QWidget* parent) : QDialog(parent) {
@@ -736,7 +882,7 @@ void ClassTimerDialog::openTimer() {
 
 void ClassTimerDialog::closeEvent(QCloseEvent* event) {
     smoothHide(this);
-    event->ignore();
+    if (AppState::isQuitting()) { event->accept(); } else { event->ignore(); }
 }
 
 ClassNoteDialog::ClassNoteDialog(QWidget* parent) : QDialog(parent) {
@@ -818,7 +964,7 @@ void ClassNoteDialog::openNote() {
 
 void ClassNoteDialog::closeEvent(QCloseEvent* event) {
     smoothHide(this);
-    event->ignore();
+    if (AppState::isQuitting()) { event->accept(); } else { event->ignore(); }
 }
 
 GroupSplitDialog::GroupSplitDialog(QWidget* parent) : QDialog(parent) {
@@ -894,7 +1040,7 @@ void GroupSplitDialog::openSplitter() {
 
 void GroupSplitDialog::closeEvent(QCloseEvent* event) {
     smoothHide(this);
-    event->ignore();
+    if (AppState::isQuitting()) { event->accept(); } else { event->ignore(); }
 }
 
 ScoreBoardDialog::ScoreBoardDialog(QWidget* parent) : QDialog(parent) {
@@ -962,7 +1108,7 @@ void ScoreBoardDialog::openBoard() {
 
 void ScoreBoardDialog::closeEvent(QCloseEvent* event) {
     smoothHide(this);
-    event->ignore();
+    if (AppState::isQuitting()) { event->accept(); } else { event->ignore(); }
 }
 
 
@@ -1134,7 +1280,7 @@ void AIAssistantDialog::openAssistant() {
 
 void AIAssistantDialog::closeEvent(QCloseEvent* event) {
     smoothHide(this);
-    event->ignore();
+    if (AppState::isQuitting()) { event->accept(); } else { event->ignore(); }
 }
 
 AddButtonDialog::AddButtonDialog(QWidget* parent) : QDialog(parent) {
@@ -1240,13 +1386,13 @@ FirstRunWizard::FirstRunWizard(QWidget* parent) : QDialog(parent) {
 
     displayLayout->addWidget(new QLabel("考勤概览宽度"));
     m_summaryWidth = new QSlider(Qt::Horizontal);
-    m_summaryWidth->setRange(300, 520);
+    m_summaryWidth->setRange(360, 660);
     m_summaryWidth->setValue(Config::instance().attendanceSummaryWidth);
     displayLayout->addWidget(m_summaryWidth);
 
     m_startCollapsed = new QCheckBox("启动后默认收起到右下角悬浮球");
     m_startCollapsed->setChecked(Config::instance().startCollapsed);
-    m_trayClickToOpen = new QCheckBox("托盘单击时展开侧栏");
+    m_trayClickToOpen = new QCheckBox("托盘单击时展开半圆菜单");
     m_trayClickToOpen->setChecked(Config::instance().trayClickToOpen);
     m_showAttendanceSummaryOnStart = new QCheckBox("启动时显示考勤概览窗口");
     m_showAttendanceSummaryOnStart->setChecked(Config::instance().showAttendanceSummaryOnStart);
@@ -1367,7 +1513,7 @@ void FirstRunWizard::finishSetup() {
 }
 
 void FirstRunWizard::closeEvent(QCloseEvent* event) {
-    event->ignore();
+    if (AppState::isQuitting()) { event->accept(); } else { event->ignore(); }
 }
 
 SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
@@ -1385,17 +1531,18 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     m_menuTree->setHeaderHidden(true);
     m_menuTree->setFixedWidth(240);
 
-    auto* topDisplay = new QTreeWidgetItem(QStringList{"显示与启动"});
+    auto* topDisplay = new QTreeWidgetItem(QStringList{"外观与启动"});
     topDisplay->addChild(new QTreeWidgetItem(QStringList{"窗口与显示"}));
     topDisplay->addChild(new QTreeWidgetItem(QStringList{"启动行为"}));
     topDisplay->addChild(new QTreeWidgetItem(QStringList{"动画与圆角"}));
-    auto* topTools = new QTreeWidgetItem(QStringList{"课堂工具"});
+    auto* topTools = new QTreeWidgetItem(QStringList{"课堂工具与息屏"});
     topTools->addChild(new QTreeWidgetItem(QStringList{"点名设置"}));
     topTools->addChild(new QTreeWidgetItem(QStringList{"程序路径"}));
     topTools->addChild(new QTreeWidgetItem(QStringList{"分组与计分"}));
-    auto* topData = new QTreeWidgetItem(QStringList{"数据管理"});
+    topTools->addChild(new QTreeWidgetItem(QStringList{"自习与息屏"}));
+    auto* topData = new QTreeWidgetItem(QStringList{"数据与按钮"});
     topData->addChild(new QTreeWidgetItem(QStringList{"名单与按钮"}));
-    auto* topSafety = new QTreeWidgetItem(QStringList{"安全与离线"});
+    auto* topSafety = new QTreeWidgetItem(QStringList{"AI与联网"});
     topSafety->addChild(new QTreeWidgetItem(QStringList{"联网控制"}));
     auto* topAbout = new QTreeWidgetItem(QStringList{"关于"});
     topAbout->addChild(new QTreeWidgetItem(QStringList{"关于与更新"}));
@@ -1445,13 +1592,13 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
             return;
         }
         const QString label = current->text(0);
-        if (label == "显示与启动" || label == "窗口与显示" || label == "启动行为" || label == "动画与圆角") {
+        if (label == "外观与启动" || label == "窗口与显示" || label == "启动行为" || label == "动画与圆角") {
             m_stacked->setCurrentIndex(0);
-        } else if (label == "课堂工具" || label == "点名设置" || label == "程序路径" || label == "分组与计分") {
+        } else if (label == "课堂工具与息屏" || label == "点名设置" || label == "程序路径" || label == "分组与计分" || label == "自习与息屏") {
             m_stacked->setCurrentIndex(1);
-        } else if (label == "数据管理" || label == "名单与按钮") {
+        } else if (label == "数据与按钮" || label == "名单与按钮") {
             m_stacked->setCurrentIndex(2);
-        } else if (label == "安全与离线" || label == "联网控制") {
+        } else if (label == "AI与联网" || label == "联网控制") {
             m_stacked->setCurrentIndex(3);
         } else {
             m_stacked->setCurrentIndex(4);
@@ -1473,28 +1620,35 @@ QWidget* SettingsDialog::createPageDisplayStartup() {
     m_floatingOpacity->setRange(35, 100);
     displayLayout->addWidget(m_floatingOpacity);
 
+    displayLayout->addWidget(new QLabel("悬浮球尺寸"));
+    m_ballSize = new QSlider(Qt::Horizontal);
+    m_ballSize->setRange(56, 96);
+    displayLayout->addWidget(m_ballSize);
+
+    displayLayout->addWidget(new QLabel("按钮图标尺寸"));
+    m_buttonIconSize = new QSlider(Qt::Horizontal);
+    m_buttonIconSize->setRange(24, 56);
+    displayLayout->addWidget(m_buttonIconSize);
+
     displayLayout->addWidget(new QLabel("考勤概览宽度"));
     m_summaryWidth = new QSlider(Qt::Horizontal);
-    m_summaryWidth->setRange(300, 520);
+    m_summaryWidth->setRange(360, 660);
     displayLayout->addWidget(m_summaryWidth);
 
-    m_compactMode = new QCheckBox("紧凑模式（缩小图标与间距）");
-    displayLayout->addWidget(m_compactMode);
-
-    displayLayout->addWidget(new QLabel("主界面宽度"));
+    displayLayout->addWidget(new QLabel("半圆菜单半径"));
     m_sidebarWidth = new QSlider(Qt::Horizontal);
-    m_sidebarWidth->setRange(84, 128);
+    m_sidebarWidth->setRange(150, 280);
     displayLayout->addWidget(m_sidebarWidth);
 
-    displayLayout->addWidget(new QLabel("过渡动画时长（毫秒）"));
+    displayLayout->addWidget(new QLabel("无操作自动收起秒数"));
     m_animationDuration = new QSlider(Qt::Horizontal);
-    m_animationDuration->setRange(120, 600);
+    m_animationDuration->setRange(5, 60);
     displayLayout->addWidget(m_animationDuration);
 
     auto* groupStartup = new QGroupBox("启动行为（二级）");
     auto* startupLayout = new QVBoxLayout(groupStartup);
     m_startCollapsed = new QCheckBox("启动时收起到悬浮球");
-    m_trayClickToOpen = new QCheckBox("托盘单击时展开侧栏");
+    m_trayClickToOpen = new QCheckBox("托盘单击时展开半圆菜单");
     m_showAttendanceSummaryOnStart = new QCheckBox("启动时显示考勤概览");
     m_collapseHidesToolWindows = new QCheckBox("收起主界面时联动隐藏所有工具窗口");
     startupLayout->addWidget(m_startCollapsed);
@@ -1562,6 +1716,47 @@ QWidget* SettingsDialog::createPageClassTools() {
     layout->addWidget(groupRandom);
     layout->addWidget(groupPath);
     layout->addWidget(groupFeature);
+
+    auto* groupSelfStudy = new QGroupBox("自习课设置（二级）");
+    auto* selfStudyLayout = new QVBoxLayout(groupSelfStudy);
+    selfStudyLayout->addWidget(new QLabel("自习时段（HH:mm-HH:mm，可添加多节）"));
+    m_selfStudyPeriodList = new QListWidget;
+    m_selfStudyPeriodList->setMinimumHeight(110);
+    selfStudyLayout->addWidget(m_selfStudyPeriodList);
+    auto* selfOps = new QHBoxLayout;
+    auto* addPeriodBtn = new QPushButton("添加时段");
+    auto* removePeriodBtn = new QPushButton("删除时段");
+    for (auto* b : {addPeriodBtn, removePeriodBtn}) b->setStyleSheet(buttonStylePrimary());
+    selfOps->addWidget(addPeriodBtn);
+    selfOps->addWidget(removePeriodBtn);
+    selfOps->addStretch();
+    selfStudyLayout->addLayout(selfOps);
+    connect(addPeriodBtn, &QPushButton::clicked, this, [this]() {
+        const QString txt = QInputDialog::getText(this, "添加自习时段", "格式：HH:mm-HH:mm", QLineEdit::Normal, "19:00-19:45");
+        if (txt.trimmed().isEmpty()) return;
+        const QStringList parts = txt.split('-', Qt::SkipEmptyParts);
+        if (parts.size() != 2 || !QTime::fromString(parts[0].trimmed(), "HH:mm").isValid() || !QTime::fromString(parts[1].trimmed(), "HH:mm").isValid()) {
+            QMessageBox::warning(this, "格式错误", "请输入有效时间段，例如 19:00-19:45");
+            return;
+        }
+        m_selfStudyPeriodList->addItem(parts[0].trimmed() + "-" + parts[1].trimmed());
+    });
+    connect(removePeriodBtn, &QPushButton::clicked, this, [this]() {
+        delete m_selfStudyPeriodList->takeItem(m_selfStudyPeriodList->currentRow());
+    });
+
+    auto* idleRow = new QHBoxLayout;
+    idleRow->addWidget(new QLabel("自习无操作自动息屏阈值（秒）"));
+    m_selfStudyIdleSeconds = new QSpinBox;
+    m_selfStudyIdleSeconds->setRange(60, 900);
+    m_selfStudyIdleSeconds->setSingleStep(30);
+    idleRow->addWidget(m_selfStudyIdleSeconds);
+    selfStudyLayout->addLayout(idleRow);
+
+    m_screenOffShowQuote = new QCheckBox("息屏模式显示每日金句");
+    selfStudyLayout->addWidget(m_screenOffShowQuote);
+
+    layout->addWidget(groupSelfStudy);
     layout->addStretch();
     return page;
 }
@@ -1575,7 +1770,7 @@ QWidget* SettingsDialog::createPageDataManagement() {
     connect(importBtn, &QPushButton::clicked, this, &SettingsDialog::importStudents);
     layout->addWidget(importBtn);
 
-    layout->addWidget(new QLabel("按钮管理（除“设置”外，主界面按钮都可删改；可一键恢复默认按钮）"));
+    layout->addWidget(new QLabel("按钮管理（主界面为半圆按钮，可自定义并滚动查看更多）"));
     m_buttonList = new QListWidget;
     layout->addWidget(m_buttonList, 1);
 
@@ -1738,9 +1933,10 @@ void SettingsDialog::loadData() {
     m_trayClickToOpen->setChecked(cfg.trayClickToOpen);
     m_showAttendanceSummaryOnStart->setChecked(cfg.showAttendanceSummaryOnStart);
     m_collapseHidesToolWindows->setChecked(cfg.collapseHidesToolWindows);
-    m_compactMode->setChecked(cfg.compactMode);
-    m_sidebarWidth->setValue(cfg.sidebarWidth);
-    m_animationDuration->setValue(cfg.animationDurationMs);
+    m_ballSize->setValue(cfg.floatingBallSize);
+    m_buttonIconSize->setValue(cfg.iconSize);
+    m_sidebarWidth->setValue(cfg.radialMenuRadius);
+    m_animationDuration->setValue(cfg.menuAutoCollapseSeconds);
     m_randomNoRepeat->setChecked(cfg.randomNoRepeat);
     m_historyCount->setValue(cfg.randomHistorySize);
     m_allowExternalLinks->setChecked(cfg.allowExternalLinks);
@@ -1751,6 +1947,11 @@ void SettingsDialog::loadData() {
     m_apiKeyEdit->setText(cfg.siliconFlowApiKey);
     m_aiModelEdit->setText(cfg.siliconFlowModel);
     m_aiEndpointEdit->setText(cfg.siliconFlowEndpoint);
+
+    m_selfStudyPeriodList->clear();
+    for (const auto& p : cfg.selfStudyPeriods) m_selfStudyPeriodList->addItem(p);
+    m_selfStudyIdleSeconds->setValue(cfg.selfStudyIdleSeconds);
+    m_screenOffShowQuote->setChecked(cfg.screenOffShowQuote);
 
     m_buttonList->clear();
     for (const auto& b : cfg.getButtons()) {
@@ -1863,9 +2064,10 @@ void SettingsDialog::saveData() {
     cfg.trayClickToOpen = m_trayClickToOpen->isChecked();
     cfg.showAttendanceSummaryOnStart = m_showAttendanceSummaryOnStart->isChecked();
     cfg.collapseHidesToolWindows = m_collapseHidesToolWindows->isChecked();
-    cfg.compactMode = m_compactMode->isChecked();
-    cfg.sidebarWidth = m_sidebarWidth->value();
-    cfg.animationDurationMs = m_animationDuration->value();
+    cfg.floatingBallSize = m_ballSize->value();
+    cfg.iconSize = m_buttonIconSize->value();
+    cfg.radialMenuRadius = m_sidebarWidth->value();
+    cfg.menuAutoCollapseSeconds = m_animationDuration->value();
     cfg.randomNoRepeat = m_randomNoRepeat->isChecked();
     cfg.randomHistorySize = m_historyCount->value();
     cfg.allowExternalLinks = m_allowExternalLinks->isChecked();
@@ -1877,6 +2079,10 @@ void SettingsDialog::saveData() {
     cfg.siliconFlowModel = m_aiModelEdit->text().trimmed().isEmpty() ? QString("deepseek-ai/DeepSeek-V3.2") : m_aiModelEdit->text().trimmed();
     cfg.siliconFlowEndpoint = m_aiEndpointEdit->text().trimmed().isEmpty() ? QString("https://api.siliconflow.cn/v1/chat/completions")
                                                                             : m_aiEndpointEdit->text().trimmed();
+    cfg.selfStudyPeriods.clear();
+    for (int i = 0; i < m_selfStudyPeriodList->count(); ++i) cfg.selfStudyPeriods.append(m_selfStudyPeriodList->item(i)->text());
+    cfg.selfStudyIdleSeconds = m_selfStudyIdleSeconds->value();
+    cfg.screenOffShowQuote = m_screenOffShowQuote->isChecked();
 
     QVector<AppButton> buttons;
     for (int i = 0; i < m_buttonList->count(); ++i) {
@@ -1890,6 +2096,7 @@ void SettingsDialog::saveData() {
 
     cfg.setButtons(buttons);
     cfg.save();
+    Logger::instance().info("设置已保存");
     emit configChanged();
     smoothHide(this);
 }
@@ -1906,5 +2113,5 @@ void SettingsDialog::restoreDefaults() {
 
 void SettingsDialog::closeEvent(QCloseEvent* event) {
     smoothHide(this);
-    event->ignore();
+    if (AppState::isQuitting()) { event->accept(); } else { event->ignore(); }
 }

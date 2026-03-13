@@ -1,24 +1,27 @@
 #include "Utils.h"
 
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QMutexLocker>
 #include <QTextStream>
+
+#include <atomic>
 
 namespace {
 constexpr int kSidebarWidth = 84;
+std::atomic<bool> g_isQuitting{false};
 
 QVector<AppButton> buildDefaultButtons() {
     return {
         {"希沃白板", "icon_seewo.png", "exe", "SEEWO", true},
         {"班级考勤", "icon_attendance.png", "func", "ATTENDANCE", true},
+        {"息屏", "", "func", "SCREEN_OFF", true},
         {"随机点名", "icon_random.png", "func", "RANDOM_CALL", true},
-        {"课堂计时", "icon_timer.png", "func", "CLASS_TIMER", true},
-        {"课堂便签", "icon_note.png", "func", "CLASS_NOTE", true},
-        {"分组抽签", "icon_group.png", "func", "GROUP_SPLIT", true},
-        {"课堂计分", "icon_score.png", "func", "SCORE_BOARD", true},
         {"AI助手", "icon_ai.png", "func", "AI_ASSISTANT", true},
+        {"设置", "icon_settings.png", "func", "SETTINGS", true},
     };
 }
 
@@ -30,6 +33,7 @@ QString canonicalIconForTarget(const QString& target) {
     if (target == "SEEWO") return "icon_seewo.png";
     if (target == "ATTENDANCE") return "icon_attendance.png";
     if (target == "RANDOM_CALL") return "icon_random.png";
+    if (target == "SCREEN_OFF") return "";
     if (target == "CLASS_TIMER") return "icon_timer.png";
     if (target == "CLASS_NOTE") return "icon_note.png";
     if (target == "GROUP_SPLIT") return "icon_group.png";
@@ -57,9 +61,12 @@ void normalizeSystemButtonIcons(QVector<AppButton>& buttons) {
 void applyDefaults(Config& config, QVector<AppButton>& buttons, QStringList& students) {
     config.seewoPath = "C:/Program Files (x86)/Seewo/EasiNote5/swenlauncher/swenlauncher.exe";
     config.iconSize = 46;
+    config.floatingBallSize = 72;
     config.floatingOpacity = 85;
-    config.attendanceSummaryWidth = 360;
-    config.startCollapsed = false;
+    config.attendanceSummaryWidth = 420;
+    config.radialMenuRadius = 210;
+    config.menuAutoCollapseSeconds = 15;
+    config.startCollapsed = true;
     config.trayClickToOpen = true;
     config.showAttendanceSummaryOnStart = true;
     config.randomNoRepeat = true;
@@ -74,6 +81,11 @@ void applyDefaults(Config& config, QVector<AppButton>& buttons, QStringList& stu
     config.collapseHidesToolWindows = true;
     config.firstRunCompleted = false;
     config.classNote = "";
+    config.floatingBallX = -1;
+    config.floatingBallY = -1;
+    config.selfStudyPeriods = QStringList() << QStringLiteral("19:00-19:45");
+    config.selfStudyIdleSeconds = 180;
+    config.screenOffShowQuote = true;
     buttons = buildDefaultButtons();
     normalizeSystemButtonIcons(buttons);
     students = defaultStudents();
@@ -115,9 +127,12 @@ void Config::load() {
     const QJsonObject root = doc.object();
     seewoPath = root["seewoPath"].toString().trimmed();
     iconSize = qBound(28, root["iconSize"].toInt(46), 72);
+    floatingBallSize = qBound(56, root["floatingBallSize"].toInt(72), 96);
     floatingOpacity = qBound(35, root["floatingOpacity"].toInt(85), 100);
-    attendanceSummaryWidth = qBound(300, root["attendanceSummaryWidth"].toInt(360), 520);
-    startCollapsed = root["startCollapsed"].toBool(false);
+    attendanceSummaryWidth = qBound(360, root["attendanceSummaryWidth"].toInt(420), 660);
+    radialMenuRadius = qBound(150, root["radialMenuRadius"].toInt(210), 280);
+    menuAutoCollapseSeconds = qBound(5, root["menuAutoCollapseSeconds"].toInt(15), 60);
+    startCollapsed = root["startCollapsed"].toBool(true);
     trayClickToOpen = root["trayClickToOpen"].toBool(true);
     showAttendanceSummaryOnStart = root["showAttendanceSummaryOnStart"].toBool(true);
     randomNoRepeat = root["randomNoRepeat"].toBool(true);
@@ -135,6 +150,15 @@ void Config::load() {
     siliconFlowApiKey = root["siliconFlowApiKey"].toString().trimmed();
     siliconFlowModel = root["siliconFlowModel"].toString("deepseek-ai/DeepSeek-V3.2").trimmed();
     siliconFlowEndpoint = root["siliconFlowEndpoint"].toString("https://api.siliconflow.cn/v1/chat/completions").trimmed();
+    floatingBallX = root["floatingBallX"].toInt(-1);
+    floatingBallY = root["floatingBallY"].toInt(-1);
+    selfStudyPeriods.clear();
+    for (const auto& v : root["selfStudyPeriods"].toArray()) {
+        const QString p = v.toString().trimmed();
+        if (!p.isEmpty()) selfStudyPeriods.append(p);
+    }
+    selfStudyIdleSeconds = qBound(60, root["selfStudyIdleSeconds"].toInt(180), 900);
+    screenOffShowQuote = root["screenOffShowQuote"].toBool(true);
 
     m_students.clear();
     for (const auto& v : root["students"].toArray()) {
@@ -169,6 +193,15 @@ void Config::load() {
 
     normalizeSystemButtonIcons(m_buttons);
 
+    QVector<AppButton> filteredButtons;
+    for (const auto& b : m_buttons) {
+        if (b.target == "SEEWO" || b.target == "ATTENDANCE" || b.target == "RANDOM_CALL"
+            || b.target == "AI_ASSISTANT" || b.target == "SETTINGS" || b.target == "SCREEN_OFF") {
+            filteredButtons.append(b);
+        }
+    }
+    m_buttons = filteredButtons;
+
     if (seewoPath.isEmpty()) {
         seewoPath = "C:/Program Files (x86)/Seewo/EasiNote5/swenlauncher/swenlauncher.exe";
     }
@@ -178,6 +211,19 @@ void Config::load() {
     if (m_buttons.isEmpty()) {
         m_buttons = buildDefaultButtons();
     }
+    bool hasSettings = false;
+    bool hasScreenOff = false;
+    for (const auto& b : m_buttons) {
+        if (b.target == "SETTINGS") hasSettings = true;
+        if (b.target == "SCREEN_OFF") hasScreenOff = true;
+    }
+    if (!hasScreenOff) {
+        m_buttons.append({"息屏", "", "func", "SCREEN_OFF", true});
+    }
+    if (!hasSettings) {
+        m_buttons.append({"设置", "icon_settings.png", "func", "SETTINGS", true});
+    }
+    if (selfStudyPeriods.isEmpty()) { selfStudyPeriods = QStringList() << QStringLiteral("19:00-19:45"); }
     if (siliconFlowModel.isEmpty()) {
         siliconFlowModel = "deepseek-ai/DeepSeek-V3.2";
     }
@@ -190,8 +236,11 @@ void Config::save() {
     QJsonObject root;
     root["seewoPath"] = seewoPath;
     root["iconSize"] = iconSize;
+    root["floatingBallSize"] = floatingBallSize;
     root["floatingOpacity"] = floatingOpacity;
     root["attendanceSummaryWidth"] = attendanceSummaryWidth;
+    root["radialMenuRadius"] = radialMenuRadius;
+    root["menuAutoCollapseSeconds"] = menuAutoCollapseSeconds;
     root["startCollapsed"] = startCollapsed;
     root["trayClickToOpen"] = trayClickToOpen;
     root["showAttendanceSummaryOnStart"] = showAttendanceSummaryOnStart;
@@ -210,6 +259,13 @@ void Config::save() {
     root["siliconFlowApiKey"] = siliconFlowApiKey;
     root["siliconFlowModel"] = siliconFlowModel;
     root["siliconFlowEndpoint"] = siliconFlowEndpoint;
+    root["floatingBallX"] = floatingBallX;
+    root["floatingBallY"] = floatingBallY;
+    QJsonArray selfStudyArr;
+    for (const auto& p : selfStudyPeriods) selfStudyArr.append(p);
+    root["selfStudyPeriods"] = selfStudyArr;
+    root["selfStudyIdleSeconds"] = selfStudyIdleSeconds;
+    root["screenOffShowQuote"] = screenOffShowQuote;
     root["fixedSidebarWidth"] = kSidebarWidth;
 
     QJsonArray stuArr;
@@ -340,4 +396,51 @@ QString Config::resolveIconPath(const QString& iconRef) const {
     }
 
     return {};
+}
+
+Logger& Logger::instance() {
+    static Logger logger;
+    return logger;
+}
+
+Logger::Logger() {
+    const QString logDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/logs";
+    QDir().mkpath(logDir);
+    m_logPath = logDir + "/classassistant.log";
+}
+
+void Logger::info(const QString& message) {
+    write("INFO", message);
+}
+
+void Logger::warn(const QString& message) {
+    write("WARN", message);
+}
+
+void Logger::error(const QString& message) {
+    write("ERROR", message);
+}
+
+QString Logger::logPath() const {
+    return m_logPath;
+}
+
+void Logger::write(const QString& level, const QString& message) {
+    QMutexLocker locker(&m_mutex);
+    QFile file(m_logPath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+        return;
+    }
+
+    QTextStream out(&file);
+    out << '[' << QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss.zzz") << "] "
+        << level << " " << message << "\n";
+}
+
+void AppState::setQuitting(bool quitting) {
+    g_isQuitting.store(quitting);
+}
+
+bool AppState::isQuitting() {
+    return g_isQuitting.load();
 }

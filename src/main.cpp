@@ -2,12 +2,11 @@
 #include <QApplication>
 #include <QCoreApplication>
 #include <QCursor>
+#include <QDateTime>
+#include <QEvent>
 #include <QFont>
 #include <QIcon>
 #include <QMenu>
-#include <QParallelAnimationGroup>
-#include <QPropertyAnimation>
-#include <QRect>
 #include <QScreen>
 #include <QStyle>
 #include <QSystemTrayIcon>
@@ -15,46 +14,74 @@
 
 #include "Utils.h"
 #include "ui/FloatingBall.h"
+#include "ui/FluentTheme.h"
 #include "ui/Sidebar.h"
 #include "ui/Tools.h"
-#include "ui/FluentTheme.h"
 
 namespace {
 QIcon loadNamedIcon(const QString& fileName) {
     const QString resolvedPath = Config::instance().resolveIconPath(fileName);
     return QIcon(resolvedPath);
 }
+
+bool isNowInSelfStudy() {
+    const QTime now = QTime::currentTime();
+    for (const QString& period : Config::instance().selfStudyPeriods) {
+        const QStringList parts = period.split('-', Qt::SkipEmptyParts);
+        if (parts.size() != 2) continue;
+        const QTime s = QTime::fromString(parts[0].trimmed(), "HH:mm");
+        const QTime e = QTime::fromString(parts[1].trimmed(), "HH:mm");
+        if (!s.isValid() || !e.isValid()) continue;
+        if (now >= s && now <= e) return true;
+    }
+    return false;
+}
+
+class IdleEventFilter : public QObject {
+public:
+    explicit IdleEventFilter(QDateTime* lastInput, bool* autoOpened, QObject* parent = nullptr)
+        : QObject(parent), m_lastInput(lastInput), m_autoOpened(autoOpened) {}
+
+protected:
+    bool eventFilter(QObject* obj, QEvent* e) override {
+        Q_UNUSED(obj);
+        switch (e->type()) {
+        case QEvent::MouseMove:
+        case QEvent::MouseButtonPress:
+        case QEvent::MouseButtonRelease:
+        case QEvent::KeyPress:
+        case QEvent::TouchBegin:
+        case QEvent::TouchUpdate:
+            if (m_lastInput) *m_lastInput = QDateTime::currentDateTime();
+            if (m_autoOpened) *m_autoOpened = false;
+            break;
+        default:
+            break;
+        }
+        return false;
+    }
+
+private:
+    QDateTime* m_lastInput;
+    bool* m_autoOpened;
+};
 }
 
 int main(int argc, char* argv[]) {
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 #endif
-#if QT_VERSION >= QT_VERSION_CHECK(5, 6, 0)
-    QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
-#endif
-#if QT_VERSION >= QT_VERSION_CHECK(5, 7, 0)
-    QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
-#endif
-#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
-    QCoreApplication::setAttribute(Qt::AA_CompressHighFrequencyEvents);
-#endif
-    QCoreApplication::setAttribute(Qt::AA_SynthesizeMouseForUnhandledTouchEvents);
-    QCoreApplication::setAttribute(Qt::AA_SynthesizeTouchForUnhandledMouseEvents);
-
     QApplication app(argc, argv);
     app.setQuitOnLastWindowClosed(false);
-    app.setApplicationVersion("1.0.0");
+    app.setApplicationVersion("2.1.0");
 
     QFont uiFont("HarmonyOS Sans SC");
-    if (!uiFont.exactMatch()) {
-        uiFont = QFont("HarmonyOS Sans");
-    }
+    if (!uiFont.exactMatch()) uiFont = QFont("HarmonyOS Sans");
     uiFont.setPointSize(10);
     app.setFont(uiFont);
-    app.setStyleSheet("QWidget{font-family:'HarmonyOS Sans SC','HarmonyOS Sans','Microsoft YaHei',sans-serif;}"
-                      "QAbstractButton{min-height:40px;padding:7px 10px;font-size:14px;border-radius:14px;}"
-                      "QToolTip{background:#ffffff;color:#1f2d3d;border:1px solid #cddbeb;padding:6px;border-radius:10px;}");
+    app.setStyleSheet("QWidget{font-family:'HarmonyOS Sans SC','HarmonyOS Sans','Microsoft YaHei',sans-serif;}");
+
+    Logger::instance().info("程序启动");
 
     if (!Config::instance().firstRunCompleted) {
         FirstRunWizard wizard;
@@ -64,106 +91,40 @@ int main(int argc, char* argv[]) {
     auto* sidebar = new Sidebar();
     auto* ball = new FloatingBall();
 
-    auto updatePos = [&]() {
-        const QRect screen = app.primaryScreen()->availableGeometry();
-        const int sidebarWidth = qMax(84, Config::instance().sidebarWidth);
-        sidebar->resize(sidebarWidth, qMin(screen.height() - 20, 800));
-        sidebar->move(screen.right() - sidebarWidth + 1, screen.center().y() - sidebar->height() / 2);
-        ball->setWindowOpacity(Config::instance().floatingOpacity / 100.0);
-    };
-
-    auto animateSidebarIn = [&]() {
-        updatePos();
-        sidebar->show();
-        sidebar->raise();
-
-        const QRect endRect = sidebar->geometry();
-        const QRect startRect(endRect.x() + 26, endRect.y(), endRect.width(), endRect.height());
-        sidebar->setGeometry(startRect);
-        sidebar->setWindowOpacity(0.0);
-
-        auto* group = new QParallelAnimationGroup(sidebar);
-        auto* moveAnim = new QPropertyAnimation(sidebar, "geometry", group);
-        moveAnim->setDuration(Config::instance().animationDurationMs);
-        moveAnim->setStartValue(startRect);
-        moveAnim->setEndValue(endRect);
-        moveAnim->setEasingCurve(QEasingCurve::OutBack);
-
-        auto* opacityAnim = new QPropertyAnimation(sidebar, "windowOpacity", group);
-        opacityAnim->setDuration(Config::instance().animationDurationMs);
-        opacityAnim->setStartValue(0.0);
-        opacityAnim->setEndValue(1.0);
-        opacityAnim->setEasingCurve(QEasingCurve::OutQuint);
-
-        group->addAnimation(moveAnim);
-        group->addAnimation(opacityAnim);
-        group->start(QAbstractAnimation::DeleteWhenStopped);
-    };
-
-    auto showSidebar = [&]() {
-        ball->hide();
-        animateSidebarIn();
-        sidebar->activateWindow();
+    auto showMenu = [&]() {
+        sidebar->setAnchorGeometry(ball->geometry());
+        sidebar->expandMenu();
+        Logger::instance().info("悬浮球点击展开");
     };
 
     auto showBall = [&]() {
-        sidebar->hideAllToolWindowsAnimated();
-
-        const QRect rect = sidebar->geometry();
-        auto* group = new QParallelAnimationGroup(sidebar);
-        auto* moveAnim = new QPropertyAnimation(sidebar, "geometry", group);
-        moveAnim->setDuration(Config::instance().animationDurationMs);
-        moveAnim->setStartValue(rect);
-        moveAnim->setEndValue(QRect(rect.x() + 26, rect.y(), rect.width(), rect.height()));
-        moveAnim->setEasingCurve(QEasingCurve::InCubic);
-
-        auto* opacityAnim = new QPropertyAnimation(sidebar, "windowOpacity", group);
-        opacityAnim->setDuration(Config::instance().animationDurationMs);
-        opacityAnim->setStartValue(sidebar->windowOpacity());
-        opacityAnim->setEndValue(0.0);
-        opacityAnim->setEasingCurve(QEasingCurve::InCubic);
-
-        group->addAnimation(moveAnim);
-        group->addAnimation(opacityAnim);
-
-        QObject::connect(group, &QParallelAnimationGroup::finished, sidebar, [=]() {
-            sidebar->hide();
-            sidebar->setWindowOpacity(1.0);
-            updatePos();
-            ball->moveToBottomRight();
-            ball->show();
-
-            auto* ballAnim = new QPropertyAnimation(ball, "windowOpacity", ball);
-            ballAnim->setDuration(Config::instance().animationDurationMs);
-            ball->setWindowOpacity(0.0);
-            ballAnim->setStartValue(0.0);
-            ballAnim->setEndValue(Config::instance().floatingOpacity / 100.0);
-            ballAnim->setEasingCurve(QEasingCurve::OutBack);
-            ballAnim->start(QAbstractAnimation::DeleteWhenStopped);
-        });
-        group->start(QAbstractAnimation::DeleteWhenStopped);
+        sidebar->hide();
+        ball->setWindowOpacity(Config::instance().floatingOpacity / 100.0);
+        ball->show();
     };
 
-    auto reloadAll = [&]() {
-        Config::instance().load();
-        sidebar->reloadConfig();
-        updatePos();
-    };
+    QObject::connect(ball, &FloatingBall::clicked, [&]() {
+        if (sidebar->isExpanded()) sidebar->collapseMenu();
+        else showMenu();
+    });
+    QObject::connect(sidebar, &Sidebar::requestCollapseToBall, showBall);
+    QObject::connect(ball, &FloatingBall::positionCommitted, [](const QPoint& pt) {
+        auto& cfg = Config::instance();
+        cfg.floatingBallX = pt.x();
+        cfg.floatingBallY = pt.y();
+        cfg.save();
+    });
 
-    QObject::connect(ball, &FloatingBall::clicked, showSidebar);
-    QObject::connect(sidebar, &Sidebar::requestHide, showBall);
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, [&]() {
+        AppState::setQuitting(true);
+        Logger::instance().info("程序退出");
+    });
 
     auto* tray = new QSystemTrayIcon(&app);
     QIcon trayIcon = loadNamedIcon("icon_tray.png");
-    if (trayIcon.isNull()) {
-        trayIcon = loadNamedIcon("icon_settings.png");
-    }
-    if (trayIcon.isNull()) {
-        trayIcon = QIcon::fromTheme("applications-education");
-    }
-    if (trayIcon.isNull()) {
-        trayIcon = app.style()->standardIcon(QStyle::SP_ComputerIcon);
-    }
+    if (trayIcon.isNull()) trayIcon = loadNamedIcon("icon_settings.png");
+    if (trayIcon.isNull()) trayIcon = QIcon::fromTheme("applications-education");
+    if (trayIcon.isNull()) trayIcon = app.style()->standardIcon(QStyle::SP_ComputerIcon);
     tray->setIcon(trayIcon);
     app.setWindowIcon(trayIcon);
     tray->setToolTip("班级小助手");
@@ -174,67 +135,61 @@ int main(int argc, char* argv[]) {
     menu->setAttribute(Qt::WA_TranslucentBackground);
     menu->setStyleSheet(FluentTheme::trayMenuStyle());
 
-    auto* actionShowSidebar = menu->addAction("展开侧边栏");
-    auto* actionShowBall = menu->addAction("收起为悬浮球");
+    auto* actionShowMenu = menu->addAction("展开悬浮菜单");
+    auto* actionHideMenu = menu->addAction("收起悬浮菜单");
     menu->addSeparator();
     auto* actionAttendance = menu->addAction("快速打开：考勤");
+    auto* actionScreenOff = menu->addAction("快速打开：息屏");
     auto* actionRandomCall = menu->addAction("快速打开：随机点名");
-    auto* actionClassTimer = menu->addAction("快速打开：课堂计时");
-    auto* actionClassNote = menu->addAction("快速打开：课堂便签");
-    auto* actionGroupSplit = menu->addAction("快速打开：分组抽签");
-    auto* actionScoreBoard = menu->addAction("快速打开：课堂计分板");
     auto* actionAiAssistant = menu->addAction("快速打开：AI 助手");
-    menu->addSeparator();
     auto* actionOpenSettings = menu->addAction("打开设置");
-    auto* actionReloadConfig = menu->addAction("重载配置");
     menu->addSeparator();
     auto* actionQuit = menu->addAction("退出程序");
 
-    QObject::connect(actionOpenSettings, &QAction::triggered, [sidebar]() { sidebar->openSettings(); });
-    QObject::connect(actionShowSidebar, &QAction::triggered, showSidebar);
-    QObject::connect(actionShowBall, &QAction::triggered, showBall);
+    QObject::connect(actionShowMenu, &QAction::triggered, showMenu);
+    QObject::connect(actionHideMenu, &QAction::triggered, [&]() { sidebar->collapseMenu(); });
     QObject::connect(actionAttendance, &QAction::triggered, [sidebar]() { sidebar->triggerTool("ATTENDANCE"); });
+    QObject::connect(actionScreenOff, &QAction::triggered, [sidebar]() { sidebar->triggerTool("SCREEN_OFF"); });
     QObject::connect(actionRandomCall, &QAction::triggered, [sidebar]() { sidebar->triggerTool("RANDOM_CALL"); });
-    QObject::connect(actionClassTimer, &QAction::triggered, [sidebar]() { sidebar->triggerTool("CLASS_TIMER"); });
-    QObject::connect(actionClassNote, &QAction::triggered, [sidebar]() { sidebar->triggerTool("CLASS_NOTE"); });
-    QObject::connect(actionGroupSplit, &QAction::triggered, [sidebar]() { sidebar->triggerTool("GROUP_SPLIT"); });
-    QObject::connect(actionScoreBoard, &QAction::triggered, [sidebar]() { sidebar->triggerTool("SCORE_BOARD"); });
     QObject::connect(actionAiAssistant, &QAction::triggered, [sidebar]() { sidebar->triggerTool("AI_ASSISTANT"); });
-    QObject::connect(actionReloadConfig, &QAction::triggered, reloadAll);
-    QObject::connect(actionQuit, &QAction::triggered, [&]() { app.quit(); });
+    QObject::connect(actionOpenSettings, &QAction::triggered, [sidebar]() { sidebar->openSettings(); });
+    QObject::connect(actionQuit, &QAction::triggered, [&]() { AppState::setQuitting(true); app.quit(); });
 
-    auto ensureTrayShown = [tray]() {
-        if (!QSystemTrayIcon::isSystemTrayAvailable()) {
-            return;
-        }
-        tray->show();
-#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
-        if (!tray->isVisible()) {
-            QTimer::singleShot(1000, tray, [tray]() { tray->show(); });
-        }
-#endif
-    };
-    ensureTrayShown();
-    QTimer::singleShot(1200, tray, ensureTrayShown);
-
+    tray->show();
     QObject::connect(tray, &QSystemTrayIcon::activated, [&](QSystemTrayIcon::ActivationReason reason) {
         if (reason == QSystemTrayIcon::Context) {
             menu->popup(QCursor::pos());
             return;
         }
-        if ((reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::DoubleClick)
-            && Config::instance().trayClickToOpen) {
-            showSidebar();
+        if ((reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::DoubleClick) && Config::instance().trayClickToOpen) {
+            showMenu();
         }
     });
 
-    updatePos();
-    if (Config::instance().startCollapsed) {
-        ball->moveToBottomRight();
-        ball->show();
-    } else {
-        showSidebar();
-    }
+    QDateTime lastInput = QDateTime::currentDateTime();
+    bool autoOpenedInCurrentIdle = false;
+    auto* idleFilter = new IdleEventFilter(&lastInput, &autoOpenedInCurrentIdle, &app);
+    app.installEventFilter(idleFilter);
+
+    QTimer idleTimer;
+    idleTimer.setInterval(10000);
+    QObject::connect(&idleTimer, &QTimer::timeout, [&]() {
+        if (!isNowInSelfStudy()) {
+            autoOpenedInCurrentIdle = false;
+            return;
+        }
+        const qint64 idleSeconds = lastInput.secsTo(QDateTime::currentDateTime());
+        if (idleSeconds >= Config::instance().selfStudyIdleSeconds && !autoOpenedInCurrentIdle) {
+            sidebar->triggerTool("SCREEN_OFF");
+            autoOpenedInCurrentIdle = true;
+            Logger::instance().info("自习课检测到3分钟无操作，自动打开息屏");
+        }
+    });
+    idleTimer.start();
+
+    ball->restoreSavedPosition();
+    if (Config::instance().startCollapsed) ball->show();
+    else showMenu();
 
     return app.exec();
 }
