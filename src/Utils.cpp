@@ -83,7 +83,7 @@ void applyDefaults(Config& config, QVector<AppButton>& buttons, QStringList& stu
     config.classNote = "";
     config.floatingBallX = -1;
     config.floatingBallY = -1;
-    config.selfStudyPeriods = {"19:00-19:45"};
+    config.selfStudyPeriods = QStringList{QStringLiteral("19:00-19:45")};
     buttons = buildDefaultButtons();
     normalizeSystemButtonIcons(buttons);
     students = defaultStudents();
@@ -217,7 +217,7 @@ void Config::load() {
     if (!hasSettings) {
         m_buttons.append({"设置", "icon_settings.png", "func", "SETTINGS", true});
     }
-    if (selfStudyPeriods.isEmpty()) { selfStudyPeriods = {"19:00-19:45"}; }
+    if (selfStudyPeriods.isEmpty()) { selfStudyPeriods = QStringList{QStringLiteral("19:00-19:45")}; }
     if (siliconFlowModel.isEmpty()) {
         siliconFlowModel = "deepseek-ai/DeepSeek-V3.2";
     }
