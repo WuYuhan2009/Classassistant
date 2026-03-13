@@ -218,7 +218,7 @@ void Config::load() {
         if (b.target == "SCREEN_OFF") hasScreenOff = true;
     }
     if (!hasScreenOff) {
-        m_buttons.append({"息屏", "", "func", "SCREEN_OFF", true});
+        m_buttons.append({"息屏", "icon_screen_off.svg", "func", "SCREEN_OFF", true});
     }
     if (!hasSettings) {
         m_buttons.append({"设置", "icon_settings.svg", "func", "SETTINGS", true});

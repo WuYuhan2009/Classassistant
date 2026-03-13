@@ -1,4 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <rect width="128" height="128" rx="26" fill="#e2e8f0"/>
-  <text x="64" y="74" text-anchor="middle" font-size="22" font-family="Arial" fill="#1e293b">ai</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" fill="none">
+  <path d="M64 16l11 24 26 3-19 18 5 26-23-13-23 13 5-26-19-18 26-3 11-24z" fill="#8A7DFF"/>
+  <circle cx="49" cy="62" r="5" fill="#fff"/>
+  <circle cx="79" cy="62" r="5" fill="#fff"/>
+  <path d="M47 79c5 6 11 9 17 9s12-3 17-9" stroke="#fff" stroke-width="6" stroke-linecap="round"/>
 </svg>

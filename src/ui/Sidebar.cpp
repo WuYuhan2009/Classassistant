@@ -177,10 +177,15 @@ void Sidebar::handleFunctionAction(const QString& target) {
             return;
         }
         m_screenOff->activate(inSelfStudyPeriod());
-        m_attendanceSummary->setPinnedOnTop(true);
-        m_attendanceSummary->show();
-        m_attendanceSummary->raise();
-        m_attendanceSummary->activateWindow();
+        auto ensureAttendanceOnTop = [this]() {
+            m_attendanceSummary->setPinnedOnTop(true);
+            m_attendanceSummary->show();
+            m_attendanceSummary->raise();
+            m_attendanceSummary->activateWindow();
+        };
+        ensureAttendanceOnTop();
+        QTimer::singleShot(30, this, ensureAttendanceOnTop);
+        QTimer::singleShot(120, this, ensureAttendanceOnTop);
     } else if (target == "RANDOM_CALL") {
         m_randomCall->setWindowOpacity(1.0);
         m_randomCall->startAnim();

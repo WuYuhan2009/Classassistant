@@ -272,7 +272,8 @@ protected:
     void closeEvent(QCloseEvent* event) override;
 
 private:
-    QListWidget* m_menuList;
+    QListWidget* m_primaryMenu;
+    QListWidget* m_secondaryMenu;
     QStackedWidget* m_stacked;
     QSlider* m_floatingOpacity;
     QSlider* m_summaryWidth;

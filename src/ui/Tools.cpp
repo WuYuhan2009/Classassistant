@@ -28,6 +28,7 @@
 #include <QProcess>
 #include <QPropertyAnimation>
 #include <QRandomGenerator>
+#include <QRegularExpression>
 #include <QSet>
 #include <QScreen>
 #include <QScrollArea>
@@ -259,6 +260,57 @@ void requestAiCompletion(QWidget* owner,
 }
 
 
+QString sanitizeQuote(const QString& raw) {
+    QString text = raw;
+    text.replace("
+", "");
+    text.remove(QRegularExpression("[\"“”‘’《》<>\[\]()]"));
+    text = text.trimmed();
+    if (text.size() > 30) {
+        text = text.left(30);
+    }
+    return text;
+}
+
+QString formatQuoteTwoLines(const QString& raw) {
+    QString text = sanitizeQuote(raw);
+    if (text.isEmpty()) {
+        return QStringLiteral("愿你今日专注\n稳步向前");
+    }
+    if (text.contains('|')) {
+        QStringList parts = text.split('|', Qt::SkipEmptyParts);
+        if (!parts.isEmpty()) {
+            QString a = parts.value(0).trimmed().left(15);
+            QString b = parts.value(1).trimmed().left(15);
+            return b.isEmpty() ? a : (a + "\n" + b);
+        }
+    }
+
+    if (text.size() <= 15) return text;
+
+    const QList<QChar> punct = {QChar(u'，'), QChar(u'。'), QChar(u'；'), QChar(u'！'), QChar(u'？')};
+    int breakPos = -1;
+    for (int i = 9; i <= qMin(15, text.size() - 1); ++i) {
+        if (punct.contains(text.at(i))) {
+            breakPos = i + 1;
+        }
+    }
+    if (breakPos < 0) {
+        const int hash = qAbs(qHash(text));
+        breakPos = 11 + (hash % 5); // 11~15, 避免过于整齐
+    }
+    breakPos = qBound(1, breakPos, qMin(15, text.size()));
+
+    QString line1 = text.left(breakPos).trimmed();
+    QString line2 = text.mid(breakPos).trimmed();
+    if (line1.size() > 15) line1 = line1.left(15);
+    if (line2.size() > 15) line2 = line2.left(15);
+    if (line2.isEmpty()) return line1;
+    return line1 + "\n" + line2;
+}
+
+
+
 ScreenOffOverlay::ScreenOffOverlay(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::FramelessWindowHint | Qt::Window | Qt::WindowStaysOnTopHint);
     setAttribute(Qt::WA_StyledBackground, true);
@@ -288,8 +340,9 @@ ScreenOffOverlay::ScreenOffOverlay(QWidget* parent) : QWidget(parent) {
     m_quoteLabel = new QLabel("正在获取每日金句...");
     m_quoteLabel->setWordWrap(true);
     m_quoteLabel->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
-    m_quoteLabel->setStyleSheet("color:#ffffff;font-size:30px;font-weight:800;");
-    m_quoteLabel->setMaximumWidth(1280);
+    m_quoteLabel->setStyleSheet("color:#f8fbff;font-size:34px;font-weight:800;line-height:1.35;");
+    m_quoteLabel->setMaximumWidth(720);
+    m_quoteLabel->setMinimumHeight(130);
     root->addWidget(m_quoteLabel, 0, Qt::AlignHCenter);
 
     auto* bottomRow = new QHBoxLayout;
@@ -382,16 +435,16 @@ void ScreenOffOverlay::loadDailyQuote() {
         return;
     }
     if (cfg.siliconFlowApiKey.trimmed().isEmpty()) {
-        m_quoteLabel->setText("填写 API Key 以获取每日金句");
+        m_quoteLabel->setText("填写 API Key\n以获取每日金句");
         return;
     }
 
     requestAiCompletion(this,
-                        "你是中文励志文案助手。",
-                        "请给出一句适合中学生自习课展示的每日金句，不超过40字。",
+                        "你是中文励志文案助手。输出必须适配课堂大屏。",
+                        "请输出一句每日金句，严格满足：最多两行；每行最多15个汉字；总字数不超过30字；可在语义停顿处用一个竖线|表示换行，不要为了对仗而过于工整。不要附加解释、序号和引号。",
                         QJsonArray(),
                         [this](const QString& out, bool) {
-                            m_quoteLabel->setText(out.trimmed().isEmpty() ? QString("愿你今日专注而有收获。") : out.trimmed());
+                            m_quoteLabel->setText(formatQuoteTwoLines(out.trimmed().isEmpty() ? QString("愿你今日专注而有收获") : out));
                         });
 }
 
@@ -495,6 +548,10 @@ void AttendanceSummaryWidget::setPinnedOnTop(bool onTop) {
     setWindowFlag(Qt::WindowStaysOnTopHint, onTop);
     setWindowFlag(Qt::WindowStaysOnBottomHint, !onTop);
     show();
+    raise();
+    if (onTop) {
+        activateWindow();
+    }
 }
 
 void AttendanceSummaryWidget::closeEvent(QCloseEvent* event) {
@@ -1357,7 +1414,7 @@ AppButton AddButtonDialog::resultButton() const {
 }
 
 FirstRunWizard::FirstRunWizard(QWidget* parent) : QDialog(parent) {
-    const QString dialogTitle = "欢迎使用 ClassAssistant";
+    const QString dialogTitle = "欢迎使用 ClassFlow";
     decorateDialog(this, dialogTitle);
     setFixedSize(700, 620);
 
@@ -1528,9 +1585,9 @@ void FirstRunWizard::closeEvent(QCloseEvent* event) {
 }
 
 SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
-    const QString dialogTitle = "ClassAssistant 设置";
+    const QString dialogTitle = "ClassFlow 设置";
     decorateDialog(this, dialogTitle);
-    setFixedSize(980, 700);
+    setFixedSize(1080, 730);
 
     auto* root = new QVBoxLayout(this);
     root->addWidget(createDialogTitleBar(this, dialogTitle));
@@ -1538,19 +1595,29 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     root->setSpacing(10);
 
     auto* content = new QHBoxLayout;
-    m_menuList = new QListWidget;
-    m_menuList->setFixedWidth(260);
-    m_menuList->setSpacing(8);
-    m_menuList->setStyleSheet("QListWidget{background:#f6f9ff;border:1px solid #d9e5f2;border-radius:14px;padding:8px;}"
-                              "QListWidget::item{min-height:48px;padding:10px 12px;border-radius:10px;font-size:16px;font-weight:700;color:#2b4766;}"
-                              "QListWidget::item:selected{background:#dbeaff;color:#15385f;}");
+    m_primaryMenu = new QListWidget;
+    m_primaryMenu->setFixedWidth(190);
+    m_secondaryMenu = new QListWidget;
+    m_secondaryMenu->setFixedWidth(240);
 
-    const QStringList sections = {"显示与启动", "课堂工具", "数据与按钮", "AI与联网", "关于"};
-    for (const QString& section : sections) {
-        auto* item = new QListWidgetItem(section);
-        item->setData(Qt::UserRole, m_menuList->count());
-        m_menuList->addItem(item);
+    const QString menuStyle = "QListWidget{background:rgba(246,250,255,0.92);border:1px solid #d3e1f2;border-radius:16px;padding:8px;}"
+                              "QListWidget::item{min-height:44px;padding:10px 12px;border-radius:10px;font-size:15px;font-weight:700;color:#2b4766;}"
+                              "QListWidget::item:selected{background:#d8ecff;color:#173b61;}";
+    m_primaryMenu->setStyleSheet(menuStyle);
+    m_secondaryMenu->setStyleSheet(menuStyle);
+
+    const QStringList primary = {"系统外观", "课堂与息屏", "数据中心", "AI与安全", "关于"};
+    for (const QString& section : primary) {
+        m_primaryMenu->addItem(section);
     }
+
+    const QList<QStringList> secondaryGroups = {
+        {"显示与启动", "视觉风格"},
+        {"课堂工具", "自习与息屏"},
+        {"名单与按钮", "导入导出"},
+        {"联网策略", "AI 参数"},
+        {"版本信息"}
+    };
 
     m_stacked = new QStackedWidget;
     const auto wrapScrollable = [](QWidget* page) -> QWidget* {
@@ -1566,7 +1633,8 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     m_stacked->addWidget(wrapScrollable(createPageSafety()));
     m_stacked->addWidget(wrapScrollable(createPageAbout()));
 
-    content->addWidget(m_menuList);
+    content->addWidget(m_primaryMenu);
+    content->addWidget(m_secondaryMenu);
     content->addWidget(m_stacked, 1);
     root->addLayout(content, 1);
 
@@ -1577,7 +1645,7 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     auto* quitAppBtn = new QPushButton("退出应用");
     for (auto* btn : {restore, save, quitAppBtn}) {
         btn->setStyleSheet(buttonStylePrimary());
-        btn->setMinimumHeight(42);
+        btn->setMinimumHeight(44);
         footer->addWidget(btn);
     }
     connect(restore, &QPushButton::clicked, this, &SettingsDialog::restoreDefaults);
@@ -1585,13 +1653,23 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
     connect(quitAppBtn, &QPushButton::clicked, qApp, &QCoreApplication::quit);
     root->addLayout(footer);
 
-    connect(m_menuList, &QListWidget::currentRowChanged, this, [this](int row) {
-        if (row >= 0 && row < m_stacked->count()) {
-            m_stacked->setCurrentIndex(row);
+    connect(m_primaryMenu, &QListWidget::currentRowChanged, this, [this, secondaryGroups](int row) {
+        m_secondaryMenu->clear();
+        if (row < 0 || row >= secondaryGroups.size()) {
+            m_stacked->setCurrentIndex(0);
+            return;
         }
+        for (const QString& item : secondaryGroups[row]) {
+            m_secondaryMenu->addItem(item);
+        }
+        m_secondaryMenu->setCurrentRow(0);
+        m_stacked->setCurrentIndex(row);
+    });
+    connect(m_secondaryMenu, &QListWidget::currentRowChanged, this, [this](int row) {
+        Q_UNUSED(row);
     });
 
-    m_menuList->setCurrentRow(0);
+    m_primaryMenu->setCurrentRow(0);
     loadData();
 }
 
@@ -1849,9 +1927,9 @@ QWidget* SettingsDialog::createPageAbout() {
     auto* layout = new QVBoxLayout(page);
     layout->setSpacing(14);
 
-    auto* aboutBox = new QGroupBox("关于 ClassAssistant");
+    auto* aboutBox = new QGroupBox("关于 ClassFlow");
     auto* aboutLayout = new QVBoxLayout(aboutBox);
-    auto* desc = new QLabel("ClassAssistant 是一个面向班级课堂的轻量助手，支持离线优先与 AI 驱动增强。");
+    auto* desc = new QLabel("ClassFlow 是一个面向班级课堂的轻量助手，支持离线优先与 AI 驱动增强。");
     desc->setWordWrap(true);
     aboutLayout->addWidget(desc);
 
@@ -1886,7 +1964,7 @@ void SettingsDialog::checkForUpdates() {
     auto* manager = new QNetworkAccessManager(this);
     QNetworkRequest req(QUrl(QString::fromUtf8(kGithubReleasesApiUrl)));
     req.setRawHeader("Accept", "application/vnd.github+json");
-    req.setRawHeader("User-Agent", "ClassAssistant");
+    req.setRawHeader("User-Agent", "ClassFlow");
 
     QNetworkReply* reply = manager->get(req);
     connect(reply, &QNetworkReply::finished, this, [this, reply, manager]() {

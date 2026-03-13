@@ -73,13 +73,16 @@ int main(int argc, char* argv[]) {
 #endif
     QApplication app(argc, argv);
     app.setQuitOnLastWindowClosed(false);
-    app.setApplicationVersion("2.1.0");
+    app.setApplicationName("ClassFlow");
+    app.setApplicationDisplayName("ClassFlow");
+    app.setApplicationVersion("2.0.1 Beta");
 
     QFont uiFont("HarmonyOS Sans SC");
     if (!uiFont.exactMatch()) uiFont = QFont("HarmonyOS Sans");
     uiFont.setPointSize(10);
     app.setFont(uiFont);
-    app.setStyleSheet("QWidget{font-family:'HarmonyOS Sans SC','HarmonyOS Sans','Microsoft YaHei',sans-serif;}");
+    app.setStyleSheet("QWidget{font-family:'HarmonyOS Sans SC','HarmonyOS Sans','Microsoft YaHei',sans-serif;}"
+                      "QToolTip{background:rgba(32,45,68,220);color:#f2f7ff;border:1px solid #7b9fcc;padding:6px;border-radius:8px;}");
 
     Logger::instance().info("程序启动");
 
@@ -122,12 +125,12 @@ int main(int argc, char* argv[]) {
 
     auto* tray = new QSystemTrayIcon(&app);
     QIcon trayIcon = loadNamedIcon("icon_tray.png");
-    if (trayIcon.isNull()) trayIcon = loadNamedIcon("icon_settings.png");
+    if (trayIcon.isNull()) trayIcon = loadNamedIcon("icon_settings.svg");
     if (trayIcon.isNull()) trayIcon = QIcon::fromTheme("applications-education");
     if (trayIcon.isNull()) trayIcon = app.style()->standardIcon(QStyle::SP_ComputerIcon);
     tray->setIcon(trayIcon);
     app.setWindowIcon(trayIcon);
-    tray->setToolTip("班级小助手");
+    tray->setToolTip("ClassFlow");
 
     auto* menu = new QMenu();
     menu->setAttribute(Qt::WA_AcceptTouchEvents);

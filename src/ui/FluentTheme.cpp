@@ -62,7 +62,7 @@ QString radialButtonStyle() {
 
 QString trayMenuStyle() {
     return "QMenu{"
-           "background:#f8fbff;"
+           "background:rgba(248,251,255,236);"
            "border:1px solid #cfdbeb;"
            "border-radius:18px;"
            "padding:8px;"
@@ -84,12 +84,12 @@ QString dialogCardStyle() {
 
 QString dialogChromeStyle() {
     return "QDialog{"
-           "background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 #f8fbff,stop:1 #f2f7ff);"
-           "border:1px solid #d8e0eb;border-radius:18px;"
+           "background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 rgba(243,249,255,238),stop:0.55 rgba(235,244,255,230),stop:1 rgba(255,241,248,224));"
+           "border:1px solid rgba(199,215,236,210);border-radius:18px;"
            "}"
            "QLabel{color:#223042;}"
            "QLineEdit,QTextEdit,QListWidget,QTreeWidget,QComboBox,QSpinBox,QTableWidget,QPlainTextEdit{"
-           "background:#ffffff;border:1px solid #d3dfef;border-radius:18px;padding:8px;}"
+           "background:rgba(255,255,255,224);border:1px solid #d3dfef;border-radius:18px;padding:8px;}"
            "QTreeWidget::item{height:30px;border-radius:10px;}"
            "QTreeWidget::item:selected{background:#e9f2ff;color:#1f4f8f;}"
            "QCheckBox{spacing:8px;}"
@@ -116,8 +116,8 @@ void applyWinUIWindowShadow(QWidget* widget) {
         return;
     }
     auto* shadow = new QGraphicsDropShadowEffect(widget);
-    shadow->setBlurRadius(28);
-    shadow->setOffset(0, 10);
+    shadow->setBlurRadius(36);
+    shadow->setOffset(0, 12);
     shadow->setColor(QColor(52, 84, 120, 80));
     widget->setGraphicsEffect(shadow);
 }
