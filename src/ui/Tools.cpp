@@ -54,10 +54,12 @@ QString cardStyle() {
 
 
 QString touchFriendlySectionStyle() {
-    return "QGroupBox{font-size:16px;font-weight:800;border:1px solid #d8e4f4;border-radius:14px;margin-top:14px;padding-top:12px;background:#ffffff;}"
+    return "QWidget{background:transparent;}"
+           "QGroupBox{font-size:16px;font-weight:800;border:1px solid rgba(205,220,240,220);border-radius:14px;margin-top:14px;padding-top:12px;background:rgba(255,255,255,0.90);}"
            "QGroupBox::title{subcontrol-origin:margin;left:12px;padding:0 6px;color:#23415f;}"
            "QPushButton{min-height:42px;padding:8px 14px;border-radius:10px;}"
-           "QLineEdit,QSpinBox,QComboBox,QListWidget{min-height:40px;border-radius:10px;padding:6px 10px;}"
+           "QLineEdit,QSpinBox,QComboBox,QListWidget,QTextEdit{min-height:40px;border-radius:10px;padding:6px 10px;background:rgba(255,255,255,0.92);}"
+           "QLabel{color:#223a57;}"
            "QCheckBox{spacing:10px;font-size:15px;padding:4px 0;}"
            "QSlider::groove:horizontal{height:8px;border-radius:4px;background:#d9e4f3;}"
            "QSlider::handle:horizontal{width:22px;height:22px;margin:-7px 0;border-radius:11px;background:#4f89d8;}";
@@ -267,8 +269,9 @@ QString sanitizeQuote(const QString& raw) {
     text.replace("\r", "");
     text.remove(QRegularExpression(R"([\"“”‘’《》<>\[\]()])"));
     text = text.trimmed();
-    if (text.size() > 30) {
-        text = text.left(30);
+    text.remove(QRegularExpression("\\s+"));
+    if (text.size() > 24) {
+        text = text.left(24);
     }
     return text;
 }
@@ -276,36 +279,36 @@ QString sanitizeQuote(const QString& raw) {
 QString formatQuoteTwoLines(const QString& raw) {
     QString text = sanitizeQuote(raw);
     if (text.isEmpty()) {
-        return QStringLiteral("愿你今日专注\n稳步向前");
+        return QStringLiteral("愿你今日专注\n稳步向前行");
     }
     if (text.contains('|')) {
         QStringList parts = text.split('|', Qt::SkipEmptyParts);
         if (!parts.isEmpty()) {
-            QString a = parts.value(0).trimmed().left(15);
-            QString b = parts.value(1).trimmed().left(15);
+            QString a = parts.value(0).trimmed().left(12);
+            QString b = parts.value(1).trimmed().left(12);
             return b.isEmpty() ? a : (a + "\n" + b);
         }
     }
 
-    if (text.size() <= 15) return text;
+    if (text.size() <= 12) return text;
 
     const QList<QChar> punct = {QChar(u'，'), QChar(u'。'), QChar(u'；'), QChar(u'！'), QChar(u'？')};
     int breakPos = -1;
-    for (int i = 9; i <= qMin(15, text.size() - 1); ++i) {
+    for (int i = 7; i <= qMin(12, text.size() - 1); ++i) {
         if (punct.contains(text.at(i))) {
             breakPos = i + 1;
         }
     }
     if (breakPos < 0) {
         const int hash = qAbs(qHash(text));
-        breakPos = 11 + (hash % 5); // 11~15, 避免过于整齐
+        breakPos = 8 + (hash % 5); // 8~12, 避免过于整齐
     }
-    breakPos = qBound(1, breakPos, qMin(15, text.size()));
+    breakPos = qBound(1, breakPos, qMin(12, text.size()));
 
     QString line1 = text.left(breakPos).trimmed();
     QString line2 = text.mid(breakPos).trimmed();
-    if (line1.size() > 15) line1 = line1.left(15);
-    if (line2.size() > 15) line2 = line2.left(15);
+    if (line1.size() > 12) line1 = line1.left(12);
+    if (line2.size() > 12) line2 = line2.left(12);
     if (line2.isEmpty()) return line1;
     return line1 + "\n" + line2;
 }
@@ -313,19 +316,23 @@ QString formatQuoteTwoLines(const QString& raw) {
 
 
 ScreenOffOverlay::ScreenOffOverlay(QWidget* parent) : QWidget(parent) {
-    setWindowFlags(Qt::FramelessWindowHint | Qt::Window | Qt::WindowStaysOnTopHint);
+    setWindowFlags(Qt::FramelessWindowHint | Qt::Window | Qt::Tool | Qt::WindowStaysOnTopHint);
     setAttribute(Qt::WA_StyledBackground, true);
     setStyleSheet("background:#000000;");
 
     auto* root = new QVBoxLayout(this);
     root->setContentsMargins(28, 20, 28, 24);
-    root->setSpacing(18);
+    root->setSpacing(14);
+
+    auto* centerPack = new QWidget;
+    auto* centerLayout = new QVBoxLayout(centerPack);
+    centerLayout->setContentsMargins(0, 0, 0, 0);
+    centerLayout->setSpacing(12);
 
     m_timeLabel = new QLabel("00:00");
     m_timeLabel->setAlignment(Qt::AlignCenter);
-    m_timeLabel->setStyleSheet("color:#ffffff;font-size:110px;font-weight:900;font-family:'Segoe UI','HarmonyOS Sans SC','Microsoft YaHei';");
-    root->addSpacing(18);
-    root->addWidget(m_timeLabel, 0, Qt::AlignHCenter);
+    m_timeLabel->setStyleSheet("color:#ffffff;font-size:108px;font-weight:900;font-family:'Segoe UI','HarmonyOS Sans SC','Microsoft YaHei';");
+    centerLayout->addWidget(m_timeLabel, 0, Qt::AlignHCenter);
 
     m_progress = new QProgressBar;
     m_progress->setFixedWidth(520);
@@ -334,17 +341,20 @@ ScreenOffOverlay::ScreenOffOverlay(QWidget* parent) : QWidget(parent) {
     m_remainingLabel = new QLabel;
     m_remainingLabel->setAlignment(Qt::AlignCenter);
     m_remainingLabel->setStyleSheet("color:#e5ecff;font-size:24px;font-weight:800;");
-    root->addWidget(m_progress, 0, Qt::AlignHCenter);
-    root->addWidget(m_remainingLabel, 0, Qt::AlignHCenter);
+    centerLayout->addWidget(m_progress, 0, Qt::AlignHCenter);
+    centerLayout->addWidget(m_remainingLabel, 0, Qt::AlignHCenter);
 
-    root->addStretch();
     m_quoteLabel = new QLabel("正在获取每日金句...");
     m_quoteLabel->setWordWrap(true);
     m_quoteLabel->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
-    m_quoteLabel->setStyleSheet("color:#f8fbff;font-size:34px;font-weight:800;line-height:1.35;");
-    m_quoteLabel->setMaximumWidth(720);
-    m_quoteLabel->setMinimumHeight(130);
+    m_quoteLabel->setStyleSheet("color:#f8fbff;font-size:31px;font-weight:800;line-height:1.35;");
+    m_quoteLabel->setMaximumWidth(640);
+    m_quoteLabel->setMinimumHeight(100);
+
+    root->addStretch();
+    root->addWidget(centerPack, 0, Qt::AlignHCenter);
     root->addWidget(m_quoteLabel, 0, Qt::AlignHCenter);
+    root->addStretch();
 
     auto* bottomRow = new QHBoxLayout;
     m_shutdownButton = new QPushButton("⏻ 关机");
@@ -382,7 +392,6 @@ void ScreenOffOverlay::activate(bool fromSelfStudy) {
     m_fromSelfStudy = fromSelfStudy;
     show();
     raise();
-    activateWindow();
     loadDailyQuote();
     refreshClockAndProgress();
     m_tickTimer->start(1000);
@@ -442,7 +451,7 @@ void ScreenOffOverlay::loadDailyQuote() {
 
     requestAiCompletion(this,
                         "你是中文励志文案助手。输出必须适配课堂大屏。",
-                        "请输出一句每日金句，严格满足：最多两行；每行最多15个汉字；总字数不超过30字；可在语义停顿处用一个竖线|表示换行，不要为了对仗而过于工整。不要附加解释、序号和引号。",
+                        "请输出一句每日金句，严格满足：最多两行；每行最多12个汉字；总字数不超过30字；可在语义停顿处用一个竖线|表示换行，不要为了对仗而过于工整。不要附加解释、序号和引号。",
                         QJsonArray(),
                         [this](const QString& out, bool) {
                             m_quoteLabel->setText(formatQuoteTwoLines(out.trimmed().isEmpty() ? QString("愿你今日专注而有收获") : out));
@@ -546,8 +555,9 @@ void AttendanceSummaryWidget::refreshUi() {
 }
 
 void AttendanceSummaryWidget::setPinnedOnTop(bool onTop) {
-    setWindowFlag(Qt::WindowStaysOnTopHint, onTop);
-    setWindowFlag(Qt::WindowStaysOnBottomHint, !onTop);
+    const Qt::WindowFlags baseFlags = Qt::Window | Qt::FramelessWindowHint | Qt::Tool;
+    hide();
+    setWindowFlags(baseFlags | (onTop ? Qt::WindowStaysOnTopHint : Qt::WindowStaysOnBottomHint));
     show();
     raise();
     if (onTop) {
@@ -1836,14 +1846,19 @@ QWidget* SettingsDialog::createPageDataManagement() {
     auto* layout = new QVBoxLayout(page);
     layout->setSpacing(14);
 
+    auto* importGroup = new QGroupBox("名单与导入");
+    auto* importLayout = new QVBoxLayout(importGroup);
     auto* importBtn = new QPushButton("导入班级名单（CSV/TXT）");
     importBtn->setStyleSheet(buttonStylePrimary());
     connect(importBtn, &QPushButton::clicked, this, &SettingsDialog::importStudents);
-    layout->addWidget(importBtn);
+    importLayout->addWidget(importBtn);
+    importLayout->addWidget(new QLabel("建议先备份当前名单，再进行批量导入。"));
 
-    layout->addWidget(new QLabel("按钮管理（主界面为半圆按钮，可自定义并滚动查看更多）"));
+    auto* buttonGroup = new QGroupBox("按钮管理");
+    auto* buttonLayout = new QVBoxLayout(buttonGroup);
+    buttonLayout->addWidget(new QLabel("主界面为半圆按钮，可自定义并滚动查看更多。"));
     m_buttonList = new QListWidget;
-    layout->addWidget(m_buttonList, 1);
+    buttonLayout->addWidget(m_buttonList, 1);
 
     auto* btnOps = new QGridLayout;
     btnOps->setHorizontalSpacing(8);
@@ -1867,8 +1882,10 @@ QWidget* SettingsDialog::createPageDataManagement() {
     connect(btnUp, &QPushButton::clicked, this, &SettingsDialog::moveUp);
     connect(btnDown, &QPushButton::clicked, this, &SettingsDialog::moveDown);
     connect(btnRestore, &QPushButton::clicked, this, &SettingsDialog::restoreMissingDefaultButtons);
-    layout->addLayout(btnOps);
+    buttonLayout->addLayout(btnOps);
 
+    layout->addWidget(importGroup);
+    layout->addWidget(buttonGroup, 1);
     return page;
 }
 
