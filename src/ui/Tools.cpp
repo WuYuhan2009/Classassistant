@@ -9,6 +9,7 @@
 #include <QDateTime>
 #include <QVersionNumber>
 #include <QDesktopServices>
+#include <QDir>
 #include <QFile>
 #include <QFrame>
 #include <QStandardPaths>
@@ -262,9 +263,9 @@ void requestAiCompletion(QWidget* owner,
 
 QString sanitizeQuote(const QString& raw) {
     QString text = raw;
-    text.replace("
-", "");
-    text.remove(QRegularExpression("[\"“”‘’《》<>\[\]()]"));
+    text.replace("\n", "");
+    text.replace("\r", "");
+    text.remove(QRegularExpression(R"([\"“”‘’《》<>\[\]()])"));
     text = text.trimmed();
     if (text.size() > 30) {
         text = text.left(30);
@@ -1929,9 +1930,18 @@ QWidget* SettingsDialog::createPageAbout() {
 
     auto* aboutBox = new QGroupBox("关于 ClassFlow");
     auto* aboutLayout = new QVBoxLayout(aboutBox);
+
+    auto* majorName = new QLabel("ClassFlow 2.0 · 云溪 (Cloudbrook)");
+    majorName->setStyleSheet("font-size:20px;font-weight:900;color:#1d3f67;");
+    aboutLayout->addWidget(majorName);
+
     auto* desc = new QLabel("ClassFlow 是一个面向班级课堂的轻量助手，支持离线优先与 AI 驱动增强。");
     desc->setWordWrap(true);
     aboutLayout->addWidget(desc);
+
+    auto* versionLabel = new QLabel("具体版本号：" + QCoreApplication::applicationVersion());
+    versionLabel->setStyleSheet("font-weight:700;color:#365d84;");
+    aboutLayout->addWidget(versionLabel);
 
     auto* repoBtn = new QPushButton("打开 GitHub 仓库");
     repoBtn->setStyleSheet(buttonStylePrimary());
@@ -1948,7 +1958,37 @@ QWidget* SettingsDialog::createPageAbout() {
     aboutLayout->addWidget(m_updateInfoLabel);
 
     layout->addWidget(aboutBox);
-    layout->addStretch();
+
+    auto* readmeBox = new QGroupBox("项目 README（完整）");
+    auto* readmeLayout = new QVBoxLayout(readmeBox);
+    auto* readmeView = new QTextEdit;
+    readmeView->setReadOnly(true);
+    readmeView->setMinimumHeight(280);
+
+    QString readmeText;
+    const QString appDir = QCoreApplication::applicationDirPath();
+    const QStringList candidates = {
+        appDir + "/docs/readme_full.md",
+        QDir::currentPath() + "/docs/readme_full.md",
+        appDir + "/README.md",
+        QDir::currentPath() + "/README.md"
+    };
+
+    for (const QString& path : candidates) {
+        QFile f(path);
+        if (f.exists() && f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            readmeText = QString::fromUtf8(f.readAll());
+            f.close();
+            break;
+        }
+    }
+    if (readmeText.trimmed().isEmpty()) {
+        readmeText = QStringLiteral("README 文件未找到。请确认 docs/readme_full.md 或 README.md 已随程序发布。");
+    }
+    readmeView->setPlainText(readmeText);
+    readmeLayout->addWidget(readmeView);
+
+    layout->addWidget(readmeBox, 1);
     return page;
 }
 
