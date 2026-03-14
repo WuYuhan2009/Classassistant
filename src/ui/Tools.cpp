@@ -48,6 +48,24 @@ QString buttonStylePrimary() {
     return FluentTheme::dialogPrimaryButtonStyle();
 }
 
+QString buttonStyleSuccess() {
+    return "QPushButton{background:#5a8f58;border:1px solid #5a8f58;border-radius:12px;font-weight:600;font-size:14px;padding:8px 12px;color:#ffffff;min-height:40px;}"
+           "QPushButton:hover{background:#6ea66b;border-color:#6ea66b;}"
+           "QPushButton:pressed{background:#4a7948;border-color:#4a7948;}";
+}
+
+QString buttonStyleWarning() {
+    return "QPushButton{background:#9a7a46;border:1px solid #9a7a46;border-radius:12px;font-weight:600;font-size:14px;padding:8px 12px;color:#ffffff;min-height:40px;}"
+           "QPushButton:hover{background:#b08d56;border-color:#b08d56;}"
+           "QPushButton:pressed{background:#82653b;border-color:#82653b;}";
+}
+
+QString buttonStyleNeutral() {
+    return "QPushButton{background:#6f7684;border:1px solid #6f7684;border-radius:12px;font-weight:600;font-size:14px;padding:8px 12px;color:#ffffff;min-height:40px;}"
+           "QPushButton:hover{background:#828998;border-color:#828998;}"
+           "QPushButton:pressed{background:#5e6472;border-color:#5e6472;}";
+}
+
 QString cardStyle() {
     return FluentTheme::dialogCardStyle();
 }
@@ -630,9 +648,15 @@ AttendanceSelectDialog::AttendanceSelectDialog(QWidget* parent) : QDialog(parent
     auto* saveBtn = new QPushButton("保存");
     auto* cancelBtn = new QPushButton("关闭");
     for (auto* btn : {markAllBtn, clearAllBtn, allPresentBtn, exportBtn, aiSummaryBtn, saveBtn, cancelBtn}) {
-        btn->setStyleSheet(buttonStylePrimary());
         btn->setMinimumWidth(110);
     }
+    markAllBtn->setStyleSheet(buttonStyleWarning());
+    clearAllBtn->setStyleSheet(buttonStyleNeutral());
+    allPresentBtn->setStyleSheet(buttonStyleSuccess());
+    exportBtn->setStyleSheet(buttonStyleNeutral());
+    aiSummaryBtn->setStyleSheet(buttonStylePrimary());
+    saveBtn->setStyleSheet(buttonStylePrimary());
+    cancelBtn->setStyleSheet(buttonStyleNeutral());
     actions->addWidget(markAllBtn, 0, 0);
     actions->addWidget(clearAllBtn, 0, 1);
     actions->addWidget(allPresentBtn, 0, 2);
@@ -776,9 +800,12 @@ RandomCallDialog::RandomCallDialog(QWidget* parent) : QDialog(parent) {
     m_closeButton = new QPushButton("隐藏窗口");
     for (auto* btn : {m_toggleButton, m_copyButton, aiCommentBtn, m_closeButton}) {
         btn->setMinimumHeight(42);
-        btn->setStyleSheet(buttonStylePrimary());
         row->addWidget(btn, 1);
     }
+    m_toggleButton->setStyleSheet(buttonStyleSuccess());
+    m_copyButton->setStyleSheet(buttonStyleNeutral());
+    aiCommentBtn->setStyleSheet(buttonStylePrimary());
+    m_closeButton->setStyleSheet(buttonStyleNeutral());
     layout->addLayout(row);
 
     connect(m_toggleButton, &QPushButton::clicked, this, &RandomCallDialog::toggleRolling);
@@ -1234,136 +1261,91 @@ void ScoreBoardDialog::closeEvent(QCloseEvent* event) {
 AIAssistantDialog::AIAssistantDialog(QWidget* parent) : QDialog(parent) {
     const QString dialogTitle = "AI 助手";
     decorateDialog(this, dialogTitle);
-    setFixedSize(760, 620);
+    setFixedSize(860, 690);
 
-    auto* layout = new QVBoxLayout(this);
-    layout->addWidget(createDialogTitleBar(this, dialogTitle));
-
-    auto* header = new QWidget;
-    header->setStyleSheet("background:#ffffff;border:1px solid #dfe5ee;border-radius:14px;");
-    auto* headerLayout = new QHBoxLayout(header);
-    auto* title = new QLabel("班级 AI 助手");
-    title->setStyleSheet("font-size:22px;font-weight:800;color:#1f4f8f;");
-    auto* subtitle = new QLabel("在线硅基流动 + 离线建议双模式");
-    subtitle->setStyleSheet("color:#6a7f96;");
-    auto* titleCol = new QVBoxLayout;
-    titleCol->addWidget(title);
-    titleCol->addWidget(subtitle);
-    headerLayout->addLayout(titleCol);
-    headerLayout->addStretch();
-
-    m_copyButton = new QPushButton("复制对话");
-    m_saveButton = new QPushButton("导出对话");
-    for (auto* btn : {m_copyButton, m_saveButton}) {
-        btn->setStyleSheet(buttonStylePrimary());
-        headerLayout->addWidget(btn);
-    }
-    layout->addWidget(header);
-
-    m_statusLabel = new QLabel("提示：未填写 API Key 时会自动使用离线建议，不影响正常使用。");
-    m_statusLabel->setWordWrap(true);
-    m_statusLabel->setStyleSheet("color:#4a647f;");
-    layout->addWidget(m_statusLabel);
-
-    auto* quickRow = new QHBoxLayout;
-    auto* quickRuleBtn = new QPushButton("纪律话术");
-    auto* quickActivityBtn = new QPushButton("课堂活动");
-    auto* quickQuizBtn = new QPushButton("随堂测验");
-    auto* quickBoardBtn = new QPushButton("板书提纲");
-    auto* clearBtn = new QPushButton("清空对话");
-    for (auto* btn : {quickRuleBtn, quickActivityBtn, quickQuizBtn, quickBoardBtn, clearBtn}) {
-        btn->setStyleSheet(buttonStylePrimary());
-        quickRow->addWidget(btn);
-    }
-    layout->addLayout(quickRow);
+    auto* root = new QVBoxLayout(this);
+    root->addWidget(createDialogTitleBar(this, dialogTitle));
 
     m_historyView = new QTextEdit;
     m_historyView->setReadOnly(true);
-    m_historyView->setMinimumHeight(300);
-    m_historyView->setStyleSheet("background:#ffffff;border:1px solid #d8e0eb;border-radius:14px;padding:12px;");
-    layout->addWidget(m_historyView, 1);
+    m_historyView->setStyleSheet("QTextEdit{background:#f1f3f5;border:1px solid #d9d9d9;border-radius:12px;padding:12px;font-size:15px;}");
+    root->addWidget(m_historyView, 1);
 
-    auto* inputCard = new QWidget;
-    inputCard->setStyleSheet(cardStyle());
-    auto* inputLayout = new QVBoxLayout(inputCard);
-    inputLayout->setContentsMargins(10, 10, 10, 10);
-    inputLayout->setSpacing(8);
+    auto* quickRow = new QHBoxLayout;
+    auto* quickRuleBtn = new QPushButton("课堂规则");
+    auto* quickActivityBtn = new QPushButton("活动流程");
+    auto* quickQuizBtn = new QPushButton("随堂测验");
+    auto* quickBoardBtn = new QPushButton("板书提纲");
+    for (auto* btn : {quickRuleBtn, quickActivityBtn, quickQuizBtn, quickBoardBtn}) {
+        btn->setMinimumHeight(36);
+        btn->setStyleSheet(buttonStyleNeutral());
+        quickRow->addWidget(btn);
+    }
+    root->addLayout(quickRow);
 
     m_inputEdit = new QTextEdit;
-    m_inputEdit->setPlaceholderText("例如：帮我生成一段课堂纪律提醒语...");
-    m_inputEdit->setMinimumHeight(92);
-    inputLayout->addWidget(m_inputEdit);
+    m_inputEdit->setFixedHeight(110);
+    m_inputEdit->setPlaceholderText("输入消息...");
+    root->addWidget(m_inputEdit);
 
-    auto* actions = new QHBoxLayout;
+    auto* bottom = new QHBoxLayout;
+    m_statusLabel = new QLabel;
+    m_statusLabel->setStyleSheet("color:#595959;");
+    m_copyButton = new QPushButton("复制");
+    m_saveButton = new QPushButton("导出");
     m_sendButton = new QPushButton("发送");
+    m_copyButton->setStyleSheet(buttonStyleNeutral());
+    m_saveButton->setStyleSheet(buttonStyleWarning());
     m_sendButton->setStyleSheet(buttonStylePrimary());
-    actions->addStretch();
-    actions->addWidget(m_sendButton);
-    inputLayout->addLayout(actions);
-    layout->addWidget(inputCard);
+    bottom->addWidget(m_statusLabel, 1);
+    bottom->addWidget(m_copyButton);
+    bottom->addWidget(m_saveButton);
+    bottom->addWidget(m_sendButton);
+    root->addLayout(bottom);
 
-    connect(clearBtn, &QPushButton::clicked, [this]() {
-        m_messages = QJsonArray();
-        m_historyView->clear();
-        m_statusLabel->setText("已清空对话。请输入新问题。");
-    });
-    connect(m_copyButton, &QPushButton::clicked, [this]() {
-        QGuiApplication::clipboard()->setText(m_historyView->toPlainText());
-        m_statusLabel->setText("对话已复制。");
-    });
+    connect(m_sendButton, &QPushButton::clicked, this, &AIAssistantDialog::sendMessage);
+    connect(m_copyButton, &QPushButton::clicked, [this]() { QGuiApplication::clipboard()->setText(m_historyView->toPlainText()); });
     connect(m_saveButton, &QPushButton::clicked, [this]() {
         const QString dir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
-        const QString path = FluentTheme::getStyledSaveFileName(this, "导出对话", dir + "/classassistant_ai_chat.txt", "Text (*.txt)");
-        if (path.isEmpty()) {
-            return;
+        const QString path = FluentTheme::getStyledSaveFileName(this, "导出对话", dir + "/classflow_ai_chat.txt", "Text (*.txt)");
+        if (path.isEmpty()) return;
+        QFile f(path);
+        if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream out(&f);
+            out << m_historyView->toPlainText();
+            f.close();
+            m_statusLabel->setText("已导出对话");
         }
-        QFile file(path);
-        if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-            QMessageBox::warning(this, "导出失败", "无法写入文件，请检查权限。");
-            return;
-        }
-        QTextStream out(&file);
-        out << m_historyView->toPlainText();
-        file.close();
-        m_statusLabel->setText("对话已导出到：" + path);
     });
 
     connect(quickRuleBtn, &QPushButton::clicked, [this]() {
-        m_inputEdit->setPlainText("请生成3条简洁有力的课堂纪律提醒话术，每条不超过25字。");
+        m_inputEdit->setText(QStringLiteral("请给出一套适用于40人班级的课堂规则。\n要求：简洁、可执行、正向表达。"));
         sendMessage();
     });
     connect(quickActivityBtn, &QPushButton::clicked, [this]() {
-        m_inputEdit->setPlainText("请设计一个8分钟课堂互动活动，包含步骤、时间分配和教师提示语。");
+        m_inputEdit->setText(QStringLiteral("请给出一节45分钟课程的互动活动流程。"));
         sendMessage();
     });
     connect(quickQuizBtn, &QPushButton::clicked, [this]() {
-        m_inputEdit->setPlainText("请基于‘本节知识点’生成5道随堂小测（含答案），题型2道选择+2道填空+1道简答。\n知识点：");
-        m_inputEdit->setFocus();
+        m_inputEdit->setText(QStringLiteral("请给出5道随堂测验题，难度中等。\n学科：通用。\n题型：2道选择+2道判断+1道简答。"));
+        sendMessage();
     });
     connect(quickBoardBtn, &QPushButton::clicked, [this]() {
-        m_inputEdit->setPlainText("请为本节课生成板书提纲：包含标题、3个核心要点、1个课堂互动问题和课后作业提示。\n课程主题：");
-        m_inputEdit->setFocus();
+        m_inputEdit->setText(QStringLiteral("请输出本节课板书提纲，分成3级结构。\n尽量简明。"));
+        sendMessage();
     });
-
-    connect(m_inputEdit, &QTextEdit::textChanged, [this]() {
-        m_sendButton->setEnabled(!m_inputEdit->toPlainText().trimmed().isEmpty());
-    });
-    m_sendButton->setEnabled(false);
-    connect(m_sendButton, &QPushButton::clicked, this, &AIAssistantDialog::sendMessage);
 }
 
 void AIAssistantDialog::appendMessageBubble(const QString& role, const QString& text) {
-    const QString safeText = text.toHtmlEscaped().replace("\n", "<br>");
-    const bool isUser = (role == "user");
-    const QString bubbleColor = isUser ? "#eaf4ff" : "#ffffff";
-    const QString align = isUser ? "right" : "left";
-    const QString sender = isUser ? "你" : "AI助手";
-    m_historyView->append(QString("<div style='text-align:%1;margin:8px 0;'>"
-                                  "<div style='display:inline-block;max-width:88%;padding:10px 12px;"
-                                  "border:1px solid #d8e0eb;border-radius:12px;background:%2;'>"
-                                  "<div style='font-size:12px;color:#56708b;margin-bottom:4px;'>%3</div>%4"
-                                  "</div></div>")
-                              .arg(align, bubbleColor, sender, safeText));
+    const bool user = role == "user";
+    const QString align = user ? "right" : "left";
+    const QString bubbleColor = user ? "#d6ecff" : "#ffffff";
+    const QString html = QString(
+        "<div style='width:100%%;display:block;margin:8px 0;text-align:%1;'>"
+        "<div style='display:inline-block;max-width:72%%;text-align:left;background:%2;border:1px solid #d9d9d9;"
+        "border-radius:14px;padding:8px 12px;font-size:14px;line-height:1.55;color:#262626;white-space:pre-wrap;'>%3</div></div>")
+                         .arg(align, bubbleColor, text.toHtmlEscaped().replace(QStringLiteral("\n"), QStringLiteral("<br/>")));
+    m_historyView->append(html);
 }
 
 void AIAssistantDialog::sendMessage() {
@@ -1392,7 +1374,7 @@ void AIAssistantDialog::sendMessage() {
 
 void AIAssistantDialog::openAssistant() {
     if (m_messages.isEmpty()) {
-        appendMessageBubble("assistant", "你好，我可以帮你生成课堂话术、活动流程、分组任务、课堂小结和计分点评。未配置 API Key 也可使用离线建议。");
+        appendMessageBubble("assistant", QStringLiteral("你好，输入问题即可开始。\n支持快速生成课堂内容。"));
     }
     smoothShow(this);
 }

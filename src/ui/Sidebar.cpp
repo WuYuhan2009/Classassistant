@@ -13,9 +13,11 @@
 #include <QParallelAnimationGroup>
 #include <QProcess>
 #include <QPropertyAnimation>
+#include <QEasingCurve>
 #include <QPushButton>
 #include <QScreen>
 #include <QSet>
+#include <QGraphicsDropShadowEffect>
 #include <QTime>
 #include <QUrl>
 #include <QtMath>
@@ -81,10 +83,29 @@ QList<QWidget*> Sidebar::managedToolWindows() const {
 
 void Sidebar::showManagedWindow(QWidget* window) {
     if (!window) return;
-    window->setWindowOpacity(1.0);
+
+    if (window != m_settings && !m_anchorGeometry.isNull()) {
+        const QRect screen = QApplication::primaryScreen()->availableGeometry();
+        const int offset = qRound(Config::instance().floatingBallSize * 1.5);
+        const bool anchorLeft = m_anchorGeometry.center().x() < screen.center().x();
+        const int x = anchorLeft ? (screen.left() + offset)
+                                 : (screen.right() - window->width() - offset);
+        const int y = screen.center().y() - window->height() / 2;
+        window->move(qBound(screen.left() + 8, x, screen.right() - window->width() - 8),
+                     qBound(screen.top() + 8, y, screen.bottom() - window->height() - 8));
+    }
+
+    window->setWindowOpacity(0.0);
     window->show();
     window->raise();
     window->activateWindow();
+
+    auto* anim = new QPropertyAnimation(window, "windowOpacity", window);
+    anim->setDuration(qMax(140, Config::instance().animationDurationMs));
+    anim->setStartValue(0.0);
+    anim->setEndValue(1.0);
+    anim->setEasingCurve(QEasingCurve::OutCubic);
+    anim->start(QAbstractAnimation::DeleteWhenStopped);
 }
 
 void Sidebar::rebuildUI() {
@@ -114,6 +135,11 @@ void Sidebar::rebuildUI() {
             btn->setText(b.name.left(2));
         }
         connect(btn, &QPushButton::clicked, this, [this, b]() { onButtonTriggered(b.action, b.target); });
+        auto* shadow = new QGraphicsDropShadowEffect(btn);
+        shadow->setBlurRadius(14);
+        shadow->setOffset(0, 3);
+        shadow->setColor(QColor(0, 0, 0, 55));
+        btn->setGraphicsEffect(shadow);
         m_buttons.push_back(btn);
     }
 
