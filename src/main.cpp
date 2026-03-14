@@ -23,48 +23,6 @@ QIcon loadNamedIcon(const QString& fileName) {
     const QString resolvedPath = Config::instance().resolveIconPath(fileName);
     return QIcon(resolvedPath);
 }
-
-bool isNowInSelfStudy() {
-    const QTime now = QTime::currentTime();
-    for (const QString& period : Config::instance().selfStudyPeriods) {
-        const QStringList parts = period.split('-', Qt::SkipEmptyParts);
-        if (parts.size() != 2) continue;
-        const QTime s = QTime::fromString(parts[0].trimmed(), "HH:mm");
-        const QTime e = QTime::fromString(parts[1].trimmed(), "HH:mm");
-        if (!s.isValid() || !e.isValid()) continue;
-        if (now >= s && now <= e) return true;
-    }
-    return false;
-}
-
-class IdleEventFilter : public QObject {
-public:
-    explicit IdleEventFilter(QDateTime* lastInput, bool* autoOpened, QObject* parent = nullptr)
-        : QObject(parent), m_lastInput(lastInput), m_autoOpened(autoOpened) {}
-
-protected:
-    bool eventFilter(QObject* obj, QEvent* e) override {
-        Q_UNUSED(obj);
-        switch (e->type()) {
-        case QEvent::MouseMove:
-        case QEvent::MouseButtonPress:
-        case QEvent::MouseButtonRelease:
-        case QEvent::KeyPress:
-        case QEvent::TouchBegin:
-        case QEvent::TouchUpdate:
-            if (m_lastInput) *m_lastInput = QDateTime::currentDateTime();
-            if (m_autoOpened) *m_autoOpened = false;
-            break;
-        default:
-            break;
-        }
-        return false;
-    }
-
-private:
-    QDateTime* m_lastInput;
-    bool* m_autoOpened;
-};
 }
 
 int main(int argc, char* argv[]) {
@@ -73,13 +31,16 @@ int main(int argc, char* argv[]) {
 #endif
     QApplication app(argc, argv);
     app.setQuitOnLastWindowClosed(false);
-    app.setApplicationVersion("2.1.0");
+    app.setApplicationName("ClassFlow");
+    app.setApplicationDisplayName("ClassFlow");
+    app.setApplicationVersion("2.0.1 Beta");
 
     QFont uiFont("HarmonyOS Sans SC");
     if (!uiFont.exactMatch()) uiFont = QFont("HarmonyOS Sans");
     uiFont.setPointSize(10);
     app.setFont(uiFont);
-    app.setStyleSheet("QWidget{font-family:'HarmonyOS Sans SC','HarmonyOS Sans','Microsoft YaHei',sans-serif;}");
+    app.setStyleSheet("QWidget{font-family:'HarmonyOS Sans SC','HarmonyOS Sans','Microsoft YaHei',sans-serif;}"
+                      "QToolTip{background:rgba(32,45,68,220);color:#f2f7ff;border:1px solid #7b9fcc;padding:6px;border-radius:8px;}");
 
     Logger::instance().info("程序启动");
 
@@ -121,13 +82,13 @@ int main(int argc, char* argv[]) {
     });
 
     auto* tray = new QSystemTrayIcon(&app);
-    QIcon trayIcon = loadNamedIcon("icon_tray.png");
-    if (trayIcon.isNull()) trayIcon = loadNamedIcon("icon_settings.png");
+    QIcon trayIcon = loadNamedIcon("icon_tray.svg");
+    if (trayIcon.isNull()) trayIcon = loadNamedIcon("icon_settings.svg");
     if (trayIcon.isNull()) trayIcon = QIcon::fromTheme("applications-education");
     if (trayIcon.isNull()) trayIcon = app.style()->standardIcon(QStyle::SP_ComputerIcon);
     tray->setIcon(trayIcon);
     app.setWindowIcon(trayIcon);
-    tray->setToolTip("班级小助手");
+    tray->setToolTip("ClassFlow");
 
     auto* menu = new QMenu();
     menu->setAttribute(Qt::WA_AcceptTouchEvents);
@@ -166,26 +127,36 @@ int main(int argc, char* argv[]) {
         }
     });
 
-    QDateTime lastInput = QDateTime::currentDateTime();
-    bool autoOpenedInCurrentIdle = false;
-    auto* idleFilter = new IdleEventFilter(&lastInput, &autoOpenedInCurrentIdle, &app);
-    app.installEventFilter(idleFilter);
+    QString triggeredStudyKey;
+    QTimer studyTimer;
+    studyTimer.setInterval(10000);
+    QObject::connect(&studyTimer, &QTimer::timeout, [&]() {
+        const QTime now = QTime::currentTime();
+        QString currentKey;
+        for (const QString& period : Config::instance().selfStudyPeriods) {
+            const QStringList parts = period.split('-', Qt::SkipEmptyParts);
+            if (parts.size() != 2) continue;
+            const QTime s = QTime::fromString(parts[0].trimmed(), "HH:mm");
+            const QTime e = QTime::fromString(parts[1].trimmed(), "HH:mm");
+            if (!s.isValid() || !e.isValid()) continue;
+            if (now >= s && now <= e) {
+                currentKey = QDate::currentDate().toString(Qt::ISODate) + "|" + period;
+                break;
+            }
+        }
 
-    QTimer idleTimer;
-    idleTimer.setInterval(10000);
-    QObject::connect(&idleTimer, &QTimer::timeout, [&]() {
-        if (!isNowInSelfStudy()) {
-            autoOpenedInCurrentIdle = false;
+        if (currentKey.isEmpty()) {
+            triggeredStudyKey.clear();
             return;
         }
-        const qint64 idleSeconds = lastInput.secsTo(QDateTime::currentDateTime());
-        if (idleSeconds >= Config::instance().selfStudyIdleSeconds && !autoOpenedInCurrentIdle) {
+
+        if (triggeredStudyKey != currentKey) {
+            triggeredStudyKey = currentKey;
             sidebar->triggerTool("SCREEN_OFF");
-            autoOpenedInCurrentIdle = true;
-            Logger::instance().info("自习课检测到3分钟无操作，自动打开息屏");
+            Logger::instance().info("根据自习时段自动进入息屏");
         }
     });
-    idleTimer.start();
+    studyTimer.start();
 
     ball->restoreSavedPosition();
     if (Config::instance().startCollapsed) ball->show();

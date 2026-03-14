@@ -13,12 +13,15 @@
 #include <QParallelAnimationGroup>
 #include <QProcess>
 #include <QPropertyAnimation>
+#include <QEasingCurve>
 #include <QPushButton>
 #include <QScreen>
 #include <QSet>
+#include <QGraphicsDropShadowEffect>
 #include <QTime>
 #include <QUrl>
 #include <QtMath>
+#include <functional>
 
 namespace {
 const QStringList kOrderedTargets = {"SEEWO", "ATTENDANCE", "SCREEN_OFF", "RANDOM_CALL", "AI_ASSISTANT", "SETTINGS"};
@@ -80,10 +83,29 @@ QList<QWidget*> Sidebar::managedToolWindows() const {
 
 void Sidebar::showManagedWindow(QWidget* window) {
     if (!window) return;
-    window->setWindowOpacity(1.0);
+
+    if (window != m_settings && !m_anchorGeometry.isNull()) {
+        const QRect screen = QApplication::primaryScreen()->availableGeometry();
+        const int offset = qRound(Config::instance().floatingBallSize * 1.5);
+        const bool anchorLeft = m_anchorGeometry.center().x() < screen.center().x();
+        const int x = anchorLeft ? (screen.left() + offset)
+                                 : (screen.right() - window->width() - offset);
+        const int y = screen.center().y() - window->height() / 2;
+        window->move(qBound(screen.left() + 8, x, screen.right() - window->width() - 8),
+                     qBound(screen.top() + 8, y, screen.bottom() - window->height() - 8));
+    }
+
+    window->setWindowOpacity(0.0);
     window->show();
     window->raise();
     window->activateWindow();
+
+    auto* anim = new QPropertyAnimation(window, "windowOpacity", window);
+    anim->setDuration(qMax(140, Config::instance().animationDurationMs));
+    anim->setStartValue(0.0);
+    anim->setEndValue(1.0);
+    anim->setEasingCurve(QEasingCurve::OutCubic);
+    anim->start(QAbstractAnimation::DeleteWhenStopped);
 }
 
 void Sidebar::rebuildUI() {
@@ -98,7 +120,7 @@ void Sidebar::rebuildUI() {
         ordered.insert(orderIndex(b.target), b);
     }
     if (!ordered.contains(orderIndex("SETTINGS"))) {
-        ordered.insert(orderIndex("SETTINGS"), {"设置", "icon_settings.png", "func", "SETTINGS", true});
+        ordered.insert(orderIndex("SETTINGS"), {"设置", "icon_settings.svg", "func", "SETTINGS", true});
     }
 
     for (const auto& b : ordered) {
@@ -108,11 +130,16 @@ void Sidebar::rebuildUI() {
         const QIcon icon(Config::instance().resolveIconPath(b.iconPath));
         if (!icon.isNull()) {
             btn->setIcon(icon);
-            btn->setIconSize(QSize(30, 30));
+            btn->setIconSize(QSize(qMax(24, Config::instance().iconSize - 6), qMax(24, Config::instance().iconSize - 6)));
         } else {
             btn->setText(b.name.left(2));
         }
         connect(btn, &QPushButton::clicked, this, [this, b]() { onButtonTriggered(b.action, b.target); });
+        auto* shadow = new QGraphicsDropShadowEffect(btn);
+        shadow->setBlurRadius(14);
+        shadow->setOffset(0, 3);
+        shadow->setColor(QColor(0, 0, 0, 55));
+        btn->setGraphicsEffect(shadow);
         m_buttons.push_back(btn);
     }
 
@@ -174,12 +201,22 @@ void Sidebar::handleFunctionAction(const QString& target) {
         if (m_screenOff->isActive()) {
             m_screenOff->deactivate();
             m_attendanceSummary->setPinnedOnTop(false);
+            QTimer::singleShot(80, this, [this]() { m_attendanceSummary->setPinnedOnTop(false); });
             return;
         }
-        m_attendanceSummary->setPinnedOnTop(true);
-        m_attendanceSummary->show();
-        m_attendanceSummary->raise();
+
         m_screenOff->activate(inSelfStudyPeriod());
+        for (int delayMs = 2000; delayMs <= 20000; delayMs += 2000) {
+            QTimer::singleShot(delayMs, this, [this]() {
+                if (!m_screenOff->isActive()) {
+                    return;
+                }
+                m_attendanceSummary->setPinnedOnTop(true);
+                m_attendanceSummary->show();
+                m_attendanceSummary->raise();
+                m_attendanceSummary->activateWindow();
+            });
+        }
     } else if (target == "RANDOM_CALL") {
         m_randomCall->setWindowOpacity(1.0);
         m_randomCall->startAnim();
@@ -278,11 +315,10 @@ void Sidebar::refreshButtonLayout() {
     if (m_anchorGeometry.isNull()) return;
 
     const int btnSize = qMax(56, Config::instance().floatingBallSize - 4);
-    const QString btnStyle = QString("QPushButton{background:#f4f8ff;border:1px solid #d0dded;border-radius:%1px;font-size:14px;font-weight:700;color:#1f3550;min-height:%2px;}"
-                                    "QPushButton:hover{background:#edf5ff;border-color:#9eb9da;}"
-                                    "QPushButton:pressed{background:#deebfb;border-color:#84a4cc;}")
-                                .arg(btnSize / 2)
-                                .arg(btnSize);
+    const QString btnStyle = QString("QPushButton{background:#f7f9fc;border:1px solid #cfd6e4;border-radius:%1px;}"
+                                    "QPushButton:hover{background:#eef3fa;border-color:#9bb3d4;}"
+                                    "QPushButton:pressed{background:#e4ecf8;border-color:#89a5cc;}")
+                                .arg(btnSize / 2);
 
     const QPoint center = m_anchorGeometry.center() - geometry().topLeft();
     const int count = m_buttons.size();

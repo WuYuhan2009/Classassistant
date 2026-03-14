@@ -4,7 +4,9 @@
 #include <QCloseEvent>
 #include <QComboBox>
 #include <QDialog>
+#include <QDateTime>
 #include <QGroupBox>
+#include <QHash>
 #include <QJsonArray>
 #include <QLabel>
 #include <QLineEdit>
@@ -18,7 +20,6 @@
 #include <QTableWidget>
 #include <QTextEdit>
 #include <QTimer>
-#include <QTreeWidget>
 #include <QWidget>
 
 #include "../Utils.h"
@@ -90,6 +91,8 @@ private:
     QStringList m_history;
     int m_count = 0;
     bool m_running = false;
+    QDateTime m_rollStartAt;
+    QHash<QString, QDateTime> m_recentPickedAt;
 
     void toggleRolling();
     QString drawName() const;
@@ -207,6 +210,8 @@ private:
     QPushButton* m_exitButton;
     QTimer* m_tickTimer;
     bool m_fromSelfStudy = false;
+    QString m_cachedQuote;
+    bool m_quoteRequested = false;
 
     void refreshClockAndProgress();
     void loadDailyQuote();
@@ -273,7 +278,8 @@ protected:
     void closeEvent(QCloseEvent* event) override;
 
 private:
-    QTreeWidget* m_menuTree;
+    QListWidget* m_primaryMenu;
+    QListWidget* m_secondaryMenu;
     QStackedWidget* m_stacked;
     QSlider* m_floatingOpacity;
     QSlider* m_summaryWidth;

@@ -33,7 +33,7 @@ if(MSVC)
     set(CMAKE_CXX_FLAGS_DEBUG "/MDd /Ob0 /Od /RTC1 /FS /Z7" CACHE STRING "" FORCE)
 endif()
 
-project(ClassAssistant VERSION 1.0.0 LANGUAGES CXX)
+project(ClassFlow VERSION 2.0.1 LANGUAGES CXX)
 
 # ==============================
 # 基础设置
@@ -91,14 +91,14 @@ set(PROJECT_SOURCES
 # 创建可执行程序
 # WIN32 = GUI子系统（无黑框）
 # ==============================
-add_executable(ClassAssistant WIN32)
+add_executable(ClassFlow WIN32)
 
-target_sources(ClassAssistant PRIVATE ${PROJECT_SOURCES})
+target_sources(ClassFlow PRIVATE ${PROJECT_SOURCES})
 
 # ==============================
 # 链接 Qt
 # ==============================
-target_link_libraries(ClassAssistant PRIVATE
+target_link_libraries(ClassFlow PRIVATE
     Qt5::Core
     Qt5::Gui
     Qt5::Widgets
@@ -106,17 +106,17 @@ target_link_libraries(ClassAssistant PRIVATE
 )
 
 if(WIN32)
-    target_link_libraries(ClassAssistant PRIVATE Qt5::WinExtras)
+    target_link_libraries(ClassFlow PRIVATE Qt5::WinExtras)
 endif()
 
 # ==============================
 # MSVC 编译优化
 # ==============================
 if(MSVC)
-    target_compile_options(ClassAssistant PRIVATE /utf-8)
+    target_compile_options(ClassFlow PRIVATE /utf-8)
 
     # ⭐ 防止新SDK生成Win10子系统（Win7打不开的核心原因）
-    set_target_properties(ClassAssistant PROPERTIES
+    set_target_properties(ClassFlow PROPERTIES
         LINK_FLAGS "/SUBSYSTEM:WINDOWS,6.01"
     )
 endif()
@@ -125,3 +125,4 @@ endif()
 # 复制资源
 # ==============================
 file(COPY ${CMAKE_SOURCE_DIR}/assets DESTINATION ${CMAKE_BINARY_DIR})
+file(COPY ${CMAKE_SOURCE_DIR}/docs DESTINATION ${CMAKE_BINARY_DIR})

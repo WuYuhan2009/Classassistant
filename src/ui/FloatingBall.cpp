@@ -9,6 +9,7 @@
 #include <QPainter>
 #include <QScreen>
 #include <QTouchEvent>
+#include <QGraphicsDropShadowEffect>
 
 FloatingBall::FloatingBall(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
@@ -17,6 +18,11 @@ FloatingBall::FloatingBall(QWidget* parent) : QWidget(parent) {
     const int size = Config::instance().floatingBallSize;
     setFixedSize(size, size);
     setWindowOpacity(Config::instance().floatingOpacity / 100.0);
+    auto* shadow = new QGraphicsDropShadowEffect(this);
+    shadow->setBlurRadius(22);
+    shadow->setOffset(0, 4);
+    shadow->setColor(QColor(0, 0, 0, 95));
+    setGraphicsEffect(shadow);
     restoreSavedPosition();
 }
 
@@ -89,16 +95,22 @@ void FloatingBall::paintEvent(QPaintEvent* event) {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
 
-    const QRect outer(1, 1, width() - 2, height() - 2);
-    p.setPen(QPen(QColor(180, 188, 198), 1));
-    p.setBrush(QColor(250, 252, 255));
+    const QRectF outer(2, 2, width() - 4, height() - 4);
+    p.setPen(QPen(QColor(72, 72, 76, 185), 1.1));
+    p.setBrush(QColor(210, 210, 214, 220));
     p.drawEllipse(outer);
 
-    const int innerMargin = width() / 5;
-    const QRect inner(innerMargin, innerMargin, width() - innerMargin * 2, height() - innerMargin * 2);
+    const qreal ringInset = width() * 0.2;
+    const QRectF ring(outer.adjusted(ringInset, ringInset, -ringInset, -ringInset));
+    p.setPen(QPen(QColor(86, 88, 94, 215), 5));
+    p.setBrush(Qt::NoBrush);
+    p.drawEllipse(ring);
+
+    const qreal coreInset = width() * 0.34;
+    const QRectF core(outer.adjusted(coreInset, coreInset, -coreInset, -coreInset));
     p.setPen(Qt::NoPen);
-    p.setBrush(QColor(224, 232, 242));
-    p.drawEllipse(inner);
+    p.setBrush(QColor(245, 245, 247, 235));
+    p.drawEllipse(core);
 }
 
 void FloatingBall::mousePressEvent(QMouseEvent* e) {
