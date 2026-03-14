@@ -184,10 +184,7 @@ void Sidebar::handleFunctionAction(const QString& target) {
             m_attendanceSummary->raise();
             m_attendanceSummary->activateWindow();
         };
-        ensureAttendanceOnTop();
-        QTimer::singleShot(30, this, ensureAttendanceOnTop);
-        QTimer::singleShot(120, this, ensureAttendanceOnTop);
-        QTimer::singleShot(260, this, ensureAttendanceOnTop);
+        QTimer::singleShot(2000, this, ensureAttendanceOnTop);
     } else if (target == "RANDOM_CALL") {
         m_randomCall->setWindowOpacity(1.0);
         m_randomCall->startAnim();

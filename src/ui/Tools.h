@@ -206,6 +206,8 @@ private:
     QPushButton* m_exitButton;
     QTimer* m_tickTimer;
     bool m_fromSelfStudy = false;
+    QString m_cachedQuote;
+    bool m_quoteRequested = false;
 
     void refreshClockAndProgress();
     void loadDailyQuote();

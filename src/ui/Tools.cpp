@@ -270,8 +270,8 @@ QString sanitizeQuote(const QString& raw) {
     text.remove(QRegularExpression(R"([\"“”‘’《》<>\[\]()])"));
     text = text.trimmed();
     text.remove(QRegularExpression("\\s+"));
-    if (text.size() > 24) {
-        text = text.left(24);
+    if (text.size() > 30) {
+        text = text.left(30);
     }
     return text;
 }
@@ -279,36 +279,36 @@ QString sanitizeQuote(const QString& raw) {
 QString formatQuoteTwoLines(const QString& raw) {
     QString text = sanitizeQuote(raw);
     if (text.isEmpty()) {
-        return QStringLiteral("愿你今日专注\n稳步向前行");
+        return QStringLiteral("愿你今日专注\n稳步向前");
     }
     if (text.contains('|')) {
         QStringList parts = text.split('|', Qt::SkipEmptyParts);
         if (!parts.isEmpty()) {
-            QString a = parts.value(0).trimmed().left(12);
-            QString b = parts.value(1).trimmed().left(12);
+            QString a = parts.value(0).trimmed().left(15);
+            QString b = parts.value(1).trimmed().left(15);
             return b.isEmpty() ? a : (a + "\n" + b);
         }
     }
 
-    if (text.size() <= 12) return text;
+    if (text.size() <= 15) return text;
 
     const QList<QChar> punct = {QChar(u'，'), QChar(u'。'), QChar(u'；'), QChar(u'！'), QChar(u'？')};
     int breakPos = -1;
-    for (int i = 7; i <= qMin(12, text.size() - 1); ++i) {
+    for (int i = 9; i <= qMin(15, text.size() - 1); ++i) {
         if (punct.contains(text.at(i))) {
             breakPos = i + 1;
         }
     }
     if (breakPos < 0) {
         const int hash = qAbs(qHash(text));
-        breakPos = 8 + (hash % 5); // 8~12, 避免过于整齐
+        breakPos = 11 + (hash % 5); // 11~15, 避免过于整齐
     }
-    breakPos = qBound(1, breakPos, qMin(12, text.size()));
+    breakPos = qBound(1, breakPos, qMin(15, text.size()));
 
     QString line1 = text.left(breakPos).trimmed();
     QString line2 = text.mid(breakPos).trimmed();
-    if (line1.size() > 12) line1 = line1.left(12);
-    if (line2.size() > 12) line2 = line2.left(12);
+    if (line1.size() > 15) line1 = line1.left(15);
+    if (line2.size() > 15) line2 = line2.left(15);
     if (line2.isEmpty()) return line1;
     return line1 + "\n" + line2;
 }
@@ -316,7 +316,7 @@ QString formatQuoteTwoLines(const QString& raw) {
 
 
 ScreenOffOverlay::ScreenOffOverlay(QWidget* parent) : QWidget(parent) {
-    setWindowFlags(Qt::FramelessWindowHint | Qt::Window | Qt::Tool | Qt::WindowStaysOnTopHint);
+    setWindowFlags(Qt::FramelessWindowHint | Qt::Window | Qt::Tool);
     setAttribute(Qt::WA_StyledBackground, true);
     setStyleSheet("background:#000000;");
 
@@ -345,16 +345,17 @@ ScreenOffOverlay::ScreenOffOverlay(QWidget* parent) : QWidget(parent) {
     centerLayout->addWidget(m_remainingLabel, 0, Qt::AlignHCenter);
 
     m_quoteLabel = new QLabel("正在获取每日金句...");
-    m_quoteLabel->setWordWrap(true);
+    m_quoteLabel->setWordWrap(false);
     m_quoteLabel->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
-    m_quoteLabel->setStyleSheet("color:#f8fbff;font-size:31px;font-weight:800;line-height:1.35;");
-    m_quoteLabel->setMaximumWidth(640);
-    m_quoteLabel->setMinimumHeight(100);
+    m_quoteLabel->setStyleSheet("color:#f8fbff;font-size:42px;font-weight:800;line-height:1.25;");
+    m_quoteLabel->setMaximumWidth(1100);
+    m_quoteLabel->setMinimumHeight(120);
 
-    root->addStretch();
+    root->addStretch(1);
     root->addWidget(centerPack, 0, Qt::AlignHCenter);
+    root->addStretch(2);
     root->addWidget(m_quoteLabel, 0, Qt::AlignHCenter);
-    root->addStretch();
+    root->addStretch(1);
 
     auto* bottomRow = new QHBoxLayout;
     m_shutdownButton = new QPushButton("⏻ 关机");
@@ -382,6 +383,8 @@ ScreenOffOverlay::ScreenOffOverlay(QWidget* parent) : QWidget(parent) {
         QProcess::startDetached("shutdown", {"-h", "now"});
 #endif
     });
+    loadDailyQuote();
+
 }
 
 bool ScreenOffOverlay::isActive() const { return isVisible(); }
@@ -390,8 +393,18 @@ void ScreenOffOverlay::activate(bool fromSelfStudy) {
     const QRect screen = QApplication::primaryScreen()->geometry();
     setGeometry(screen);
     m_fromSelfStudy = fromSelfStudy;
+
+    const Qt::WindowFlags baseFlags = Qt::FramelessWindowHint | Qt::Window | Qt::Tool;
+    setWindowFlags(baseFlags | Qt::WindowStaysOnTopHint);
     show();
     raise();
+
+    QTimer::singleShot(250, this, [this, baseFlags]() {
+        if (!isVisible()) return;
+        setWindowFlags(baseFlags);
+        show();
+    });
+
     loadDailyQuote();
     refreshClockAndProgress();
     m_tickTimer->start(1000);
@@ -425,7 +438,7 @@ void ScreenOffOverlay::refreshClockAndProgress() {
     m_timeLabel->setText(QTime::currentTime().toString("HH:mm"));
 
     QDateTime st, ed;
-    const bool inStudy = m_fromSelfStudy && currentSelfStudyPeriod(&st, &ed);
+    const bool inStudy = currentSelfStudyPeriod(&st, &ed);
     m_progress->setVisible(inStudy);
     m_remainingLabel->setVisible(inStudy);
     if (inStudy) {
@@ -434,28 +447,40 @@ void ScreenOffOverlay::refreshClockAndProgress() {
         const int percent = total <= 0 ? 100 : qBound(0, static_cast<int>((done * 100) / total), 100);
         m_progress->setValue(percent);
         const qint64 left = qMax<qint64>(0, QDateTime::currentDateTime().secsTo(ed));
-        m_remainingLabel->setText(QString("剩余 %1 分 %2 秒").arg(left / 60).arg(left % 60));
+        const qint64 leftMin = (left + 59) / 60;
+        m_remainingLabel->setText(QString("还剩 %1 分钟").arg(leftMin));
     }
 }
 
 void ScreenOffOverlay::loadDailyQuote() {
     const auto& cfg = Config::instance();
     if (!cfg.screenOffShowQuote) {
-        m_quoteLabel->setText("" );
+        m_cachedQuote.clear();
+        m_quoteLabel->setText("");
         return;
     }
     if (cfg.siliconFlowApiKey.trimmed().isEmpty()) {
-        m_quoteLabel->setText("填写 API Key\n以获取每日金句");
+        m_cachedQuote = QStringLiteral("填写 API Key\n以获取每日金句");
+        m_quoteLabel->setText(m_cachedQuote);
         return;
     }
 
-    requestAiCompletion(this,
-                        "你是中文励志文案助手。输出必须适配课堂大屏。",
-                        "请输出一句每日金句，严格满足：最多两行；每行最多12个汉字；总字数不超过30字；可在语义停顿处用一个竖线|表示换行，不要为了对仗而过于工整。不要附加解释、序号和引号。",
-                        QJsonArray(),
-                        [this](const QString& out, bool) {
-                            m_quoteLabel->setText(formatQuoteTwoLines(out.trimmed().isEmpty() ? QString("愿你今日专注而有收获") : out));
-                        });
+    if (!m_quoteRequested) {
+        m_quoteRequested = true;
+        m_cachedQuote = QStringLiteral("正在生成每日金句...");
+        requestAiCompletion(this,
+                            "你是中文励志文案助手。输出必须适配课堂大屏。",
+                            "请输出一句每日金句，严格满足：最多两行；每行最多15个汉字；总字数不超过30字；可在语义停顿处用一个竖线|表示换行，不要为了对仗而过于工整。不要附加解释、序号和引号。",
+                            QJsonArray(),
+                            [this](const QString& out, bool) {
+                                m_cachedQuote = formatQuoteTwoLines(out.trimmed().isEmpty() ? QString("愿你今日专注而有收获") : out);
+                                if (isActive()) {
+                                    m_quoteLabel->setText(m_cachedQuote);
+                                }
+                            });
+    }
+
+    m_quoteLabel->setText(m_cachedQuote);
 }
 
 
