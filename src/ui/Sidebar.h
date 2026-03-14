@@ -8,7 +8,7 @@
 
 #include "Tools.h"
 
-class QToolButton;
+class QPushButton;
 class QEvent;
 class QFocusEvent;
 class QObject;
@@ -46,8 +46,8 @@ private:
     SettingsDialog* m_settings;
     ScreenOffOverlay* m_screenOff;
 
-    QList<QToolButton*> m_buttons;
-    QHash<QToolButton*, QPoint> m_buttonExpandedPos;
+    QList<QPushButton*> m_buttons;
+    QHash<QPushButton*, QPoint> m_buttonExpandedPos;
     QTimer m_idleTimer;
     QRect m_anchorGeometry;
     bool m_suppressToolHideOnce = false;

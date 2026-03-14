@@ -31,7 +31,7 @@ QString sidebarPanelStyle() {
     return "QWidget {"
            "background:rgba(255,255,255,242);"
            "border:1px solid #d9d9d9;"
-           "border-top-left-radius:22px;border-bottom-left-radius:22px;"
+           "border-top-left-radius:16px;border-bottom-left-radius:16px;"
            "}";
 }
 
@@ -39,7 +39,7 @@ QString sidebarButtonStyle() {
     return "QPushButton{"
            "background:rgba(255,255,255,0.92);"
            "border:1px solid #d3deec;"
-           "border-radius:18px;"
+           "border-radius:12px;"
            "font-size:20px;"
            "padding:6px;"
            "}"
@@ -64,7 +64,7 @@ QString trayMenuStyle() {
     return "QMenu{"
            "background:rgba(248,251,255,236);"
            "border:1px solid #cfdbeb;"
-           "border-radius:18px;"
+           "border-radius:12px;"
            "padding:8px;"
            "}"
            "QMenu::item{font-size:14px;color:#1f3248;padding:10px 14px;border-radius:10px;margin:3px 2px;min-height:34px;}"
@@ -73,40 +73,40 @@ QString trayMenuStyle() {
 }
 
 QString dialogPrimaryButtonStyle() {
-    return "QPushButton{background:#1677ff;border:1px solid #1677ff;border-radius:8px;font-weight:600;font-size:14px;padding:8px 12px;color:#ffffff;min-height:40px;}"
-           "QPushButton:hover{background:#4096ff;border-color:#4096ff;}"
-           "QPushButton:pressed{background:#0958d9;border-color:#0958d9;}";
+    return "QPushButton{background:#3d6fa8;border:1px solid #3d6fa8;border-radius:12px;font-weight:600;font-size:14px;padding:8px 12px;color:#ffffff;min-height:40px;}"
+           "QPushButton:hover{background:#4f80b7;border-color:#4f80b7;}"
+           "QPushButton:pressed{background:#325e91;border-color:#325e91;}";
 }
 
 QString dialogCardStyle() {
-    return "background:#ffffff;border:1px solid #dfe5ee;border-radius:18px;";
+    return "background:#ffffff;border:1px solid #dfe5ee;border-radius:12px;";
 }
 
 QString dialogChromeStyle() {
     return "QDialog{"
-           "background:#f5f7fa;"
+           "background:#f4f6f8;"
            "border:1px solid #d9d9d9;border-radius:12px;"
            "}"
            "QLabel{color:#223042;}"
            "QLineEdit,QTextEdit,QListWidget,QTreeWidget,QComboBox,QSpinBox,QTableWidget,QPlainTextEdit{"
-           "background:rgba(255,255,255,224);border:1px solid #d3dfef;border-radius:18px;padding:8px;}"
+           "background:rgba(255,255,255,224);border:1px solid #d3dfef;border-radius:12px;padding:8px;}"
            "QTreeWidget::item{height:30px;border-radius:10px;}"
            "QTreeWidget::item:selected{background:#e9f2ff;color:#1f4f8f;}"
            "QCheckBox{spacing:8px;}"
            "QSlider::groove:horizontal{height:6px;background:#dbe4ef;border-radius:3px;}"
            "QSlider::handle:horizontal{width:16px;margin:-5px 0;background:#ffffff;border:1px solid #9cb2ce;border-radius:8px;}"
-           "QGroupBox{font-weight:700;border:1px solid #dfe5ee;border-radius:18px;margin-top:10px;padding-top:12px;background:#ffffff;}"
+           "QGroupBox{font-weight:700;border:1px solid #dfe5ee;border-radius:12px;margin-top:10px;padding-top:12px;background:#ffffff;}"
            "QGroupBox::title{subcontrol-origin:margin;left:10px;padding:0 6px;}"
            "QScrollBar:vertical{background:transparent;width:10px;margin:2px;border-radius:5px;}"
            "QScrollBar::handle:vertical{background:#c8d8ec;min-height:20px;border-radius:5px;}"
            "QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{height:0;}"
-           "QPushButton{border-radius:18px;}"
+           "QPushButton{border-radius:12px;}"
            "QSpinBox::up-button,QSpinBox::down-button{width:22px;border-left:1px solid #d1deef;background:#f5f9ff;border-radius:8px;margin:2px;}"
            "QSpinBox::up-button:hover,QSpinBox::down-button:hover{background:#e8f2ff;}"
            "QSpinBox::up-arrow{image:none;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:7px solid #4f6f94;}"
            "QSpinBox::down-arrow{image:none;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:7px solid #4f6f94;}"
            "QListWidget::item,QTreeWidget::item{border-radius:10px;padding:6px;}"
-           "QFrame#DialogTitleBar{background:#ffffff;border:1px solid #d8e0eb;border-radius:18px;}"
+           "QFrame#DialogTitleBar{background:#ffffff;border:1px solid #d8e0eb;border-radius:12px;}"
            "QLabel#DialogTitleText{font-size:15px;font-weight:800;color:#1f3b5d;}"
            "QPushButton#DialogCloseBtn{font-size:15px;min-width:30px;max-width:30px;min-height:30px;max-height:30px;padding:0;border-radius:10px;}";
 }

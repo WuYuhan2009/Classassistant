@@ -82,7 +82,7 @@ int main(int argc, char* argv[]) {
     });
 
     auto* tray = new QSystemTrayIcon(&app);
-    QIcon trayIcon = loadNamedIcon("icon_tray.png");
+    QIcon trayIcon = loadNamedIcon("icon_tray.svg");
     if (trayIcon.isNull()) trayIcon = loadNamedIcon("icon_settings.svg");
     if (trayIcon.isNull()) trayIcon = QIcon::fromTheme("applications-education");
     if (trayIcon.isNull()) trayIcon = app.style()->standardIcon(QStyle::SP_ComputerIcon);

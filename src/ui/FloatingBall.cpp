@@ -89,16 +89,26 @@ void FloatingBall::paintEvent(QPaintEvent* event) {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
 
-    const QRect outer(1, 1, width() - 2, height() - 2);
-    p.setPen(QPen(QColor(180, 188, 198), 1));
-    p.setBrush(QColor(250, 252, 255));
-    p.drawEllipse(outer);
+    const QRectF r(2, 2, width() - 4, height() - 4);
+    QRadialGradient g(r.center(), r.width() / 2.0);
+    g.setColorAt(0.0, QColor(250, 250, 252, 235));
+    g.setColorAt(0.65, QColor(220, 224, 231, 228));
+    g.setColorAt(1.0, QColor(92, 98, 108, 225));
+    p.setPen(QPen(QColor(64, 69, 78, 180), 1.2));
+    p.setBrush(g);
+    p.drawEllipse(r);
 
-    const int innerMargin = width() / 5;
-    const QRect inner(innerMargin, innerMargin, width() - innerMargin * 2, height() - innerMargin * 2);
+    const qreal ringInset = width() * 0.22;
+    const QRectF ringRect(r.adjusted(ringInset, ringInset, -ringInset, -ringInset));
+    p.setPen(QPen(QColor(70, 74, 82, 210), 5));
+    p.setBrush(Qt::NoBrush);
+    p.drawEllipse(ringRect);
+
+    const qreal coreInset = width() * 0.34;
+    const QRectF coreRect(r.adjusted(coreInset, coreInset, -coreInset, -coreInset));
     p.setPen(Qt::NoPen);
-    p.setBrush(QColor(224, 232, 242));
-    p.drawEllipse(inner);
+    p.setBrush(QColor(245, 247, 251, 235));
+    p.drawEllipse(coreRect);
 }
 
 void FloatingBall::mousePressEvent(QMouseEvent* e) {

@@ -14,7 +14,6 @@
 #include <QProcess>
 #include <QPropertyAnimation>
 #include <QPushButton>
-#include <QToolButton>
 #include <QScreen>
 #include <QSet>
 #include <QTime>
@@ -104,17 +103,17 @@ void Sidebar::rebuildUI() {
     }
 
     for (const auto& b : ordered) {
-        auto* btn = new QToolButton(this);
+        auto* btn = new QPushButton(this);
         btn->setToolTip(b.name);
         btn->setCursor(Qt::PointingHandCursor);
         const QIcon icon(Config::instance().resolveIconPath(b.iconPath));
-        btn->setText(b.name);
-        btn->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
         if (!icon.isNull()) {
             btn->setIcon(icon);
-            btn->setIconSize(QSize(qMax(20, Config::instance().iconSize - 12), qMax(20, Config::instance().iconSize - 12)));
+            btn->setIconSize(QSize(qMax(24, Config::instance().iconSize - 6), qMax(24, Config::instance().iconSize - 6)));
+        } else {
+            btn->setText(b.name.left(2));
         }
-        connect(btn, &QToolButton::clicked, this, [this, b]() { onButtonTriggered(b.action, b.target); });
+        connect(btn, &QPushButton::clicked, this, [this, b]() { onButtonTriggered(b.action, b.target); });
         m_buttons.push_back(btn);
     }
 
@@ -246,7 +245,7 @@ void Sidebar::resizeEvent(QResizeEvent* event) {
 
 void Sidebar::mousePressEvent(QMouseEvent* event) {
     QWidget* child = childAt(event->pos());
-    if (qobject_cast<QToolButton*>(child) == nullptr) {
+    if (qobject_cast<QPushButton*>(child) == nullptr) {
         collapseMenu();
         event->accept();
         return;
@@ -289,11 +288,11 @@ void Sidebar::onButtonTriggered(const QString& action, const QString& target) {
 void Sidebar::refreshButtonLayout() {
     if (m_anchorGeometry.isNull()) return;
 
-    const int btnSize = qMax(88, Config::instance().floatingBallSize + 20);
-    const QString btnStyle = QString("QToolButton{background:#ffffff;border:1px solid #d9d9d9;border-radius:%1px;font-size:12px;font-weight:600;color:#262626;padding:4px 6px;}"
-                                    "QToolButton:hover{background:#f5f5f5;border-color:#91caff;}"
-                                    "QToolButton:pressed{background:#e6f4ff;border-color:#1677ff;}")
-                                .arg(14);
+    const int btnSize = qMax(56, Config::instance().floatingBallSize - 4);
+    const QString btnStyle = QString("QPushButton{background:#f7f9fc;border:1px solid #cfd6e4;border-radius:%1px;}"
+                                    "QPushButton:hover{background:#eef3fa;border-color:#9bb3d4;}"
+                                    "QPushButton:pressed{background:#e4ecf8;border-color:#89a5cc;}")
+                                .arg(btnSize / 2);
 
     const QPoint center = m_anchorGeometry.center() - geometry().topLeft();
     const int count = m_buttons.size();
