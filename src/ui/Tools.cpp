@@ -760,7 +760,7 @@ RandomCallDialog::RandomCallDialog(QWidget* parent) : QDialog(parent) {
     m_nameLabel->setStyleSheet("font-size:42px;font-weight:900;background:#ffffff;border:1px solid #d8e0eb;border-radius:18px;padding:8px;");
     layout->addWidget(m_nameLabel);
 
-    m_hintLabel = new QLabel("点击“开始点名”后滚动，点击“停止并确定”锁定结果。");
+    m_hintLabel = new QLabel("点击“开始点名”后滚动，5秒后自动停止并锁定结果。");
     m_hintLabel->setWordWrap(true);
     layout->addWidget(m_hintLabel);
 
@@ -807,7 +807,7 @@ RandomCallDialog::RandomCallDialog(QWidget* parent) : QDialog(parent) {
             m_timer->stop();
             m_running = false;
             m_nameLabel->setText("无名单");
-            m_toggleButton->setText("开始点名");
+            m_toggleButton->setText("开始点名（自动5秒）");
             return;
         }
         m_nameLabel->setText(drawName());
@@ -818,14 +818,27 @@ RandomCallDialog::RandomCallDialog(QWidget* parent) : QDialog(parent) {
         if (m_count > 34) {
             m_timer->setInterval(180);
         }
+        if (m_rollStartAt.isValid() && m_rollStartAt.secsTo(QDateTime::currentDateTime()) >= 5) {
+            toggleRolling();
+        }
     });
 }
 
 QString RandomCallDialog::drawName() const {
-    const QStringList& pool = (Config::instance().randomNoRepeat && !m_remainingList.isEmpty()) ? m_remainingList : m_list;
-    if (pool.isEmpty()) {
+    const QStringList& basePool = (Config::instance().randomNoRepeat && !m_remainingList.isEmpty()) ? m_remainingList : m_list;
+    if (basePool.isEmpty()) {
         return "无名单";
     }
+
+    QStringList available;
+    const QDateTime now = QDateTime::currentDateTime();
+    for (const QString& name : basePool) {
+        const QDateTime last = m_recentPickedAt.value(name);
+        if (!last.isValid() || last.secsTo(now) >= 15 * 60) {
+            available.append(name);
+        }
+    }
+    const QStringList& pool = available.isEmpty() ? basePool : available;
     return pool[QRandomGenerator::global()->bounded(pool.size())];
 }
 
@@ -837,8 +850,9 @@ void RandomCallDialog::toggleRolling() {
         }
         m_count = 0;
         m_running = true;
-        m_toggleButton->setText("停止并确定");
-        m_hintLabel->setText("点名进行中...");
+        m_toggleButton->setText("点名中...");
+        m_hintLabel->setText("点名进行中，5秒后自动停止...");
+        m_rollStartAt = QDateTime::currentDateTime();
         m_timer->start(45);
         return;
     }
@@ -846,9 +860,10 @@ void RandomCallDialog::toggleRolling() {
     m_timer->stop();
     m_running = false;
     const QString selected = m_nameLabel->text().trimmed();
-    m_toggleButton->setText("再来一次");
+    m_toggleButton->setText("再来一次（自动5秒）");
 
     if (!selected.isEmpty() && selected != "无名单") {
+        m_recentPickedAt.insert(selected, QDateTime::currentDateTime());
         m_history.prepend(selected);
         while (m_history.size() > Config::instance().randomHistorySize) {
             m_history.removeLast();
@@ -874,7 +889,7 @@ void RandomCallDialog::startAnim() {
     m_remainingList = m_list;
     m_running = false;
     m_timer->stop();
-    m_toggleButton->setText("开始点名");
+    m_toggleButton->setText("开始点名（自动5秒）");
     m_historyLabel->setText(m_history.isEmpty() ? "最近点名：暂无" : QString("最近点名：%1").arg(m_history.join("、")));
     if (m_list.isEmpty()) {
         m_nameLabel->setText("无名单");
@@ -1541,8 +1556,8 @@ FirstRunWizard::FirstRunWizard(QWidget* parent) : QDialog(parent) {
 
     auto* modelRow = new QHBoxLayout;
     modelRow->addWidget(new QLabel("模型"));
-    m_aiModelEdit = new QLineEdit(Config::instance().siliconFlowModel);
-    m_aiModelEdit->setPlaceholderText("deepseek-ai/DeepSeek-V3.2");
+    m_aiModelEdit = new QLineEdit(Config::instance().siliconFlowModel.isEmpty() ? QString("Qwen/Qwen3-8B") : Config::instance().siliconFlowModel);
+    m_aiModelEdit->setPlaceholderText("Qwen/Qwen3-8B");
     modelRow->addWidget(m_aiModelEdit, 1);
     aiLayout->addLayout(modelRow);
 
@@ -1608,7 +1623,7 @@ void FirstRunWizard::finishSetup() {
     cfg.allowExternalLinks = m_allowExternalLinks->isChecked();
     cfg.seewoPath = m_seewoPathEdit->text().trimmed();
     cfg.siliconFlowApiKey = m_aiApiKeyEdit->text().trimmed();
-    cfg.siliconFlowModel = m_aiModelEdit->text().trimmed().isEmpty() ? QString("deepseek-ai/DeepSeek-V3.2") : m_aiModelEdit->text().trimmed();
+    cfg.siliconFlowModel = m_aiModelEdit->text().trimmed().isEmpty() ? QString("Qwen/Qwen3-8B") : m_aiModelEdit->text().trimmed();
     cfg.siliconFlowEndpoint = m_aiEndpointEdit->text().trimmed().isEmpty() ? QString("https://api.siliconflow.cn/v1/chat/completions")
                                                                             : m_aiEndpointEdit->text().trimmed();
     cfg.firstRunCompleted = true;
@@ -1850,7 +1865,7 @@ QWidget* SettingsDialog::createPageClassTools() {
     });
 
     auto* idleRow = new QHBoxLayout;
-    idleRow->addWidget(new QLabel("自习无操作自动息屏阈值（秒）"));
+    idleRow->addWidget(new QLabel("自习息屏触发预留阈值（秒，当前按时段自动触发）"));
     m_selfStudyIdleSeconds = new QSpinBox;
     m_selfStudyIdleSeconds->setRange(60, 900);
     m_selfStudyIdleSeconds->setSingleStep(30);
@@ -1943,7 +1958,7 @@ QWidget* SettingsDialog::createPageSafety() {
     auto* modelRow = new QHBoxLayout;
     modelRow->addWidget(new QLabel("模型"));
     m_aiModelEdit = new QLineEdit;
-    m_aiModelEdit->setPlaceholderText("deepseek-ai/DeepSeek-V3.2");
+    m_aiModelEdit->setPlaceholderText("Qwen/Qwen3-8B");
     modelRow->addWidget(m_aiModelEdit, 1);
     aiLayout->addLayout(modelRow);
 
@@ -1970,12 +1985,16 @@ QWidget* SettingsDialog::createPageAbout() {
     auto* layout = new QVBoxLayout(page);
     layout->setSpacing(14);
 
+    const QString bgPath = Config::instance().resolveIconPath("bg_cloudbrook.svg");
+    auto* hero = new QLabel;
+    hero->setFixedHeight(132);
+    hero->setAlignment(Qt::AlignCenter);
+    hero->setText("ClassFlow 2.0 · 云溪 (Cloudbrook)");
+    hero->setStyleSheet(QString("QLabel{font-size:24px;font-weight:900;color:#1d3f67;border:1px solid #d9e6f7;border-radius:12px;background-image:url(%1);background-position:center;background-repeat:no-repeat;background-color:#f0f5ff;}").arg(bgPath));
+    layout->addWidget(hero);
+
     auto* aboutBox = new QGroupBox("关于 ClassFlow");
     auto* aboutLayout = new QVBoxLayout(aboutBox);
-
-    auto* majorName = new QLabel("ClassFlow 2.0 · 云溪 (Cloudbrook)");
-    majorName->setStyleSheet("font-size:20px;font-weight:900;color:#1d3f67;");
-    aboutLayout->addWidget(majorName);
 
     auto* desc = new QLabel("ClassFlow 是一个面向班级课堂的轻量助手，支持离线优先与 AI 驱动增强。");
     desc->setWordWrap(true);
@@ -1995,7 +2014,7 @@ QWidget* SettingsDialog::createPageAbout() {
     connect(updateBtn, &QPushButton::clicked, this, &SettingsDialog::checkForUpdates);
     aboutLayout->addWidget(updateBtn);
 
-    m_updateInfoLabel = new QLabel("当前版本：" + QCoreApplication::applicationVersion());
+    m_updateInfoLabel = new QLabel("更新状态：尚未检查");
     m_updateInfoLabel->setWordWrap(true);
     aboutLayout->addWidget(m_updateInfoLabel);
 
@@ -2232,7 +2251,7 @@ void SettingsDialog::saveData() {
     cfg.scoreTeamBName = m_scoreTeamBName->text().trimmed().isEmpty() ? QString("蓝队") : m_scoreTeamBName->text().trimmed();
     cfg.seewoPath = m_seewoPathEdit->text().trimmed();
     cfg.siliconFlowApiKey = m_apiKeyEdit->text().trimmed();
-    cfg.siliconFlowModel = m_aiModelEdit->text().trimmed().isEmpty() ? QString("deepseek-ai/DeepSeek-V3.2") : m_aiModelEdit->text().trimmed();
+    cfg.siliconFlowModel = m_aiModelEdit->text().trimmed().isEmpty() ? QString("Qwen/Qwen3-8B") : m_aiModelEdit->text().trimmed();
     cfg.siliconFlowEndpoint = m_aiEndpointEdit->text().trimmed().isEmpty() ? QString("https://api.siliconflow.cn/v1/chat/completions")
                                                                             : m_aiEndpointEdit->text().trimmed();
     cfg.selfStudyPeriods.clear();

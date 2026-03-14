@@ -148,7 +148,7 @@ void Config::load() {
     firstRunCompleted = root["firstRunCompleted"].toBool(false);
     classNote = root["classNote"].toString();
     siliconFlowApiKey = root["siliconFlowApiKey"].toString().trimmed();
-    siliconFlowModel = root["siliconFlowModel"].toString("deepseek-ai/DeepSeek-V3.2").trimmed();
+    siliconFlowModel = root["siliconFlowModel"].toString("Qwen/Qwen3-8B").trimmed();
     siliconFlowEndpoint = root["siliconFlowEndpoint"].toString("https://api.siliconflow.cn/v1/chat/completions").trimmed();
     floatingBallX = root["floatingBallX"].toInt(-1);
     floatingBallY = root["floatingBallY"].toInt(-1);
@@ -225,7 +225,7 @@ void Config::load() {
     }
     if (selfStudyPeriods.isEmpty()) { selfStudyPeriods = QStringList() << QStringLiteral("19:00-19:45"); }
     if (siliconFlowModel.isEmpty()) {
-        siliconFlowModel = "deepseek-ai/DeepSeek-V3.2";
+        siliconFlowModel = "Qwen/Qwen3-8B";
     }
     if (siliconFlowEndpoint.isEmpty()) {
         siliconFlowEndpoint = "https://api.siliconflow.cn/v1/chat/completions";

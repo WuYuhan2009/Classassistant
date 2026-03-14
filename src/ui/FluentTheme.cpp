@@ -29,8 +29,8 @@ void styleFileDialog(QFileDialog& dialog) {
 
 QString sidebarPanelStyle() {
     return "QWidget {"
-           "background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 rgba(248,251,255,248),stop:1 rgba(242,247,255,246));"
-           "border:1px solid rgba(192,210,232,190);"
+           "background:rgba(255,255,255,242);"
+           "border:1px solid #d9d9d9;"
            "border-top-left-radius:22px;border-bottom-left-radius:22px;"
            "}";
 }
@@ -73,9 +73,9 @@ QString trayMenuStyle() {
 }
 
 QString dialogPrimaryButtonStyle() {
-    return "QPushButton{background:#ffffff;border:1px solid #d8e0eb;border-radius:18px;font-weight:600;font-size:14px;padding:8px 12px;color:#1f2d3d;min-height:40px;}"
-           "QPushButton:hover{background:#f4f8fd;}"
-           "QPushButton:pressed{background:#e8f0fb;}";
+    return "QPushButton{background:#1677ff;border:1px solid #1677ff;border-radius:8px;font-weight:600;font-size:14px;padding:8px 12px;color:#ffffff;min-height:40px;}"
+           "QPushButton:hover{background:#4096ff;border-color:#4096ff;}"
+           "QPushButton:pressed{background:#0958d9;border-color:#0958d9;}";
 }
 
 QString dialogCardStyle() {
@@ -84,8 +84,8 @@ QString dialogCardStyle() {
 
 QString dialogChromeStyle() {
     return "QDialog{"
-           "background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 rgba(243,249,255,238),stop:0.55 rgba(235,244,255,230),stop:1 rgba(255,241,248,224));"
-           "border:1px solid rgba(199,215,236,210);border-radius:18px;"
+           "background:#f5f7fa;"
+           "border:1px solid #d9d9d9;border-radius:12px;"
            "}"
            "QLabel{color:#223042;}"
            "QLineEdit,QTextEdit,QListWidget,QTreeWidget,QComboBox,QSpinBox,QTableWidget,QPlainTextEdit{"

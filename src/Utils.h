@@ -58,7 +58,7 @@ public:
     QString seewoPath;
     QString classNote;
     QString siliconFlowApiKey;
-    QString siliconFlowModel = "deepseek-ai/DeepSeek-V3.2";
+    QString siliconFlowModel = "Qwen/Qwen3-8B";
     QString siliconFlowEndpoint = "https://api.siliconflow.cn/v1/chat/completions";
     int floatingBallX = -1;
     int floatingBallY = -1;

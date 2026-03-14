@@ -14,11 +14,13 @@
 #include <QProcess>
 #include <QPropertyAnimation>
 #include <QPushButton>
+#include <QToolButton>
 #include <QScreen>
 #include <QSet>
 #include <QTime>
 #include <QUrl>
 #include <QtMath>
+#include <functional>
 
 namespace {
 const QStringList kOrderedTargets = {"SEEWO", "ATTENDANCE", "SCREEN_OFF", "RANDOM_CALL", "AI_ASSISTANT", "SETTINGS"};
@@ -102,17 +104,17 @@ void Sidebar::rebuildUI() {
     }
 
     for (const auto& b : ordered) {
-        auto* btn = new QPushButton(this);
+        auto* btn = new QToolButton(this);
         btn->setToolTip(b.name);
         btn->setCursor(Qt::PointingHandCursor);
         const QIcon icon(Config::instance().resolveIconPath(b.iconPath));
+        btn->setText(b.name);
+        btn->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
         if (!icon.isNull()) {
             btn->setIcon(icon);
-            btn->setIconSize(QSize(30, 30));
-        } else {
-            btn->setText(b.name.left(2));
+            btn->setIconSize(QSize(qMax(20, Config::instance().iconSize - 12), qMax(20, Config::instance().iconSize - 12)));
         }
-        connect(btn, &QPushButton::clicked, this, [this, b]() { onButtonTriggered(b.action, b.target); });
+        connect(btn, &QToolButton::clicked, this, [this, b]() { onButtonTriggered(b.action, b.target); });
         m_buttons.push_back(btn);
     }
 
@@ -177,14 +179,19 @@ void Sidebar::handleFunctionAction(const QString& target) {
             QTimer::singleShot(80, this, [this]() { m_attendanceSummary->setPinnedOnTop(false); });
             return;
         }
+
         m_screenOff->activate(inSelfStudyPeriod());
-        auto ensureAttendanceOnTop = [this]() {
-            m_attendanceSummary->setPinnedOnTop(true);
-            m_attendanceSummary->show();
-            m_attendanceSummary->raise();
-            m_attendanceSummary->activateWindow();
-        };
-        QTimer::singleShot(2000, this, ensureAttendanceOnTop);
+        for (int delayMs = 2000; delayMs <= 20000; delayMs += 2000) {
+            QTimer::singleShot(delayMs, this, [this]() {
+                if (!m_screenOff->isActive()) {
+                    return;
+                }
+                m_attendanceSummary->setPinnedOnTop(true);
+                m_attendanceSummary->show();
+                m_attendanceSummary->raise();
+                m_attendanceSummary->activateWindow();
+            });
+        }
     } else if (target == "RANDOM_CALL") {
         m_randomCall->setWindowOpacity(1.0);
         m_randomCall->startAnim();
@@ -239,7 +246,7 @@ void Sidebar::resizeEvent(QResizeEvent* event) {
 
 void Sidebar::mousePressEvent(QMouseEvent* event) {
     QWidget* child = childAt(event->pos());
-    if (qobject_cast<QPushButton*>(child) == nullptr) {
+    if (qobject_cast<QToolButton*>(child) == nullptr) {
         collapseMenu();
         event->accept();
         return;
@@ -282,12 +289,11 @@ void Sidebar::onButtonTriggered(const QString& action, const QString& target) {
 void Sidebar::refreshButtonLayout() {
     if (m_anchorGeometry.isNull()) return;
 
-    const int btnSize = qMax(56, Config::instance().floatingBallSize - 4);
-    const QString btnStyle = QString("QPushButton{background:#f4f8ff;border:1px solid #d0dded;border-radius:%1px;font-size:14px;font-weight:700;color:#1f3550;min-height:%2px;}"
-                                    "QPushButton:hover{background:#edf5ff;border-color:#9eb9da;}"
-                                    "QPushButton:pressed{background:#deebfb;border-color:#84a4cc;}")
-                                .arg(btnSize / 2)
-                                .arg(btnSize);
+    const int btnSize = qMax(88, Config::instance().floatingBallSize + 20);
+    const QString btnStyle = QString("QToolButton{background:#ffffff;border:1px solid #d9d9d9;border-radius:%1px;font-size:12px;font-weight:600;color:#262626;padding:4px 6px;}"
+                                    "QToolButton:hover{background:#f5f5f5;border-color:#91caff;}"
+                                    "QToolButton:pressed{background:#e6f4ff;border-color:#1677ff;}")
+                                .arg(14);
 
     const QPoint center = m_anchorGeometry.center() - geometry().topLeft();
     const int count = m_buttons.size();

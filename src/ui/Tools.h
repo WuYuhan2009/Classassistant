@@ -4,7 +4,9 @@
 #include <QCloseEvent>
 #include <QComboBox>
 #include <QDialog>
+#include <QDateTime>
 #include <QGroupBox>
+#include <QHash>
 #include <QJsonArray>
 #include <QLabel>
 #include <QLineEdit>
@@ -89,6 +91,8 @@ private:
     QStringList m_history;
     int m_count = 0;
     bool m_running = false;
+    QDateTime m_rollStartAt;
+    QHash<QString, QDateTime> m_recentPickedAt;
 
     void toggleRolling();
     QString drawName() const;
